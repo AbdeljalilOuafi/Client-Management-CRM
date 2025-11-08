@@ -22,10 +22,22 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env.str('SECRET_KEY', default='django-insecure-development-key-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env.bool('DEBUG', default=False)
+# Handle DEBUG properly - convert string to boolean
+# Try django-environ first, then fall back to os.getenv
+try:
+    DEBUG_ENV = env.str('DEBUG', default='False')
+except:
+    DEBUG_ENV = os.getenv('DEBUG', 'False')
+    
+DEBUG = DEBUG_ENV.lower() in ('true', '1', 'yes', 'on')
 
 # Parse ALLOWED_HOSTS - handles both comma-separated string and empty values
-ALLOWED_HOSTS = [host.strip() for host in env.str('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',') if host.strip()]
+try:
+    ALLOWED_HOSTS_STR = env.str('ALLOWED_HOSTS', default='localhost,127.0.0.1')
+except:
+    ALLOWED_HOSTS_STR = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1')
+    
+ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STR.split(',') if host.strip()]
 
 # Production Security Settings
 if not DEBUG:

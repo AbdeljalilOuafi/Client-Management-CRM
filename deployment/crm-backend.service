@@ -9,6 +9,8 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/Client-Management-CRM
 Environment="PATH=/home/ubuntu/Client-Management-CRM/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
+Environment="DEBUG=False"
+Environment="ALLOWED_HOSTS=backend.onsync-test.xyz,www.backend.onsync-test.xyz"
 EnvironmentFile=-/home/ubuntu/Client-Management-CRM/.env
 ExecStart=/home/ubuntu/Client-Management-CRM/venv/bin/gunicorn \
           --workers 3 \
