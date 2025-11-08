@@ -19,12 +19,13 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY', default='django-insecure-development-key-change-in-production')
+SECRET_KEY = env.str('SECRET_KEY', default='django-insecure-development-key-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG')
+DEBUG = env.bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+# Parse ALLOWED_HOSTS - handles both comma-separated string and empty values
+ALLOWED_HOSTS = [host.strip() for host in env.str('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',') if host.strip()]
 
 # Production Security Settings
 if not DEBUG:
@@ -168,10 +169,11 @@ REST_FRAMEWORK = {
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only for development
 
 # Parse CORS allowed origins from environment variable
-CORS_ALLOWED_ORIGINS = env.list(
+cors_origins_str = env.str(
     'CORS_ALLOWED_ORIGINS',
-    default=['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173']
+    default='http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173'
 )
+CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_str.split(',') if origin.strip()]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_METHODS = [
@@ -200,7 +202,7 @@ LOGGING = {
     'loggers': {
         'django': {
             'handlers': ['console'],
-            'level': env('DJANGO_LOG_LEVEL', default='INFO'),
+            'level': env.str('DJANGO_LOG_LEVEL', default='INFO'),
             'propagate': False,
         },
         'api': {
