@@ -310,6 +310,7 @@ class Payment(models.Model):
     ]
 
     id = models.CharField(max_length=255, primary_key=True)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     client_package = models.ForeignKey(
         ClientPackage, on_delete=models.SET_NULL, null=True, blank=True,
         db_column='client_package_id'
@@ -343,6 +344,7 @@ class Installment(models.Model):
     ]
 
     id = models.AutoField(primary_key=True)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     client = models.ForeignKey(Client, on_delete=models.CASCADE, db_column='client_id')
     invoice_id = models.CharField(max_length=255, null=True, blank=True)
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True)

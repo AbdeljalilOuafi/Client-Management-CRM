@@ -287,8 +287,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class ClientViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Clients.
-    All authenticated users can view clients in their account.
-    Only admins can create/update/delete clients.
+    All authenticated users can perform CRUD operations on clients in their account.
     """
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
@@ -314,10 +313,7 @@ class ClientViewSet(viewsets.ModelViewSet):
         
         return queryset.select_related('account', 'coach', 'closer', 'setter')
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsSuperAdminOrAdmin()]
-        return super().get_permissions()
+    # Removed get_permissions - all authenticated account members can CRUD clients
 
     @action(detail=False, methods=['get'])
     def my_clients(self, request):
@@ -362,8 +358,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 class PackageViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Packages.
-    All authenticated users can view packages.
-    Only admins can create/update/delete packages.
+    All authenticated users can perform CRUD operations on packages.
     """
     queryset = Package.objects.all()
     serializer_class = PackageSerializer
@@ -373,15 +368,13 @@ class PackageViewSet(viewsets.ModelViewSet):
     ordering_fields = ['package_name']
     ordering = ['package_name']
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsSuperAdminOrAdmin()]
-        return super().get_permissions()
+    # Removed get_permissions - all authenticated users can CRUD packages
 
 
 class ClientPackageViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Client Packages.
+    All authenticated users can perform CRUD operations on client packages in their account.
     """
     queryset = ClientPackage.objects.all()
     serializer_class = ClientPackageSerializer
@@ -398,16 +391,13 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
             client__account_id=self.request.user.account_id
         ).select_related('client', 'package')
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsSuperAdminOrAdmin()]
-        return super().get_permissions()
+    # Removed get_permissions - all authenticated account members can CRUD client packages
 
 
-class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
+class PaymentViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for viewing Payments.
-    Read-only for all authenticated users.
+    ViewSet for managing Payments.
+    All authenticated users can perform CRUD operations on payments in their account.
     """
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
@@ -419,10 +409,10 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-payment_date']
 
     def get_queryset(self):
-        # Users can only see payments in their account
+        # Users can only see payments in their account - direct account_id lookup
         return Payment.objects.filter(
-            client__account_id=self.request.user.account_id
-        ).select_related('client', 'client_package')
+            account_id=self.request.user.account_id
+        ).select_related('client', 'client_package', 'account')
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -449,6 +439,7 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 class InstallmentViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Installments.
+    All authenticated users can perform CRUD operations on installments in their account.
     """
     queryset = Installment.objects.all()
     serializer_class = InstallmentSerializer
@@ -460,15 +451,12 @@ class InstallmentViewSet(viewsets.ModelViewSet):
     ordering = ['-schedule_date']
 
     def get_queryset(self):
-        # Users can only see installments in their account
+        # Users can only see installments in their account - direct account_id lookup
         return Installment.objects.filter(
-            client__account_id=self.request.user.account_id
-        ).select_related('client')
+            account_id=self.request.user.account_id
+        ).select_related('client', 'account')
 
-    def get_permissions(self):
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAuthenticated(), IsSuperAdminOrAdmin()]
-        return super().get_permissions()
+    # Removed get_permissions - all authenticated account members can CRUD installments
 
 
 class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):

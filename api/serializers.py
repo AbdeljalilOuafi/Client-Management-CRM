@@ -200,34 +200,54 @@ class ClientPackageSerializer(serializers.ModelSerializer):
 
 class PaymentSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
+    account_name = serializers.CharField(source='account.name', read_only=True)
     
     class Meta:
         model = Payment
         fields = [
-            'id', 'client_package', 'client', 'client_name', 'stripe_customer_id',
-            'amount', 'currency', 'exchange_rate', 'native_account_currency',
-            'status', 'failure_reason', 'payment_date'
+            'id', 'account', 'account_name', 'client_package', 'client', 'client_name',
+            'stripe_customer_id', 'amount', 'currency', 'exchange_rate',
+            'native_account_currency', 'status', 'failure_reason', 'payment_date'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'account_name', 'client_name']
+        extra_kwargs = {
+            'account': {'required': False}
+        }
 
     def get_client_name(self, obj):
         return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()
+    
+    def create(self, validated_data):
+        # Automatically set account from client if not provided
+        if 'account' not in validated_data and 'client' in validated_data:
+            validated_data['account'] = validated_data['client'].account
+        return super().create(validated_data)
 
 
 class InstallmentSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
+    account_name = serializers.CharField(source='account.name', read_only=True)
     
     class Meta:
         model = Installment
         fields = [
-            'id', 'date_created', 'date_updated', 'schedule_date', 'amount',
-            'currency', 'stripe_account', 'stripe_customer_id', 'status',
-            'instalment_number', 'client', 'client_name', 'invoice_id'
+            'id', 'account', 'account_name', 'client', 'client_name', 'invoice_id',
+            'stripe_customer_id', 'stripe_account', 'amount', 'currency', 'status',
+            'instalment_number', 'schedule_date', 'date_created', 'date_updated'
         ]
-        read_only_fields = ['id', 'date_created', 'date_updated']
+        read_only_fields = ['id', 'account_name', 'client_name', 'date_created', 'date_updated']
+        extra_kwargs = {
+            'account': {'required': False}
+        }
 
     def get_client_name(self, obj):
         return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()
+    
+    def create(self, validated_data):
+        # Automatically set account from client if not provided
+        if 'account' not in validated_data and 'client' in validated_data:
+            validated_data['account'] = validated_data['client'].account
+        return super().create(validated_data)
 
 
 class StripeCustomerSerializer(serializers.ModelSerializer):

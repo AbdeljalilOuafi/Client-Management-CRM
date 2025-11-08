@@ -171,8 +171,14 @@
   },
   "active": "6e55cd92a5d0054b",
   "lastOpenFiles": [
-    "api/__pycache__/views.cpython-312.pyc.135570778735024",
+    "api/__pycache__/serializers.cpython-312.pyc.126485651567280",
+    "api/__pycache__/models.cpython-312.pyc.126485668345776",
     "supabase/migrations/20251106_add_django_auth_fields.sql",
+    "test_employee_permissions.sh",
+    "PERMISSIONS_UPDATE.md",
+    "api/__pycache__/models.cpython-312.pyc.129983132432304",
+    "supabase/migrations/20251106094000_add_account_to_payments_instalments.sql",
+    "api/__pycache__/views.cpython-312.pyc.135570778735024",
     "supabase/migrations/20251106091600_add_django_auth_fields.sql",
     "supabase/migrations/20251106093000_add_employee_permissions_tables.sql",
     "supabase/migrations/20251106_fix_authtoken_fk.sql"
