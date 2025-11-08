@@ -7,8 +7,9 @@ Type=simple
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/Client-Management-CRM
-Environment="PATH=/home/ubuntu/Client-Management-CRM/venv/bin"
-EnvironmentFile=/home/ubuntu/Client-Management-CRM/.env
+Environment="PATH=/home/ubuntu/Client-Management-CRM/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=-/home/ubuntu/Client-Management-CRM/.env
 ExecStart=/home/ubuntu/Client-Management-CRM/venv/bin/gunicorn \
           --workers 3 \
           --bind 0.0.0.0:8002 \
