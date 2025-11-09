@@ -100,7 +100,7 @@ export const AddWidgetDialog = ({
     if (option) {
       setTitle(option.label);
       if (widgetType === "chart" && 'type' in option) {
-        setChartType(option.type);
+        setChartType(option.type as ChartType);
       }
     }
   };
