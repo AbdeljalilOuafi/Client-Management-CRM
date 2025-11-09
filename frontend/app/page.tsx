@@ -1,0 +1,575 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Search, Users, LayoutDashboard, CreditCard, ArrowUp, ArrowDown, Maximize2, Edit2, Save, DollarSign, UserPlus, Filter, CheckCircle2, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AddClientForm } from "@/components/AddClientForm";
+import { listClients, getClientStatistics, updateClient, Client } from "@/lib/api/clients";
+import { AuthGuard } from "@/components/AuthGuard";
+import { Skeleton } from "@/components/ui/skeleton";
+import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+
+const columnDefinitions = [
+  { id: "id", label: "ID", default: true },
+  { id: "first_name", label: "First Name", default: true },
+  { id: "last_name", label: "Last Name", default: true },
+  { id: "email", label: "Email", default: true },
+  { id: "status", label: "Status", default: true },
+  { id: "address", label: "Address", default: false },
+  { id: "instagram_handle", label: "Instagram", default: false },
+  { id: "ghl_id", label: "GHL ID", default: false },
+  { id: "client_start_date", label: "Start Date", default: true },
+  { id: "client_end_date", label: "End Date", default: false },
+  { id: "dob", label: "Date of Birth", default: false },
+  { id: "country", label: "Country", default: true },
+  { id: "state", label: "State", default: false },
+  { id: "currency", label: "Currency", default: false },
+  { id: "gender", label: "Gender", default: false },
+  { id: "lead_origin", label: "Lead Origin", default: false },
+  { id: "notice_given", label: "Notice Given", default: false },
+  { id: "no_more_payments", label: "No More Payments", default: false },
+];
+
+export default function Index() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortColumn, setSortColumn] = useState<string>("id");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
+    columnDefinitions.reduce((acc, col) => ({ ...acc, [col.id]: col.default }), {})
+  );
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedClient, setEditedClient] = useState<Client | null>(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [statistics, setStatistics] = useState<any>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStatistics();
+  }, []);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchClients();
+    }, 300);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [statusFilter, searchQuery]);
+
+  const fetchClients = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await listClients({
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        search: searchQuery || undefined,
+      });
+      setClients(response.results);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to fetch clients";
+      setError(errorMsg);
+      toast({
+        title: "Error",
+        description: errorMsg,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStatistics = async () => {
+    try {
+      setStatsLoading(true);
+      const stats = await getClientStatistics();
+      setStatistics(stats);
+    } catch (err) {
+      console.error("Error fetching statistics:", err);
+      toast({
+        title: "Error",
+        description: "Failed to fetch statistics",
+        variant: "destructive",
+      });
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const sortedClients = [...clients].sort((a, b) => {
+    const aValue = a[sortColumn as keyof Client];
+    const bValue = b[sortColumn as keyof Client];
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+    if (typeof aValue === "number" && typeof bValue === "number") {
+      return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
+    }
+    const stringA = String(aValue).toLowerCase();
+    const stringB = String(bValue).toLowerCase();
+    return sortDirection === "asc" ? stringA.localeCompare(stringB) : stringB.localeCompare(stringA);
+  });
+
+  const handleSaveClient = async () => {
+    if (!editedClient) return;
+    try {
+      await updateClient(editedClient.id, editedClient);
+      setSelectedClient(editedClient);
+      setIsEditing(false);
+      fetchClients();
+      fetchStatistics();
+      toast({
+        title: "Success",
+        description: "Client updated successfully",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to update client",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <AuthGuard>
+      <div className="min-h-screen bg-background">
+      <nav className="border-b bg-card">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-8">
+              <h1 className="text-2xl font-bold">OnSync Manager</h1>
+              <div className="flex gap-6">
+                <Button variant="ghost" className="gap-2 border-b-2 border-primary">
+                  <Users className="h-4 w-4" />
+                  Clients
+                </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/payments')}>
+                  <CreditCard className="h-4 w-4" />
+                  Payments
+                </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/instalments')}>
+                  <DollarSign className="h-4 w-4" />
+                  Instalments
+                </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/dashboard')}>
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <main className="container mx-auto px-6 py-8">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold">Client Management</h2>
+              <p className="text-muted-foreground">Manage and track your clients</p>
+            </div>
+            <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
+                  <UserPlus className="h-4 w-4" />
+                  Add New Client
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl">Add New Client</DialogTitle>
+                </DialogHeader>
+                <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {statsLoading ? (
+              <>
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="shadow-sm hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-2">
+                      <Skeleton className="h-4 w-24" />
+                    </CardHeader>
+                    <CardContent>
+                      <Skeleton className="h-8 w-16" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            ) : statistics ? (
+              <>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0 }}
+                >
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-primary">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Total Clients
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <motion.div
+                        className="text-3xl font-bold"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5, delay: 0.1 }}
+                      >
+                        {statistics.total_clients}
+                      </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.1 }}
+                >
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-green-500">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        Active Clients
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <motion.div
+                        className="text-3xl font-bold text-green-600"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5, delay: 0.2 }}
+                      >
+                        {statistics.active_clients}
+                      </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.2 }}
+                >
+                  <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-gray-400">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Users className="h-4 w-4 text-gray-600" />
+                        Inactive Clients
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <motion.div
+                        className="text-3xl font-bold text-gray-600"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5, delay: 0.3 }}
+                      >
+                        {statistics.inactive_clients}
+                      </motion.div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </>
+            ) : null}
+          </div>
+
+          <Card className="shadow-sm">
+            <CardContent className="pt-6">
+              <div className="flex gap-4 items-center flex-wrap">
+                <div className="relative flex-1 min-w-[250px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search clients..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 shadow-sm"
+                  />
+                </div>
+                <div className="flex gap-2 items-center">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[180px] bg-background shadow-sm">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="all">All Clients</SelectItem>
+                      <SelectItem value="active">Active Clients</SelectItem>
+                      <SelectItem value="inactive">Inactive Clients</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Select value={sortColumn} onValueChange={setSortColumn}>
+                  <SelectTrigger className="w-[180px] bg-background shadow-sm">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    {columnDefinitions.map((column) => (
+                      <SelectItem key={column.id} value={column.id}>{column.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => setSortDirection(prev => prev === "asc" ? "desc" : "asc")}
+                  className="shadow-sm hover:shadow-md transition-all"
+                >
+                  {sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="shadow-sm hover:shadow-md transition-all">Columns</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[200px] bg-background z-50">
+                    {columnDefinitions.map((column) => (
+                      <DropdownMenuCheckboxItem
+                        key={column.id}
+                        checked={visibleColumns[column.id]}
+                        onCheckedChange={(checked) => setVisibleColumns((prev) => ({ ...prev, [column.id]: checked }))}
+                      >
+                        {column.label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </CardContent>
+          </Card>
+
+          {loading ? (
+            <Card className="shadow-sm">
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="flex items-center gap-4">
+                      <Skeleton className="h-10 w-10 rounded" />
+                      <Skeleton className="h-10 flex-1" />
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="shadow-sm overflow-hidden">
+              <Table>
+                <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-12">View</TableHead>
+                    {visibleColumns.id && <TableHead>ID</TableHead>}
+                    {visibleColumns.first_name && <TableHead>First Name</TableHead>}
+                    {visibleColumns.last_name && <TableHead>Last Name</TableHead>}
+                    {visibleColumns.email && <TableHead>Email</TableHead>}
+                    {visibleColumns.status && <TableHead>Status</TableHead>}
+                    {visibleColumns.address && <TableHead>Address</TableHead>}
+                    {visibleColumns.instagram_handle && <TableHead>Instagram</TableHead>}
+                    {visibleColumns.ghl_id && <TableHead>GHL ID</TableHead>}
+                    {visibleColumns.client_start_date && <TableHead>Start Date</TableHead>}
+                    {visibleColumns.client_end_date && <TableHead>End Date</TableHead>}
+                    {visibleColumns.dob && <TableHead>Date of Birth</TableHead>}
+                    {visibleColumns.country && <TableHead>Country</TableHead>}
+                    {visibleColumns.state && <TableHead>State</TableHead>}
+                    {visibleColumns.currency && <TableHead>Currency</TableHead>}
+                    {visibleColumns.gender && <TableHead>Gender</TableHead>}
+                    {visibleColumns.lead_origin && <TableHead>Lead Origin</TableHead>}
+                    {visibleColumns.notice_given && <TableHead>Notice Given</TableHead>}
+                    {visibleColumns.no_more_payments && <TableHead>No More Payments</TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedClients.length === 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={Object.values(visibleColumns).filter(Boolean).length + 1} className="text-center py-16">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="rounded-full bg-muted p-6">
+                            <Users className="h-12 w-12 text-muted-foreground" />
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="text-lg font-semibold">No clients found</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {searchQuery || statusFilter !== "all" 
+                                ? "Try adjusting your search or filter criteria" 
+                                : "Get started by adding your first client"}
+                            </p>
+                          </div>
+                          {!searchQuery && statusFilter === "all" && (
+                            <Button onClick={() => setAddClientOpen(true)} className="gap-2">
+                              <UserPlus className="h-4 w-4" />
+                              Add Your First Client
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    sortedClients.map((client, index) => (
+                      <TableRow 
+                        key={client.id}
+                        className={`transition-colors hover:bg-muted/50 ${index % 2 === 0 ? 'bg-background' : 'bg-muted/20'}`}
+                      >
+                        <TableCell>
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedClient(client)}>
+                            <Maximize2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                        {visibleColumns.id && <TableCell className="font-medium">{client.id}</TableCell>}
+                        {visibleColumns.first_name && <TableCell>{client.first_name}</TableCell>}
+                        {visibleColumns.last_name && <TableCell>{client.last_name || "-"}</TableCell>}
+                        {visibleColumns.email && <TableCell>{client.email}</TableCell>}
+                        {visibleColumns.status && <TableCell><Badge variant={client.status === 'active' ? 'success' : 'secondary'}>{client.status}</Badge></TableCell>}
+                        {visibleColumns.address && <TableCell>{client.address || "-"}</TableCell>}
+                        {visibleColumns.instagram_handle && <TableCell>{client.instagram_handle || "-"}</TableCell>}
+                        {visibleColumns.ghl_id && <TableCell>{client.ghl_id || "-"}</TableCell>}
+                        {visibleColumns.client_start_date && <TableCell>{client.client_start_date || "-"}</TableCell>}
+                        {visibleColumns.client_end_date && <TableCell>{client.client_end_date || "-"}</TableCell>}
+                        {visibleColumns.dob && <TableCell>{client.dob || "-"}</TableCell>}
+                        {visibleColumns.country && <TableCell>{client.country || "-"}</TableCell>}
+                        {visibleColumns.state && <TableCell>{client.state || "-"}</TableCell>}
+                        {visibleColumns.currency && <TableCell>{client.currency || "-"}</TableCell>}
+                        {visibleColumns.gender && <TableCell>{client.gender || "-"}</TableCell>}
+                        {visibleColumns.lead_origin && <TableCell>{client.lead_origin || "-"}</TableCell>}
+                        {visibleColumns.notice_given && <TableCell>{client.notice_given ? "Yes" : "No"}</TableCell>}
+                        {visibleColumns.no_more_payments && <TableCell>{client.no_more_payments ? "Yes" : "No"}</TableCell>}
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
+
+          <div className="flex gap-4 text-sm text-muted-foreground">
+            <span>Showing: {sortedClients.length} clients</span>
+          </div>
+        </div>
+      </main>
+
+      <Dialog open={!!selectedClient} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedClient(null);
+          setIsEditing(false);
+          setEditedClient(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center justify-between">
+              <span>Client Details</span>
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <Button onClick={() => { if (selectedClient) { setEditedClient({ ...selectedClient }); setIsEditing(true); } }} size="sm" variant="outline">
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                ) : (
+                  <>
+                    <Button onClick={handleSaveClient} size="sm">
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </Button>
+                    <Button onClick={() => { setEditedClient(null); setIsEditing(false); }} size="sm" variant="outline">
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          {selectedClient && (
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">First Name</Label>
+                    {isEditing && editedClient ? (
+                      <Input value={editedClient.first_name} onChange={(e) => setEditedClient({ ...editedClient, first_name: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{selectedClient.first_name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Last Name</Label>
+                    {isEditing && editedClient ? (
+                      <Input value={editedClient.last_name || ""} onChange={(e) => setEditedClient({ ...editedClient, last_name: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{selectedClient.last_name || "-"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Email</Label>
+                    {isEditing && editedClient ? (
+                      <Input type="email" value={editedClient.email} onChange={(e) => setEditedClient({ ...editedClient, email: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{selectedClient.email}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    {isEditing && editedClient ? (
+                      <Select value={editedClient.status} onValueChange={(value) => setEditedClient({ ...editedClient, status: value as "active" | "inactive" })}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant={selectedClient.status === 'active' ? 'success' : 'secondary'}>{selectedClient.status}</Badge>
+                    )}
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Address</Label>
+                    {isEditing && editedClient ? (
+                      <Input value={editedClient.address || ""} onChange={(e) => setEditedClient({ ...editedClient, address: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{selectedClient.address || "-"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Country</Label>
+                    {isEditing && editedClient ? (
+                      <Input value={editedClient.country || ""} onChange={(e) => setEditedClient({ ...editedClient, country: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{selectedClient.country || "-"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">State</Label>
+                    {isEditing && editedClient ? (
+                      <Input value={editedClient.state || ""} onChange={(e) => setEditedClient({ ...editedClient, state: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{selectedClient.state || "-"}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      </div>
+    </AuthGuard>
+  );
+}
