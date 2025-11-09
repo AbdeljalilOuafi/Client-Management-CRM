@@ -1,0 +1,1501 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ChevronRight, Search, Users, LayoutDashboard, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, Maximize2, Edit2, Save, DollarSign } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { AddClientForm } from "@/components/AddClientForm";
+import { listClients, getClientStatistics, updateClient, Client, ClientsResponse, ClientStatistics } from "@/lib/api/clients";
+
+// Client data will be fetched from backend API
+
+// Clients will be fetched from backend API
+    no_more_payments: false,
+    payment_amount: 199.00,
+    notice_given: false,
+    wedding_date: null,
+    day_of_month_payment: 20,
+    number_months_paid: 4,
+    monthly_or_pif: "Monthly",
+    country: "USA",
+    state: "CA",
+    ghl_id: "GHL002",
+    cta_lead_origin: "Website",
+    app_legacy: false,
+    app_legacy_start_date: null,
+    app_legacy_next_payment_date: null,
+    app_legacy_end_date: null,
+    app_legacy_no_months: null,
+    native_currency: "USD",
+    closer: "Jane Doe",
+    gender: "Female",
+    stripe_customer_id: "cus_234567",
+    mamo_pay_id: null,
+    setter: "Sarah Lee",
+    minimum_term: 6
+  },
+  {
+    client_id: "CL003",
+    first_name: "Michael",
+    last_name: "Brown",
+    email: "m.brown@email.com",
+    phone: "+1 (555) 345-6789",
+    start_date: "2023-09-10",
+    end_date: "2024-03-10",
+    package_type: "Elite Coaching",
+    package_start_date: "2023-09-10",
+    status: "inactive",
+    coach_name: "Sarah Johnson",
+    address: "789 Pine Rd, Chicago, IL 60601",
+    payment_method: "Stripe",
+    next_payment_date: null,
+    no_months: 6,
+    latest_payment_amount: 399.00,
+    monthly_calls: 8,
+    dob: "1988-12-03",
+    instagram: "@mbrown",
+    latest_payment_date: "2024-02-10",
+    stop_client_link: "https://stop.link/CL003",
+    no_more_payments: true,
+    payment_amount: 399.00,
+    notice_given: true,
+    wedding_date: null,
+    day_of_month_payment: 10,
+    number_months_paid: 6,
+    monthly_or_pif: "PIF",
+    country: "USA",
+    state: "IL",
+    ghl_id: "GHL003",
+    cta_lead_origin: "Referral",
+    app_legacy: true,
+    app_legacy_start_date: "2023-03-10",
+    app_legacy_next_payment_date: "2023-09-10",
+    app_legacy_end_date: "2023-09-10",
+    app_legacy_no_months: 6,
+    native_currency: "USD",
+    closer: "Robert Smith",
+    gender: "Male",
+    stripe_customer_id: "cus_345678",
+    mamo_pay_id: null,
+    setter: "Tom Wilson",
+    minimum_term: 6
+  },
+  {
+    client_id: "CL004",
+    first_name: "Sophia",
+    last_name: "Davis",
+    email: "sophia.davis@email.com",
+    phone: "+1 (555) 456-7890",
+    start_date: "2024-02-01",
+    end_date: "2024-08-01",
+    package_type: "Premium Training",
+    package_start_date: "2024-02-01",
+    status: "active",
+    coach_name: "Mike Chen",
+    address: "321 Elm St, Houston, TX 77001",
+    payment_method: "Stripe",
+    next_payment_date: "2024-04-01",
+    no_months: 6,
+    latest_payment_amount: 299.00,
+    monthly_calls: 4,
+    dob: "1995-03-18",
+    instagram: "@sophiadavis",
+    latest_payment_date: "2024-03-01",
+    stop_client_link: "https://stop.link/CL004",
+    no_more_payments: false,
+    payment_amount: 299.00,
+    notice_given: false,
+    wedding_date: "2024-11-15",
+    day_of_month_payment: 1,
+    number_months_paid: 1,
+    monthly_or_pif: "Monthly",
+    country: "USA",
+    state: "TX",
+    ghl_id: "GHL004",
+    cta_lead_origin: "Facebook Ad",
+    app_legacy: false,
+    app_legacy_start_date: null,
+    app_legacy_next_payment_date: null,
+    app_legacy_end_date: null,
+    app_legacy_no_months: null,
+    native_currency: "USD",
+    closer: "Jane Doe",
+    gender: "Female",
+    stripe_customer_id: "cus_456789",
+    mamo_pay_id: null,
+    setter: "Sarah Lee",
+    minimum_term: 6
+  },
+  {
+    client_id: "CL005",
+    first_name: "James",
+    last_name: "Wilson",
+    email: "james.w@email.com",
+    phone: "+1 (555) 567-8901",
+    start_date: "2023-12-05",
+    end_date: "2024-06-05",
+    package_type: "Standard Plan",
+    package_start_date: "2023-12-05",
+    status: "active",
+    coach_name: "Sarah Johnson",
+    address: "654 Maple Dr, Phoenix, AZ 85001",
+    payment_method: "Mamo Pay",
+    next_payment_date: "2024-04-05",
+    no_months: 6,
+    latest_payment_amount: 199.00,
+    monthly_calls: 2,
+    dob: "1993-07-30",
+    instagram: "@jameswilson",
+    latest_payment_date: "2024-03-05",
+    stop_client_link: "https://stop.link/CL005",
+    no_more_payments: false,
+    payment_amount: 199.00,
+    notice_given: false,
+    wedding_date: null,
+    day_of_month_payment: 5,
+    number_months_paid: 3,
+    monthly_or_pif: "Monthly",
+    country: "UAE",
+    state: "Dubai",
+    ghl_id: "GHL005",
+    cta_lead_origin: "Instagram Ad",
+    app_legacy: false,
+    app_legacy_start_date: null,
+    app_legacy_next_payment_date: null,
+    app_legacy_end_date: null,
+    app_legacy_no_months: null,
+    native_currency: "AED",
+    closer: "Robert Smith",
+    gender: "Male",
+    stripe_customer_id: null,
+    mamo_pay_id: "mamo_567890",
+    setter: "Tom Wilson",
+    minimum_term: 6
+  }
+];
+
+const columnDefinitions = [
+  { id: "client_id", label: "Client ID", default: true },
+  { id: "first_name", label: "First Name", default: false },
+  { id: "last_name", label: "Last Name", default: false },
+  { id: "full_name", label: "Full Name", default: true },
+  { id: "email", label: "Email", default: true },
+  { id: "phone", label: "Phone", default: true },
+  { id: "payment_method", label: "Payment Method", default: false },
+  { id: "start_date", label: "Start Date", default: false },
+  { id: "next_payment_date", label: "Next Payment Date", default: false },
+  { id: "no_months", label: "No. Months", default: false },
+  { id: "package_type", label: "Package Type", default: true },
+  { id: "ltv", label: "LTV", default: true },
+  { id: "status", label: "Status", default: true },
+  { id: "coach_name", label: "Coach", default: true },
+  { id: "end_date", label: "End Date", default: false },
+  { id: "latest_payment_amount", label: "Latest Payment Amount", default: false },
+  { id: "monthly_calls", label: "Monthly Calls", default: false },
+  { id: "address", label: "Address", default: false },
+  { id: "dob", label: "Date of Birth", default: false },
+  { id: "instagram", label: "Instagram", default: false },
+  { id: "latest_payment_date", label: "Latest Payment Date", default: false },
+  { id: "stop_client_link", label: "Stop Client Link", default: false },
+  { id: "no_more_payments", label: "No More Payments", default: false },
+  { id: "payment_amount", label: "Payment Amount", default: false },
+  { id: "notice_given", label: "Notice Given", default: false },
+  { id: "wedding_date", label: "Wedding Date", default: false },
+  { id: "day_of_month_payment", label: "Day of Month for Payment", default: false },
+  { id: "number_months_paid", label: "Number of Months Paid", default: false },
+  { id: "monthly_or_pif", label: "Monthly or PIF", default: false },
+  { id: "country", label: "Country", default: false },
+  { id: "state", label: "State", default: false },
+  { id: "ghl_id", label: "GHL ID", default: false },
+  { id: "cta_lead_origin", label: "CTA/Lead Origin", default: false },
+  { id: "app_legacy", label: "App Legacy", default: false },
+  { id: "app_legacy_start_date", label: "App Legacy Start Date", default: false },
+  { id: "app_legacy_next_payment_date", label: "App Legacy Next Payment Date", default: false },
+  { id: "app_legacy_end_date", label: "App Legacy End Date", default: false },
+  { id: "app_legacy_no_months", label: "App Legacy No. Months", default: false },
+  { id: "native_currency", label: "Native Currency", default: false },
+  { id: "closer", label: "Closer", default: false },
+  { id: "gender", label: "Male/Female", default: false },
+  { id: "stripe_customer_id", label: "Stripe Customer ID", default: false },
+  { id: "mamo_pay_id", label: "Mamo Pay ID", default: false },
+  { id: "setter", label: "Setter", default: false },
+  { id: "minimum_term", label: "Minimum Term", default: false },
+];
+
+const Index = () => {
+  const router = useRouter();
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortColumn, setSortColumn] = useState<string>("client_id");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
+    columnDefinitions.reduce((acc, col) => ({ ...acc, [col.id]: col.default }), {})
+  );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<typeof dummyClients[0] | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedClient, setEditedClient] = useState<typeof dummyClients[0] | null>(null);
+  const [statusChangeOpen, setStatusChangeOpen] = useState(false);
+  const [statusChangeType, setStatusChangeType] = useState<"stop" | "pause" | "package_change" | null>(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [employees, setEmployees] = useState<Array<{ id: string; name: string }>>([]);
+  const [filters, setFilters] = useState<Record<string, any>>({
+    status: [],
+    coach: "",
+    ltv_min: "",
+    ltv_max: "",
+    start_date_from: "",
+    start_date_to: "",
+    end_date_from: "",
+    end_date_to: "",
+    package_type: [],
+    payment_method: [],
+    country: "",
+    monthly_or_pif: [],
+    closer: "",
+    setter: "",
+  });
+
+  // Fetch employees on mount
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (data && !error) {
+        setEmployees(data);
+      }
+    };
+    
+    fetchEmployees();
+  }, []);
+
+  // Calculate LTV for each client
+  const calculateLTV = (clientId: string) => {
+    return dummyPayments
+      .filter(payment => payment.client_id === clientId && payment.status === "completed")
+      .reduce((total, payment) => total + payment.amount, 0);
+  };
+
+  const filteredClients = dummyClients.filter(client => {
+    const matchesStatus = statusFilter === "all" || client.status === statusFilter;
+    const matchesSearch = 
+      client.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.client_id.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+
+  // Sort the filtered clients
+  const sortedClients = [...filteredClients].sort((a, b) => {
+    let aValue: any;
+    let bValue: any;
+
+    // Get values based on sort column
+    if (sortColumn === "full_name") {
+      aValue = `${a.first_name} ${a.last_name}`;
+      bValue = `${b.first_name} ${b.last_name}`;
+    } else if (sortColumn === "ltv") {
+      aValue = calculateLTV(a.client_id);
+      bValue = calculateLTV(b.client_id);
+    } else {
+      aValue = a[sortColumn as keyof typeof a];
+      bValue = b[sortColumn as keyof typeof b];
+    }
+
+    // Handle null/undefined values
+    if (aValue == null) aValue = "";
+    if (bValue == null) bValue = "";
+
+    // Compare values
+    if (typeof aValue === "number" && typeof bValue === "number") {
+      return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
+    }
+    
+    const stringA = String(aValue).toLowerCase();
+    const stringB = String(bValue).toLowerCase();
+    
+    if (sortDirection === "asc") {
+      return stringA.localeCompare(stringB);
+    } else {
+      return stringB.localeCompare(stringA);
+    }
+  });
+
+  const toggleSortDirection = () => {
+    setSortDirection(prev => prev === "asc" ? "desc" : "asc");
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      status: [],
+      coach: "",
+      ltv_min: "",
+      ltv_max: "",
+      start_date_from: "",
+      start_date_to: "",
+      end_date_from: "",
+      end_date_to: "",
+      package_type: [],
+      payment_method: [],
+      country: "",
+      monthly_or_pif: [],
+      closer: "",
+      setter: "",
+    });
+  };
+
+  const activeFiltersCount = Object.entries(filters).filter(([key, value]) => {
+    if (Array.isArray(value)) return value.length > 0;
+    return value !== "";
+  }).length;
+
+  const toggleArrayFilter = (filterKey: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [filterKey]: prev[filterKey].includes(value)
+        ? prev[filterKey].filter((v: string) => v !== value)
+        : [...prev[filterKey], value]
+    }));
+  };
+
+  const handleEditClient = () => {
+    if (selectedClient) {
+      setEditedClient({ ...selectedClient });
+      setIsEditing(true);
+    }
+  };
+
+  const handleSaveClient = () => {
+    // In a real app, this would save to backend
+    console.log("Saving client:", editedClient);
+    setSelectedClient(editedClient);
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedClient(null);
+    setIsEditing(false);
+  };
+
+  const updateEditedField = (field: string, value: any) => {
+    if (editedClient) {
+      setEditedClient({ ...editedClient, [field]: value });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Navigation */}
+      <nav className="border-b bg-card">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-8">
+              <h1 className="text-2xl font-bold">FitCoach Manager</h1>
+              <div className="flex gap-6">
+                <Button variant="ghost" className="gap-2 border-b-2 border-primary">
+                  <Users className="h-4 w-4" />
+                  Clients
+                </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/payments')}>
+                  <CreditCard className="h-4 w-4" />
+                  Payments
+                </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/instalments')}>
+                  <DollarSign className="h-4 w-4" />
+                  Instalments
+                </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/dashboard')}>
+                  <LayoutDashboard className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">Coach Portal</span>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-6 py-8">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-3xl font-bold">Client Management</h2>
+              <p className="text-muted-foreground">Manage and track your fitness coaching clients</p>
+            </div>
+            <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
+              <DialogTrigger asChild>
+                <Button>Add New Client</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Add New Client</DialogTitle>
+                </DialogHeader>
+                <AddClientForm onSuccess={() => setAddClientOpen(false)} />
+              </DialogContent>
+            </Dialog>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="flex gap-4 items-center flex-wrap">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search clients..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] bg-background">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="all">All Clients</SelectItem>
+                <SelectItem value="active">Active Clients</SelectItem>
+                <SelectItem value="inactive">Inactive Clients</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortColumn} onValueChange={setSortColumn}>
+              <SelectTrigger className="w-[180px] bg-background">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50 max-h-[300px]">
+                {columnDefinitions.map((column) => (
+                  <SelectItem key={column.id} value={column.id}>
+                    {column.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button 
+              variant="outline" 
+              size="icon"
+              onClick={toggleSortDirection}
+              title={sortDirection === "asc" ? "Ascending" : "Descending"}
+            >
+              {sortDirection === "asc" ? (
+                <ArrowUp className="h-4 w-4" />
+              ) : (
+                <ArrowDown className="h-4 w-4" />
+              )}
+            </Button>
+            <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="relative">
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filters
+                  {activeFiltersCount > 0 && (
+                    <Badge className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center" variant="default">
+                      {activeFiltersCount}
+                    </Badge>
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center justify-between">
+                    <span>Filter Clients</span>
+                    <Button variant="ghost" size="sm" onClick={clearFilters}>
+                      Clear All
+                    </Button>
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6 py-4">
+                  {/* Status Filter */}
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {["active", "inactive", "paused"].map((status) => (
+                        <Button
+                          key={status}
+                          variant={filters.status.includes(status) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleArrayFilter("status", status)}
+                        >
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Coach Filter */}
+                  <div className="space-y-2">
+                    <Label htmlFor="coach-filter">Coach Name</Label>
+                    <Input
+                      id="coach-filter"
+                      placeholder="Search by coach name..."
+                      value={filters.coach}
+                      onChange={(e) => setFilters(prev => ({ ...prev, coach: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* LTV Range */}
+                  <div className="space-y-2">
+                    <Label>LTV Range</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Input
+                          type="number"
+                          placeholder="Min"
+                          value={filters.ltv_min}
+                          onChange={(e) => setFilters(prev => ({ ...prev, ltv_min: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="number"
+                          placeholder="Max"
+                          value={filters.ltv_max}
+                          onChange={(e) => setFilters(prev => ({ ...prev, ltv_max: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Start Date Range */}
+                  <div className="space-y-2">
+                    <Label>Start Date Range</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Input
+                          type="date"
+                          value={filters.start_date_from}
+                          onChange={(e) => setFilters(prev => ({ ...prev, start_date_from: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="date"
+                          value={filters.start_date_to}
+                          onChange={(e) => setFilters(prev => ({ ...prev, start_date_to: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* End Date Range */}
+                  <div className="space-y-2">
+                    <Label>End Date Range</Label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Input
+                          type="date"
+                          value={filters.end_date_from}
+                          onChange={(e) => setFilters(prev => ({ ...prev, end_date_from: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="date"
+                          value={filters.end_date_to}
+                          onChange={(e) => setFilters(prev => ({ ...prev, end_date_to: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Package Type Filter */}
+                  <div className="space-y-2">
+                    <Label>Package Type</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Premium", "Standard", "Basic", "Elite"].map((type) => (
+                        <Button
+                          key={type}
+                          variant={filters.package_type.includes(type) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleArrayFilter("package_type", type)}
+                        >
+                          {type}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Payment Method Filter */}
+                  <div className="space-y-2">
+                    <Label>Payment Method</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Credit Card", "Bank Transfer", "PayPal", "Stripe"].map((method) => (
+                        <Button
+                          key={method}
+                          variant={filters.payment_method.includes(method) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleArrayFilter("payment_method", method)}
+                        >
+                          {method}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Monthly or PIF Filter */}
+                  <div className="space-y-2">
+                    <Label>Payment Plan</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {["Monthly", "PIF"].map((plan) => (
+                        <Button
+                          key={plan}
+                          variant={filters.monthly_or_pif.includes(plan) ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => toggleArrayFilter("monthly_or_pif", plan)}
+                        >
+                          {plan}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Country Filter */}
+                  <div className="space-y-2">
+                    <Label htmlFor="country-filter">Country</Label>
+                    <Input
+                      id="country-filter"
+                      placeholder="Search by country..."
+                      value={filters.country}
+                      onChange={(e) => setFilters(prev => ({ ...prev, country: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* Closer Filter */}
+                  <div className="space-y-2">
+                    <Label htmlFor="closer-filter">Closer</Label>
+                    <Select value={filters.closer} onValueChange={(value) => setFilters(prev => ({ ...prev, closer: value }))}>
+                      <SelectTrigger id="closer-filter">
+                        <SelectValue placeholder="Select closer..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Closers</SelectItem>
+                        {employees.map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Setter Filter */}
+                  <div className="space-y-2">
+                    <Label htmlFor="setter-filter">Setter</Label>
+                    <Select value={filters.setter} onValueChange={(value) => setFilters(prev => ({ ...prev, setter: value }))}>
+                      <SelectTrigger id="setter-filter">
+                        <SelectValue placeholder="Select setter..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Setters</SelectItem>
+                        {employees.map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">Columns</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[200px] bg-background z-50">
+                {columnDefinitions.map((column) => (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    checked={visibleColumns[column.id]}
+                    onCheckedChange={(checked) =>
+                      setVisibleColumns((prev) => ({ ...prev, [column.id]: checked }))
+                    }
+                  >
+                    {column.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Table */}
+          <div className="rounded-lg border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">Expand</TableHead>
+                  {visibleColumns.client_id && <TableHead>Client ID</TableHead>}
+                  {visibleColumns.first_name && <TableHead>First Name</TableHead>}
+                  {visibleColumns.last_name && <TableHead>Last Name</TableHead>}
+                  {visibleColumns.full_name && <TableHead>Full Name</TableHead>}
+                  {visibleColumns.email && <TableHead>Email</TableHead>}
+                  {visibleColumns.phone && <TableHead>Phone</TableHead>}
+                  {visibleColumns.payment_method && <TableHead>Payment Method</TableHead>}
+                  {visibleColumns.start_date && <TableHead>Start Date</TableHead>}
+                  {visibleColumns.next_payment_date && <TableHead>Next Payment Date</TableHead>}
+                  {visibleColumns.no_months && <TableHead>No. Months</TableHead>}
+                  {visibleColumns.package_type && <TableHead>Package Type</TableHead>}
+                  {visibleColumns.ltv && <TableHead>LTV</TableHead>}
+                  {visibleColumns.status && <TableHead>Status</TableHead>}
+                  {visibleColumns.coach_name && <TableHead>Coach</TableHead>}
+                  {visibleColumns.end_date && <TableHead>End Date</TableHead>}
+                  {visibleColumns.latest_payment_amount && <TableHead>Latest Payment Amount</TableHead>}
+                  {visibleColumns.monthly_calls && <TableHead>Monthly Calls</TableHead>}
+                  {visibleColumns.address && <TableHead>Address</TableHead>}
+                  {visibleColumns.dob && <TableHead>Date of Birth</TableHead>}
+                  {visibleColumns.instagram && <TableHead>Instagram</TableHead>}
+                  {visibleColumns.latest_payment_date && <TableHead>Latest Payment Date</TableHead>}
+                  {visibleColumns.stop_client_link && <TableHead>Stop Client Link</TableHead>}
+                  {visibleColumns.no_more_payments && <TableHead>No More Payments</TableHead>}
+                  {visibleColumns.payment_amount && <TableHead>Payment Amount</TableHead>}
+                  {visibleColumns.notice_given && <TableHead>Notice Given</TableHead>}
+                  {visibleColumns.wedding_date && <TableHead>Wedding Date</TableHead>}
+                  {visibleColumns.day_of_month_payment && <TableHead>Day of Month</TableHead>}
+                  {visibleColumns.number_months_paid && <TableHead>Months Paid</TableHead>}
+                  {visibleColumns.monthly_or_pif && <TableHead>Monthly/PIF</TableHead>}
+                  {visibleColumns.country && <TableHead>Country</TableHead>}
+                  {visibleColumns.state && <TableHead>State</TableHead>}
+                  {visibleColumns.ghl_id && <TableHead>GHL ID</TableHead>}
+                  {visibleColumns.cta_lead_origin && <TableHead>Lead Origin</TableHead>}
+                  {visibleColumns.app_legacy && <TableHead>App Legacy</TableHead>}
+                  {visibleColumns.app_legacy_start_date && <TableHead>Legacy Start Date</TableHead>}
+                  {visibleColumns.app_legacy_next_payment_date && <TableHead>Legacy Next Payment</TableHead>}
+                  {visibleColumns.app_legacy_end_date && <TableHead>Legacy End Date</TableHead>}
+                  {visibleColumns.app_legacy_no_months && <TableHead>Legacy Months</TableHead>}
+                  {visibleColumns.native_currency && <TableHead>Currency</TableHead>}
+                  {visibleColumns.closer && <TableHead>Closer</TableHead>}
+                  {visibleColumns.gender && <TableHead>Gender</TableHead>}
+                  {visibleColumns.stripe_customer_id && <TableHead>Stripe ID</TableHead>}
+                  {visibleColumns.mamo_pay_id && <TableHead>Mamo Pay ID</TableHead>}
+                  {visibleColumns.setter && <TableHead>Setter</TableHead>}
+                  {visibleColumns.minimum_term && <TableHead>Minimum Term</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedClients.map((client) => (
+                  <TableRow key={client.client_id}>
+                    <TableCell>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setSelectedClient(client)}
+                      >
+                        <Maximize2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                    {visibleColumns.client_id && <TableCell className="font-medium">{client.client_id}</TableCell>}
+                    {visibleColumns.first_name && <TableCell>{client.first_name}</TableCell>}
+                    {visibleColumns.last_name && <TableCell>{client.last_name}</TableCell>}
+                    {visibleColumns.full_name && <TableCell>{`${client.first_name} ${client.last_name}`}</TableCell>}
+                    {visibleColumns.email && <TableCell>{client.email}</TableCell>}
+                    {visibleColumns.phone && <TableCell>{client.phone}</TableCell>}
+                    {visibleColumns.payment_method && <TableCell>{client.payment_method}</TableCell>}
+                    {visibleColumns.start_date && <TableCell>{client.start_date}</TableCell>}
+                    {visibleColumns.next_payment_date && <TableCell>{client.next_payment_date || "N/A"}</TableCell>}
+                    {visibleColumns.no_months && <TableCell>{client.no_months}</TableCell>}
+                    {visibleColumns.package_type && <TableCell>{client.package_type}</TableCell>}
+                    {visibleColumns.ltv && <TableCell className="font-semibold">${calculateLTV(client.client_id).toFixed(2)}</TableCell>}
+                    {visibleColumns.status && (
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          client.status === 'active' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                        }`}>
+                          {client.status.charAt(0).toUpperCase() + client.status.slice(1)}
+                        </span>
+                      </TableCell>
+                    )}
+                    {visibleColumns.coach_name && <TableCell>{client.coach_name}</TableCell>}
+                    {visibleColumns.end_date && <TableCell>{client.end_date}</TableCell>}
+                    {visibleColumns.latest_payment_amount && <TableCell>${client.latest_payment_amount.toFixed(2)}</TableCell>}
+                    {visibleColumns.monthly_calls && <TableCell>{client.monthly_calls}</TableCell>}
+                    {visibleColumns.address && <TableCell>{client.address}</TableCell>}
+                    {visibleColumns.dob && <TableCell>{client.dob}</TableCell>}
+                    {visibleColumns.instagram && <TableCell>{client.instagram}</TableCell>}
+                    {visibleColumns.latest_payment_date && <TableCell>{client.latest_payment_date}</TableCell>}
+                    {visibleColumns.stop_client_link && <TableCell><a href={client.stop_client_link} className="text-primary hover:underline">Link</a></TableCell>}
+                    {visibleColumns.no_more_payments && <TableCell>{client.no_more_payments ? "Yes" : "No"}</TableCell>}
+                    {visibleColumns.payment_amount && <TableCell>${client.payment_amount.toFixed(2)}</TableCell>}
+                    {visibleColumns.notice_given && <TableCell>{client.notice_given ? "Yes" : "No"}</TableCell>}
+                    {visibleColumns.wedding_date && <TableCell>{client.wedding_date || "N/A"}</TableCell>}
+                    {visibleColumns.day_of_month_payment && <TableCell>{client.day_of_month_payment}</TableCell>}
+                    {visibleColumns.number_months_paid && <TableCell>{client.number_months_paid}</TableCell>}
+                    {visibleColumns.monthly_or_pif && <TableCell>{client.monthly_or_pif}</TableCell>}
+                    {visibleColumns.country && <TableCell>{client.country}</TableCell>}
+                    {visibleColumns.state && <TableCell>{client.state}</TableCell>}
+                    {visibleColumns.ghl_id && <TableCell>{client.ghl_id}</TableCell>}
+                    {visibleColumns.cta_lead_origin && <TableCell>{client.cta_lead_origin}</TableCell>}
+                    {visibleColumns.app_legacy && <TableCell>{client.app_legacy ? "Yes" : "No"}</TableCell>}
+                    {visibleColumns.app_legacy_start_date && <TableCell>{client.app_legacy_start_date || "N/A"}</TableCell>}
+                    {visibleColumns.app_legacy_next_payment_date && <TableCell>{client.app_legacy_next_payment_date || "N/A"}</TableCell>}
+                    {visibleColumns.app_legacy_end_date && <TableCell>{client.app_legacy_end_date || "N/A"}</TableCell>}
+                    {visibleColumns.app_legacy_no_months && <TableCell>{client.app_legacy_no_months || "N/A"}</TableCell>}
+                    {visibleColumns.native_currency && <TableCell>{client.native_currency}</TableCell>}
+                    {visibleColumns.closer && <TableCell>{client.closer}</TableCell>}
+                    {visibleColumns.gender && <TableCell>{client.gender}</TableCell>}
+                    {visibleColumns.stripe_customer_id && <TableCell>{client.stripe_customer_id || "N/A"}</TableCell>}
+                    {visibleColumns.mamo_pay_id && <TableCell>{client.mamo_pay_id || "N/A"}</TableCell>}
+                    {visibleColumns.setter && <TableCell>{client.setter}</TableCell>}
+                    {visibleColumns.minimum_term && <TableCell>{client.minimum_term}</TableCell>}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Stats Footer */}
+          <div className="flex gap-4 text-sm text-muted-foreground">
+            <span>Total Clients: {dummyClients.length}</span>
+            <span>Active: {dummyClients.filter(c => c.status === 'active').length}</span>
+            <span>Inactive: {dummyClients.filter(c => c.status === 'inactive').length}</span>
+          </div>
+        </div>
+      </main>
+
+      {/* Client Detail Dialog */}
+      <Dialog open={!!selectedClient} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedClient(null);
+          setIsEditing(false);
+          setEditedClient(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center justify-between">
+              <span>Client Details</span>
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <Button onClick={handleEditClient} size="sm" variant="outline">
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                ) : (
+                  <>
+                    <Button onClick={handleSaveClient} size="sm">
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </Button>
+                    <Button onClick={handleCancelEdit} size="sm" variant="outline">
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          {selectedClient && (
+            <div className="space-y-6">
+              {/* Personal Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Personal Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">First Name</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.first_name}
+                        onChange={(e) => updateEditedField("first_name", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.first_name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Last Name</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.last_name}
+                        onChange={(e) => updateEditedField("last_name", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.last_name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Client ID</Label>
+                    <p className="font-medium text-muted-foreground">{selectedClient.client_id}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Email</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="email"
+                        value={editedClient.email}
+                        onChange={(e) => updateEditedField("email", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.email}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Phone</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.phone}
+                        onChange={(e) => updateEditedField("phone", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.phone}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Date of Birth</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="date"
+                        value={editedClient.dob}
+                        onChange={(e) => updateEditedField("dob", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.dob}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Gender</Label>
+                    {isEditing && editedClient ? (
+                      <Select
+                        value={editedClient.gender}
+                        onValueChange={(value) => updateEditedField("gender", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-medium">{selectedClient.gender}</p>
+                    )}
+                  </div>
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Address</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.address}
+                        onChange={(e) => updateEditedField("address", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.address}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Instagram</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.instagram}
+                        onChange={(e) => updateEditedField("instagram", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.instagram}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Country</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.country}
+                        onChange={(e) => updateEditedField("country", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.country}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">State</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.state}
+                        onChange={(e) => updateEditedField("state", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.state}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Package & Payment Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Package & Payment Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Status</Label>
+                    <div>
+                      <Badge variant={selectedClient.status === 'active' ? 'default' : 'secondary'}>
+                        {selectedClient.status.charAt(0).toUpperCase() + selectedClient.status.slice(1)}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Package Type</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.package_type}
+                        onChange={(e) => updateEditedField("package_type", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.package_type}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Payment Method</Label>
+                    {isEditing && editedClient ? (
+                      <Select
+                        value={editedClient.payment_method}
+                        onValueChange={(value) => updateEditedField("payment_method", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="Stripe">Stripe</SelectItem>
+                          <SelectItem value="Mamo Pay">Mamo Pay</SelectItem>
+                          <SelectItem value="Credit Card">Credit Card</SelectItem>
+                          <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-medium">{selectedClient.payment_method}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Payment Plan</Label>
+                    {isEditing && editedClient ? (
+                      <Select
+                        value={editedClient.monthly_or_pif}
+                        onValueChange={(value) => updateEditedField("monthly_or_pif", value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          <SelectItem value="Monthly">Monthly</SelectItem>
+                          <SelectItem value="PIF">PIF (Paid in Full)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-medium">{selectedClient.monthly_or_pif}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Payment Amount</Label>
+                    <p className="font-medium">${selectedClient.payment_amount.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Latest Payment Amount</Label>
+                    <p className="font-medium">${selectedClient.latest_payment_amount.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">LTV (Lifetime Value)</Label>
+                    <p className="font-medium text-green-600">${calculateLTV(selectedClient.client_id).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Native Currency</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.native_currency}
+                        onChange={(e) => updateEditedField("native_currency", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.native_currency}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Day of Month for Payment</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={editedClient.day_of_month_payment}
+                        onChange={(e) => updateEditedField("day_of_month_payment", parseInt(e.target.value))}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.day_of_month_payment}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">No More Payments</Label>
+                    <p className="font-medium">{selectedClient.no_more_payments ? "Yes" : "No"}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Dates & Timeline */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Dates & Timeline</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Start Date</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="date"
+                        value={editedClient.start_date}
+                        onChange={(e) => updateEditedField("start_date", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.start_date}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">End Date</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="date"
+                        value={editedClient.end_date}
+                        onChange={(e) => updateEditedField("end_date", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.end_date}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Next Payment Date</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="date"
+                        value={editedClient.next_payment_date || ""}
+                        onChange={(e) => updateEditedField("next_payment_date", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.next_payment_date || "N/A"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Latest Payment Date</Label>
+                    <p className="font-medium text-muted-foreground">{selectedClient.latest_payment_date}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Number of Months</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="number"
+                        value={editedClient.no_months}
+                        onChange={(e) => updateEditedField("no_months", parseInt(e.target.value))}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.no_months}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Number of Months Paid</Label>
+                    <p className="font-medium text-muted-foreground">{selectedClient.number_months_paid}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Minimum Term</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="number"
+                        value={editedClient.minimum_term}
+                        onChange={(e) => updateEditedField("minimum_term", parseInt(e.target.value))}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.minimum_term} months</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Wedding Date</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="date"
+                        value={editedClient.wedding_date || ""}
+                        onChange={(e) => updateEditedField("wedding_date", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.wedding_date || "N/A"}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Team & Support */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Team & Support</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Coach</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.coach_name}
+                        onChange={(e) => updateEditedField("coach_name", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.coach_name}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Closer</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.closer}
+                        onChange={(e) => updateEditedField("closer", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.closer}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Setter</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.setter}
+                        onChange={(e) => updateEditedField("setter", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.setter}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Monthly Calls</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        type="number"
+                        value={editedClient.monthly_calls}
+                        onChange={(e) => updateEditedField("monthly_calls", parseInt(e.target.value))}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.monthly_calls}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">CTA/Lead Origin</Label>
+                    {isEditing && editedClient ? (
+                      <Input
+                        value={editedClient.cta_lead_origin}
+                        onChange={(e) => updateEditedField("cta_lead_origin", e.target.value)}
+                      />
+                    ) : (
+                      <p className="font-medium">{selectedClient.cta_lead_origin}</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Notice Given</Label>
+                    <p className="font-medium">{selectedClient.notice_given ? "Yes" : "No"}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Technical IDs */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Technical Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">GHL ID</Label>
+                    <p className="font-medium">{selectedClient.ghl_id}</p>
+                  </div>
+                  {selectedClient.stripe_customer_id && (
+                    <div>
+                      <Label className="text-muted-foreground">Stripe Customer ID</Label>
+                      <p className="font-medium font-mono text-sm">{selectedClient.stripe_customer_id}</p>
+                    </div>
+                  )}
+                  {selectedClient.mamo_pay_id && (
+                    <div>
+                      <Label className="text-muted-foreground">Mamo Pay ID</Label>
+                      <p className="font-medium font-mono text-sm">{selectedClient.mamo_pay_id}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Client Status Change Schedule */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Client Status Change Schedule</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <Label>Schedule a status change for this client</Label>
+                    <Select onValueChange={(value) => {
+                      setStatusChangeType(value as "stop" | "pause" | "package_change");
+                      setStatusChangeOpen(true);
+                    }}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select status change type..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="stop">Stop Client</SelectItem>
+                        <SelectItem value="pause">Pause Client</SelectItem>
+                        <SelectItem value="package_change">Package Change</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* App Legacy Information */}
+              {selectedClient.app_legacy && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>App Legacy Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-muted-foreground">App Legacy</Label>
+                      <p className="font-medium">Yes</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Legacy Start Date</Label>
+                      <p className="font-medium">{selectedClient.app_legacy_start_date || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Legacy Next Payment Date</Label>
+                      <p className="font-medium">{selectedClient.app_legacy_next_payment_date || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Legacy End Date</Label>
+                      <p className="font-medium">{selectedClient.app_legacy_end_date || "N/A"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground">Legacy Number of Months</Label>
+                      <p className="font-medium">{selectedClient.app_legacy_no_months || "N/A"}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Change Dialog */}
+      <Dialog open={statusChangeOpen} onOpenChange={setStatusChangeOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {statusChangeType === "stop" && "Stop Client"}
+              {statusChangeType === "pause" && "Pause Client"}
+              {statusChangeType === "package_change" && "Package Change"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            {statusChangeType === "stop" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="final-payment-date">When should the final payment be?</Label>
+                  <Input id="final-payment-date" type="date" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-coaching-date">When should their final coaching day be?</Label>
+                  <Input id="final-coaching-date" type="date" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stop-reason">Reason for stopping (optional)</Label>
+                  <Textarea id="stop-reason" placeholder="Enter reason..." rows={3} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setStatusChangeOpen(false)}>Cancel</Button>
+                  <Button onClick={() => {
+                    console.log("Scheduling client stop");
+                    setStatusChangeOpen(false);
+                  }}>Schedule Stop</Button>
+                </div>
+              </>
+            )}
+
+            {statusChangeType === "pause" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="pause-start-date">When should the pause start?</Label>
+                  <Input id="pause-start-date" type="date" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pause-end-date">When should the pause end?</Label>
+                  <Input id="pause-end-date" type="date" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pause-payment-handling">Payment handling during pause</Label>
+                  <Select>
+                    <SelectTrigger id="pause-payment-handling" className="bg-background">
+                      <SelectValue placeholder="Select option..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="skip">Skip payments during pause</SelectItem>
+                      <SelectItem value="extend">Extend contract by pause duration</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pause-reason">Reason for pause (optional)</Label>
+                  <Textarea id="pause-reason" placeholder="Enter reason..." rows={3} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setStatusChangeOpen(false)}>Cancel</Button>
+                  <Button onClick={() => {
+                    console.log("Scheduling client pause");
+                    setStatusChangeOpen(false);
+                  }}>Schedule Pause</Button>
+                </div>
+              </>
+            )}
+
+            {statusChangeType === "package_change" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="new-package">New Package Type</Label>
+                  <Input id="new-package" placeholder="e.g., Premium Training" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="package-change-date">When should the package change take effect?</Label>
+                  <Input id="package-change-date" type="date" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-payment-amount">New Payment Amount</Label>
+                  <Input id="new-payment-amount" type="number" step="0.01" placeholder="299.00" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-payment-date">New Payment Date (day of month)</Label>
+                  <Input id="new-payment-date" type="number" min="1" max="31" placeholder="15" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="package-change-reason">Reason for package change (optional)</Label>
+                  <Textarea id="package-change-reason" placeholder="Enter reason..." rows={3} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setStatusChangeOpen(false)}>Cancel</Button>
+                  <Button onClick={() => {
+                    console.log("Scheduling package change");
+                    setStatusChangeOpen(false);
+                  }}>Schedule Package Change</Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
+
+export default Index;
