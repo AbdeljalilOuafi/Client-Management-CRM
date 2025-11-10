@@ -152,7 +152,7 @@ export default function Index() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-8">
-              <h1 className="text-2xl font-bold">OnSync Manager</h1>
+              <h1 className="text-2xl font-bold">FitCoach Manager</h1>
               <div className="flex gap-6">
                 <Button variant="ghost" className="gap-2 border-b-2 border-primary">
                   <Users className="h-4 w-4" />
