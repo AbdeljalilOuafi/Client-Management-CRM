@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Users, LayoutDashboard, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, Filter, Trash2, Maximize2, Edit2, Save, X, DollarSign } from "lucide-react";
+import { Search, Users, LayoutDashboard, CreditCard, ArrowUpDown, ArrowUp, ArrowDown, Filter, Trash2, Maximize2, Edit2, Save, X, DollarSign, User, Calendar, CheckCircle2, FileText, Hash } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { listInstalments, Instalment as ApiInstalment } from "@/lib/api/instalments";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { motion } from "framer-motion";
 
 interface Instalment {
   id: number;
@@ -610,67 +611,89 @@ const InstalmentsContent = () => {
       {/* Instalment Detail Dialog */}
       <Dialog open={!!selectedInstalment} onOpenChange={(open) => !open && setSelectedInstalment(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Instalment Details</span>
-              <div className="flex gap-2">
+          <DialogHeader className="space-y-3 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                </div>
+                Instalment Details
+              </DialogTitle>
+              <div className="flex gap-2 mr-8">
                 {!isEditing ? (
-                  <Button variant="outline" size="sm" onClick={handleEditInstalment}>
-                    <Edit2 className="h-4 w-4 mr-2" />
+                  <Button variant="outline" size="sm" onClick={handleEditInstalment} className="gap-2">
+                    <Edit2 className="h-4 w-4" />
                     Edit
                   </Button>
                 ) : (
                   <>
-                    <Button variant="outline" size="sm" onClick={handleSaveInstalment}>
-                      <Save className="h-4 w-4 mr-2" />
+                    <Button size="sm" onClick={handleSaveInstalment} className="gap-2">
+                      <Save className="h-4 w-4" />
                       Save
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
-                      <X className="h-4 w-4 mr-2" />
+                    <Button variant="outline" size="sm" onClick={handleCancelEdit}>
                       Cancel
                     </Button>
                   </>
                 )}
               </div>
-            </DialogTitle>
+            </div>
           </DialogHeader>
           {selectedInstalment && (
-            <div className="space-y-6">
-              <Card>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6 pt-6"
+            >
+              <Card className="border-2">
                 <CardContent className="pt-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Client Name</Label>
-                      <p className="text-sm">{selectedInstalment.client_name}</p>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <User className="h-3.5 w-3.5" />
+                        Client Name
+                      </Label>
+                      <p className="text-base font-medium pl-5">{selectedInstalment.client_name}</p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Client ID</Label>
-                      <p className="text-sm">{selectedInstalment.client}</p>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Hash className="h-3.5 w-3.5" />
+                        Client ID
+                      </Label>
+                      <p className="text-base font-medium pl-5">{selectedInstalment.client}</p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Amount</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Amount
+                      </Label>
                       {isEditing ? (
                         <Input
                           type="number"
                           step="0.01"
                           value={editedInstalment?.amount || ""}
                           onChange={(e) => updateEditedField("amount", parseFloat(e.target.value))}
+                          className="h-10"
                         />
                       ) : (
-                        <p className="text-sm font-semibold">${Number(selectedInstalment.amount).toFixed(2)}</p>
+                        <p className="text-base font-semibold pl-5 text-green-600 dark:text-green-400">${Number(selectedInstalment.amount).toFixed(2)}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Currency</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Currency
+                      </Label>
                       {isEditing ? (
                         <Select 
                           value={editedInstalment?.currency || ""} 
                           onValueChange={(value) => updateEditedField("currency", value)}
                         >
-                          <SelectTrigger className="bg-background">
+                          <SelectTrigger className="bg-background h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-background z-50">
@@ -680,31 +703,38 @@ const InstalmentsContent = () => {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <p className="text-sm">{selectedInstalment.currency}</p>
+                        <p className="text-base font-medium pl-5">{selectedInstalment.currency}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Schedule Date</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Schedule Date
+                      </Label>
                       {isEditing ? (
                         <Input
                           type="date"
                           value={editedInstalment?.schedule_date || ""}
                           onChange={(e) => updateEditedField("schedule_date", e.target.value)}
+                          className="h-10"
                         />
                       ) : (
-                        <p className="text-sm">{new Date(selectedInstalment.schedule_date).toLocaleDateString()}</p>
+                        <p className="text-base font-medium pl-5">{new Date(selectedInstalment.schedule_date).toLocaleDateString()}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Status</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Status
+                      </Label>
                       {isEditing ? (
                         <Select 
                           value={editedInstalment?.status || ""} 
                           onValueChange={(value) => updateEditedField("status", value)}
                         >
-                          <SelectTrigger className="bg-background">
+                          <SelectTrigger className="bg-background h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-background z-50">
@@ -715,74 +745,98 @@ const InstalmentsContent = () => {
                           </SelectContent>
                         </Select>
                       ) : (
-                        <Badge className={getStatusColor(selectedInstalment.status)}>
-                          {selectedInstalment.status.charAt(0).toUpperCase() + selectedInstalment.status.slice(1)}
-                        </Badge>
+                        <div className="pl-5">
+                          <Badge className={getStatusColor(selectedInstalment.status) + " text-sm px-3 py-1 font-medium"}>
+                            {selectedInstalment.status.charAt(0).toUpperCase() + selectedInstalment.status.slice(1)}
+                          </Badge>
+                        </div>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Stripe Account</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <CreditCard className="h-3.5 w-3.5" />
+                        Stripe Account
+                      </Label>
                       {isEditing ? (
                         <Input
                           value={editedInstalment?.stripe_account || ""}
                           onChange={(e) => updateEditedField("stripe_account", e.target.value)}
+                          className="h-10"
                         />
                       ) : (
-                        <p className="text-sm">{selectedInstalment.stripe_account || "N/A"}</p>
+                        <p className="text-base font-medium pl-5">{selectedInstalment.stripe_account || "N/A"}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Invoice ID</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5" />
+                        Invoice ID
+                      </Label>
                       {isEditing ? (
                         <Input
                           value={editedInstalment?.invoice_id || ""}
                           onChange={(e) => updateEditedField("invoice_id", e.target.value)}
+                          className="h-10"
                         />
                       ) : (
-                        <p className="text-sm">{selectedInstalment.invoice_id || "N/A"}</p>
+                        <p className="text-base font-medium pl-5">{selectedInstalment.invoice_id || "N/A"}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Stripe Customer ID</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Hash className="h-3.5 w-3.5" />
+                        Stripe Customer ID
+                      </Label>
                       {isEditing ? (
                         <Input
                           value={editedInstalment?.stripe_customer_id || ""}
                           onChange={(e) => updateEditedField("stripe_customer_id", e.target.value)}
+                          className="h-10"
                         />
                       ) : (
-                        <p className="text-sm">{selectedInstalment.stripe_customer_id || "N/A"}</p>
+                        <p className="text-base font-medium pl-5">{selectedInstalment.stripe_customer_id || "N/A"}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Instalment Number</Label>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Hash className="h-3.5 w-3.5" />
+                        Instalment Number
+                      </Label>
                       {isEditing ? (
                         <Input
                           type="number"
                           value={editedInstalment?.instalment_number || ""}
                           onChange={(e) => updateEditedField("instalment_number", parseInt(e.target.value))}
+                          className="h-10"
                         />
                       ) : (
-                        <p className="text-sm">{selectedInstalment.instalment_number || "N/A"}</p>
+                        <p className="text-base font-medium pl-5">{selectedInstalment.instalment_number || "N/A"}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Created Date</Label>
-                      <p className="text-sm">{selectedInstalment.date_created ? new Date(selectedInstalment.date_created).toLocaleString() : "N/A"}</p>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Created Date
+                      </Label>
+                      <p className="text-base font-medium pl-5">{selectedInstalment.date_created ? new Date(selectedInstalment.date_created).toLocaleString() : "N/A"}</p>
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Updated Date</Label>
-                      <p className="text-sm">{selectedInstalment.date_updated ? new Date(selectedInstalment.date_updated).toLocaleString() : "N/A"}</p>
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Updated Date
+                      </Label>
+                      <p className="text-base font-medium pl-5">{selectedInstalment.date_updated ? new Date(selectedInstalment.date_updated).toLocaleString() : "N/A"}</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </motion.div>
           )}
         </DialogContent>
       </Dialog>

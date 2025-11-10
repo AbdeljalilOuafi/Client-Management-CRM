@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Users, LayoutDashboard, CreditCard, ArrowUp, ArrowDown, Maximize2, Edit2, Save, DollarSign, UserPlus, Filter, CheckCircle2, Loader2 } from "lucide-react";
+import { Search, Users, LayoutDashboard, CreditCard, ArrowUp, ArrowDown, Maximize2, Edit2, Save, DollarSign, UserPlus, Filter, CheckCircle2, Loader2, Mail, MapPin, Globe, Map, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -469,19 +469,24 @@ export default function Index() {
         }
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl flex items-center justify-between">
-              <span>Client Details</span>
-              <div className="flex gap-2">
+          <DialogHeader className="space-y-3 pb-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                Client Details
+              </DialogTitle>
+              <div className="flex gap-2 mr-8">
                 {!isEditing ? (
-                  <Button onClick={() => { if (selectedClient) { setEditedClient({ ...selectedClient }); setIsEditing(true); } }} size="sm" variant="outline">
-                    <Edit2 className="h-4 w-4 mr-2" />
+                  <Button onClick={() => { if (selectedClient) { setEditedClient({ ...selectedClient }); setIsEditing(true); } }} size="sm" variant="outline" className="gap-2">
+                    <Edit2 className="h-4 w-4" />
                     Edit
                   </Button>
                 ) : (
                   <>
-                    <Button onClick={handleSaveClient} size="sm">
-                      <Save className="h-4 w-4 mr-2" />
+                    <Button onClick={handleSaveClient} size="sm" className="gap-2">
+                      <Save className="h-4 w-4" />
                       Save
                     </Button>
                     <Button onClick={() => { setEditedClient(null); setIsEditing(false); }} size="sm" variant="outline">
@@ -490,44 +495,77 @@ export default function Index() {
                   </>
                 )}
               </div>
-            </DialogTitle>
+            </div>
           </DialogHeader>
           {selectedClient && (
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6 pt-6"
+            >
+              <Card className="border-2">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Personal Information
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">First Name</Label>
+                <CardContent className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <User className="h-3.5 w-3.5" />
+                      First Name
+                    </Label>
                     {isEditing && editedClient ? (
-                      <Input value={editedClient.first_name} onChange={(e) => setEditedClient({ ...editedClient, first_name: e.target.value })} />
+                      <Input 
+                        value={editedClient.first_name} 
+                        onChange={(e) => setEditedClient({ ...editedClient, first_name: e.target.value })}
+                        className="h-10"
+                      />
                     ) : (
-                      <p className="font-medium">{selectedClient.first_name}</p>
+                      <p className="text-base font-medium pl-5">{selectedClient.first_name}</p>
                     )}
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Last Name</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <User className="h-3.5 w-3.5" />
+                      Last Name
+                    </Label>
                     {isEditing && editedClient ? (
-                      <Input value={editedClient.last_name || ""} onChange={(e) => setEditedClient({ ...editedClient, last_name: e.target.value })} />
+                      <Input 
+                        value={editedClient.last_name || ""} 
+                        onChange={(e) => setEditedClient({ ...editedClient, last_name: e.target.value })}
+                        className="h-10"
+                      />
                     ) : (
-                      <p className="font-medium">{selectedClient.last_name || "-"}</p>
+                      <p className="text-base font-medium pl-5">{selectedClient.last_name || "-"}</p>
                     )}
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Email</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Mail className="h-3.5 w-3.5" />
+                      Email
+                    </Label>
                     {isEditing && editedClient ? (
-                      <Input type="email" value={editedClient.email} onChange={(e) => setEditedClient({ ...editedClient, email: e.target.value })} />
+                      <Input 
+                        type="email" 
+                        value={editedClient.email} 
+                        onChange={(e) => setEditedClient({ ...editedClient, email: e.target.value })}
+                        className="h-10"
+                      />
                     ) : (
-                      <p className="font-medium">{selectedClient.email}</p>
+                      <p className="text-base font-medium pl-5 text-blue-600 dark:text-blue-400">{selectedClient.email}</p>
                     )}
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Status</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Status
+                    </Label>
                     {isEditing && editedClient ? (
                       <Select value={editedClient.status} onValueChange={(value) => setEditedClient({ ...editedClient, status: value as "active" | "inactive" })}>
-                        <SelectTrigger>
+                        <SelectTrigger className="h-10">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-background z-50">
@@ -536,36 +574,64 @@ export default function Index() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge variant={selectedClient.status === 'active' ? 'success' : 'secondary'}>{selectedClient.status}</Badge>
+                      <div className="pl-5">
+                        <Badge 
+                          variant={selectedClient.status === 'active' ? 'success' : 'secondary'}
+                          className="text-sm px-3 py-1 font-medium"
+                        >
+                          {selectedClient.status}
+                        </Badge>
+                      </div>
                     )}
                   </div>
-                  <div className="col-span-2">
-                    <Label className="text-muted-foreground">Address</Label>
+                  <div className="col-span-2 space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <MapPin className="h-3.5 w-3.5" />
+                      Address
+                    </Label>
                     {isEditing && editedClient ? (
-                      <Input value={editedClient.address || ""} onChange={(e) => setEditedClient({ ...editedClient, address: e.target.value })} />
+                      <Input 
+                        value={editedClient.address || ""} 
+                        onChange={(e) => setEditedClient({ ...editedClient, address: e.target.value })}
+                        className="h-10"
+                      />
                     ) : (
-                      <p className="font-medium">{selectedClient.address || "-"}</p>
+                      <p className="text-base font-medium pl-5">{selectedClient.address || "-"}</p>
                     )}
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Country</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Globe className="h-3.5 w-3.5" />
+                      Country
+                    </Label>
                     {isEditing && editedClient ? (
-                      <Input value={editedClient.country || ""} onChange={(e) => setEditedClient({ ...editedClient, country: e.target.value })} />
+                      <Input 
+                        value={editedClient.country || ""} 
+                        onChange={(e) => setEditedClient({ ...editedClient, country: e.target.value })}
+                        className="h-10"
+                      />
                     ) : (
-                      <p className="font-medium">{selectedClient.country || "-"}</p>
+                      <p className="text-base font-medium pl-5">{selectedClient.country || "-"}</p>
                     )}
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">State</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <Map className="h-3.5 w-3.5" />
+                      State
+                    </Label>
                     {isEditing && editedClient ? (
-                      <Input value={editedClient.state || ""} onChange={(e) => setEditedClient({ ...editedClient, state: e.target.value })} />
+                      <Input 
+                        value={editedClient.state || ""} 
+                        onChange={(e) => setEditedClient({ ...editedClient, state: e.target.value })}
+                        className="h-10"
+                      />
                     ) : (
-                      <p className="font-medium">{selectedClient.state || "-"}</p>
+                      <p className="text-base font-medium pl-5">{selectedClient.state || "-"}</p>
                     )}
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </motion.div>
           )}
         </DialogContent>
       </Dialog>
