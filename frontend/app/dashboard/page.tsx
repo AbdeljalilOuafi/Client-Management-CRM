@@ -76,6 +76,7 @@ export default function Dashboard() {
                   { icon: CreditCard, label: 'Payments', path: '/payments' },
                   { icon: DollarSign, label: 'Instalments', path: '/instalments' },
                   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', active: true },
+                  { icon: Users, label: 'Staff', path: '/staff' },
                 ].map((item) => (
                   <motion.div key={item.path} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                     <Button

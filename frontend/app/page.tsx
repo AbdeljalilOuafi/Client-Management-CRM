@@ -170,6 +170,10 @@ export default function Index() {
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
                 </Button>
+                <Button variant="ghost" className="gap-2" onClick={() => router.push('/staff')}>
+                  <Users className="h-4 w-4" />
+                  Staff
+                </Button>
               </div>
             </div>
           </div>
