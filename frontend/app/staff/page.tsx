@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { listEmployees, updateEmployee, updateEmployeePermissions, Employee } from "@/lib/api/staff";
+import { listEmployees, Employee } from "@/lib/api/staff";
 import { Search, Plus, ChevronDown, ChevronUp, Settings2, ArrowUpDown, Users, CreditCard, DollarSign, LayoutDashboard } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -95,36 +95,6 @@ const StaffContent = () => {
     }
   };
 
-  const togglePermission = async (employeeId: number, permissionName: string) => {
-    const employee = employees.find(e => e.id === employeeId);
-    if (!employee) return;
-
-    const currentPermissions = employee.permissions || [];
-    const hasPermission = currentPermissions.includes(permissionName);
-    
-    const updatedPermissions = hasPermission
-      ? currentPermissions.filter(p => p !== permissionName)
-      : [...currentPermissions, permissionName];
-
-    try {
-      await updateEmployeePermissions(employeeId, updatedPermissions);
-      setEmployees(prev =>
-        prev.map(emp =>
-          emp.id === employeeId ? { ...emp, permissions: updatedPermissions } : emp
-        )
-      );
-      toast({
-        title: "Success",
-        description: "Permissions updated successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to update permissions",
-        variant: "destructive",
-      });
-    }
-  };
 
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch =
@@ -354,8 +324,8 @@ const StaffContent = () => {
                                       {col.id === "role" && (
                                         <span className="capitalize">{employee.role}</span>
                                       )}
-                                      {col.id === "start_date" && new Date(employee.start_date).toLocaleDateString()}
-                                      {col.id === "end_date" && (employee.end_date ? new Date(employee.end_date).toLocaleDateString() : "-")}
+                                      {col.id === "job_role" && (employee.job_role || "-")}
+                                      {col.id === "status" && (employee.status || "-")}
                                       {col.id === "is_active" && (
                                         <span className={employee.is_active ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                                           {employee.is_active ? "Active" : "Inactive"}
@@ -371,188 +341,48 @@ const StaffContent = () => {
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: "auto" }}
                                         exit={{ opacity: 0, height: 0 }}
-                                        className="p-6 bg-muted/50 space-y-6 rounded-lg"
+                                        className="p-6 bg-muted/50 space-y-4 rounded-lg"
                                       >
-                                        <h3 className="text-lg font-semibold">Permissions</h3>
-                                        {!employee.permissions ? (
-                                          <p className="text-muted-foreground">No permissions data available</p>
-                                        ) : (
-                                          <>
-                                        {/* Clients Permissions */}
-                                        <div className="space-y-3">
-                                          <h4 className="font-medium">Clients</h4>
-                                          <div className="flex gap-6 flex-wrap">
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`${employee.id}-clients-view`}
-                                                checked={employee.permissions?.clients?.access === "view"}
-                                                onCheckedChange={(checked) => {
-                                                  if (checked) {
-                                                    updatePermission(employee.id, "clients", "access", "view");
-                                                  } else {
-                                                    updatePermission(employee.id, "clients", "access", "none");
-                                                  }
-                                                }}
-                                              />
-                                              <Label htmlFor={`${employee.id}-clients-view`} className="cursor-pointer">View</Label>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`${employee.id}-clients-edit`}
-                                                checked={employee.permissions?.clients?.access === "edit"}
-                                                onCheckedChange={(checked) => {
-                                                  if (checked) {
-                                                    updatePermission(employee.id, "clients", "access", "edit");
-                                                  } else {
-                                                    updatePermission(employee.id, "clients", "access", "none");
-                                                  }
-                                                }}
-                                              />
-                                              <Label htmlFor={`${employee.id}-clients-edit`} className="cursor-pointer">Edit</Label>
-                                            </div>
-                                            {employee.permissions?.clients?.access !== "none" && (
-                                              <>
-                                                <div className="flex items-center space-x-2">
-                                                  <Checkbox
-                                                    id={`${employee.id}-clients-all`}
-                                                    checked={employee.permissions?.clients?.scope === "all"}
-                                                    onCheckedChange={(checked) => {
-                                                      updatePermission(employee.id, "clients", "scope", checked ? "all" : "assigned");
-                                                    }}
-                                                  />
-                                                  <Label htmlFor={`${employee.id}-clients-all`} className="cursor-pointer">All Clients</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                  <Checkbox
-                                                    id={`${employee.id}-clients-assigned`}
-                                                    checked={employee.permissions?.clients?.scope === "assigned"}
-                                                    onCheckedChange={(checked) => {
-                                                      updatePermission(employee.id, "clients", "scope", checked ? "assigned" : "all");
-                                                    }}
-                                                  />
-                                                  <Label htmlFor={`${employee.id}-clients-assigned`} className="cursor-pointer">Assigned Only</Label>
-                                                </div>
-                                              </>
-                                            )}
+                                        <h3 className="text-lg font-semibold">Employee Details</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">Email</p>
+                                            <p className="font-medium">{employee.email}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">Phone</p>
+                                            <p className="font-medium">{employee.phone_number || "-"}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">System Role</p>
+                                            <p className="font-medium capitalize">{employee.role}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">Job Title</p>
+                                            <p className="font-medium">{employee.job_role || "-"}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">Status</p>
+                                            <p className="font-medium">{employee.status || "-"}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-sm text-muted-foreground">Active</p>
+                                            <p className={`font-medium ${employee.is_active ? "text-green-600" : "text-red-600"}`}>
+                                              {employee.is_active ? "Yes" : "No"}
+                                            </p>
                                           </div>
                                         </div>
-                                        {/* Payments Permissions */}
-                                        <div className="space-y-3">
-                                          <h4 className="font-medium">Payments</h4>
-                                          <div className="flex gap-6 flex-wrap">
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`${employee.id}-payments-view`}
-                                                checked={employee.permissions?.payments?.access === "view"}
-                                                onCheckedChange={(checked) => {
-                                                  if (checked) {
-                                                    updatePermission(employee.id, "payments", "access", "view");
-                                                  } else {
-                                                    updatePermission(employee.id, "payments", "access", "none");
-                                                  }
-                                                }}
-                                              />
-                                              <Label htmlFor={`${employee.id}-payments-view`} className="cursor-pointer">View</Label>
+                                        {employee.permissions && employee.permissions.length > 0 && (
+                                          <div>
+                                            <p className="text-sm text-muted-foreground mb-2">Permissions</p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {employee.permissions.map((permission, idx) => (
+                                                <span key={idx} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-md">
+                                                  {permission}
+                                                </span>
+                                              ))}
                                             </div>
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`${employee.id}-payments-edit`}
-                                                checked={employee.permissions?.payments?.access === "edit"}
-                                                onCheckedChange={(checked) => {
-                                                  if (checked) {
-                                                    updatePermission(employee.id, "payments", "access", "edit");
-                                                  } else {
-                                                    updatePermission(employee.id, "payments", "access", "none");
-                                                  }
-                                                }}
-                                              />
-                                              <Label htmlFor={`${employee.id}-payments-edit`} className="cursor-pointer">Edit</Label>
-                                            </div>
-                                            {employee.permissions?.payments?.access !== "none" && (
-                                              <>
-                                                <div className="flex items-center space-x-2">
-                                                  <Checkbox
-                                                    id={`${employee.id}-payments-all`}
-                                                    checked={employee.permissions?.payments?.scope === "all"}
-                                                    onCheckedChange={(checked) => {
-                                                      updatePermission(employee.id, "payments", "scope", checked ? "all" : "assigned");
-                                                    }}
-                                                  />
-                                                  <Label htmlFor={`${employee.id}-payments-all`} className="cursor-pointer">All Payments</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                  <Checkbox
-                                                    id={`${employee.id}-payments-assigned`}
-                                                    checked={employee.permissions?.payments?.scope === "assigned"}
-                                                    onCheckedChange={(checked) => {
-                                                      updatePermission(employee.id, "payments", "scope", checked ? "assigned" : "all");
-                                                    }}
-                                                  />
-                                                  <Label htmlFor={`${employee.id}-payments-assigned`} className="cursor-pointer">Assigned Only</Label>
-                                                </div>
-                                              </>
-                                            )}
                                           </div>
-                                        </div>
-                                        {/* Instalments Permissions */}
-                                        <div className="space-y-3">
-                                          <h4 className="font-medium">Instalments</h4>
-                                          <div className="flex gap-6 flex-wrap">
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`${employee.id}-instalments-view`}
-                                                checked={employee.permissions?.instalments?.access === "view"}
-                                                onCheckedChange={(checked) => {
-                                                  if (checked) {
-                                                    updatePermission(employee.id, "instalments", "access", "view");
-                                                  } else {
-                                                    updatePermission(employee.id, "instalments", "access", "none");
-                                                  }
-                                                }}
-                                              />
-                                              <Label htmlFor={`${employee.id}-instalments-view`} className="cursor-pointer">View</Label>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                              <Checkbox
-                                                id={`${employee.id}-instalments-edit`}
-                                                checked={employee.permissions?.instalments?.access === "edit"}
-                                                onCheckedChange={(checked) => {
-                                                  if (checked) {
-                                                    updatePermission(employee.id, "instalments", "access", "edit");
-                                                  } else {
-                                                    updatePermission(employee.id, "instalments", "access", "none");
-                                                  }
-                                                }}
-                                              />
-                                              <Label htmlFor={`${employee.id}-instalments-edit`} className="cursor-pointer">Edit</Label>
-                                            </div>
-                                            {employee.permissions?.instalments?.access !== "none" && (
-                                              <>
-                                                <div className="flex items-center space-x-2">
-                                                  <Checkbox
-                                                    id={`${employee.id}-instalments-all`}
-                                                    checked={employee.permissions?.instalments?.scope === "all"}
-                                                    onCheckedChange={(checked) => {
-                                                      updatePermission(employee.id, "instalments", "scope", checked ? "all" : "assigned");
-                                                    }}
-                                                  />
-                                                  <Label htmlFor={`${employee.id}-instalments-all`} className="cursor-pointer">All Instalments</Label>
-                                                </div>
-                                                <div className="flex items-center space-x-2">
-                                                  <Checkbox
-                                                    id={`${employee.id}-instalments-assigned`}
-                                                    checked={employee.permissions?.instalments?.scope === "assigned"}
-                                                    onCheckedChange={(checked) => {
-                                                      updatePermission(employee.id, "instalments", "scope", checked ? "assigned" : "all");
-                                                    }}
-                                                  />
-                                                  <Label htmlFor={`${employee.id}-instalments-assigned`} className="cursor-pointer">Assigned Only</Label>
-                                                </div>
-                                              </>
-                                            )}
-                                          </div>
-                                        </div>
-                                        </>
                                         )}
                                       </motion.div>
                                     </TableCell>
