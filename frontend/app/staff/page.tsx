@@ -132,23 +132,23 @@ const StaffContent = () => {
             <div className="flex items-center gap-8">
               <h1 className="text-2xl font-bold">FitCoach Manager</h1>
               <div className="flex gap-6">
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/')}>
+                <Button key="clients" variant="ghost" className="gap-2" onClick={() => router.push('/')}>
                   <Users className="h-4 w-4" />
                   Clients
                 </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/payments')}>
+                <Button key="payments" variant="ghost" className="gap-2" onClick={() => router.push('/payments')}>
                   <CreditCard className="h-4 w-4" />
                   Payments
                 </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/instalments')}>
+                <Button key="instalments" variant="ghost" className="gap-2" onClick={() => router.push('/instalments')}>
                   <DollarSign className="h-4 w-4" />
                   Instalments
                 </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/dashboard')}>
+                <Button key="dashboard" variant="ghost" className="gap-2" onClick={() => router.push('/dashboard')}>
                   <LayoutDashboard className="h-4 w-4" />
                   Dashboard
                 </Button>
-                <Button variant="ghost" className="gap-2 border-b-2 border-primary">
+                <Button key="staff" variant="ghost" className="gap-2 border-b-2 border-primary">
                   <Users className="h-4 w-4" />
                   Staff
                 </Button>
