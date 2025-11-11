@@ -19,28 +19,37 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    password: "",
     phoneNumber: "",
-    role: "",
-    startDate: new Date().toISOString().split('T')[0],
+    role: "employee",
+    jobRole: "",
+    status: "active",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.password || formData.password.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
 
     try {
       await createEmployee({
         name: formData.name,
         email: formData.email,
-        phone_number: formData.phoneNumber,
+        password: formData.password,
         role: formData.role,
-        start_date: formData.startDate,
+        job_role: formData.jobRole || undefined,
+        phone_number: formData.phoneNumber || undefined,
+        status: formData.status,
         is_active: true,
-        permissions: {
-          clients: { access: "none", scope: "all" },
-          payments: { access: "none", scope: "all" },
-          instalments: { access: "none", scope: "all" },
-        },
       });
 
       toast({
@@ -89,6 +98,18 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
           />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="password">Password *</Label>
+          <Input
+            id="password"
+            type="password"
+            required
+            value={formData.password}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            placeholder="Min. 8 characters"
+            minLength={8}
+          />
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="phoneNumber">Phone Number</Label>
           <Input
             id="phoneNumber"
@@ -99,7 +120,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="role">Role *</Label>
+          <Label htmlFor="role">System Role *</Label>
           <Select
             required
             value={formData.role}
@@ -109,22 +130,18 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
               <SelectValue placeholder="Select role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="setter">Setter</SelectItem>
-              <SelectItem value="closer">Closer</SelectItem>
-              <SelectItem value="coach">Coach</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="manager">Manager</SelectItem>
+              <SelectItem value="employee">Employee</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="startDate">Start Date *</Label>
+          <Label htmlFor="jobRole">Job Role</Label>
           <Input
-            id="startDate"
-            type="date"
-            required
-            value={formData.startDate}
-            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+            id="jobRole"
+            value={formData.jobRole}
+            onChange={(e) => setFormData({ ...formData, jobRole: e.target.value })}
+            placeholder="e.g., Sales Manager, Coach, Setter"
           />
         </div>
       </div>

@@ -1,28 +1,17 @@
 const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 
 export interface Employee {
-  id: string;
+  id: number;
   name: string;
-  email: string | null;
-  phone_number: string | null;
-  role: string;
-  start_date: string;
-  end_date: string | null;
+  email: string;
+  phone_number?: string | null;
+  role: string; // "admin" or "employee"
+  job_role?: string | null; // Actual job title like "Sales Manager", "Coach", etc.
+  status?: string;
   is_active: boolean;
-  permissions: {
-    clients: {
-      access: string;
-      scope: string;
-    };
-    payments: {
-      access: string;
-      scope: string;
-    };
-    instalments: {
-      access: string;
-      scope: string;
-    };
-  };
+  permissions?: string[]; // Array of permission strings like "view_all_clients", "manage_all_clients"
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface EmployeesResponse {
@@ -90,7 +79,7 @@ export const listEmployees = async (params?: {
 };
 
 // Get a single employee by ID
-export const getEmployee = async (id: string): Promise<Employee> => {
+export const getEmployee = async (id: number): Promise<Employee> => {
   const response = await fetch(`${API_BASE_URL}/employees/${id}/`, {
     method: "GET",
     headers: getHeaders(),
@@ -104,7 +93,16 @@ export const getEmployee = async (id: string): Promise<Employee> => {
 };
 
 // Create a new employee
-export const createEmployee = async (employeeData: Partial<Employee>): Promise<Employee> => {
+export const createEmployee = async (employeeData: {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  job_role?: string;
+  phone_number?: string;
+  status?: string;
+  is_active?: boolean;
+}): Promise<Employee> => {
   const response = await fetch(`${API_BASE_URL}/employees/`, {
     method: "POST",
     headers: getHeaders(),
@@ -120,7 +118,7 @@ export const createEmployee = async (employeeData: Partial<Employee>): Promise<E
 };
 
 // Update an employee
-export const updateEmployee = async (id: string, employeeData: Partial<Employee>): Promise<Employee> => {
+export const updateEmployee = async (id: number, employeeData: Partial<Employee>): Promise<Employee> => {
   const response = await fetch(`${API_BASE_URL}/employees/${id}/`, {
     method: "PATCH",
     headers: getHeaders(),
@@ -136,7 +134,7 @@ export const updateEmployee = async (id: string, employeeData: Partial<Employee>
 };
 
 // Delete an employee
-export const deleteEmployee = async (id: string): Promise<void> => {
+export const deleteEmployee = async (id: number): Promise<void> => {
   const response = await fetch(`${API_BASE_URL}/employees/${id}/`, {
     method: "DELETE",
     headers: getHeaders(),
@@ -145,4 +143,36 @@ export const deleteEmployee = async (id: string): Promise<void> => {
   if (!response.ok) {
     throw new Error(`Failed to delete employee: ${response.statusText}`);
   }
+};
+
+// Update employee permissions
+export const updateEmployeePermissions = async (id: number, permissions: string[]): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/employees/${id}/update_permissions/`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ permissions }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+// Change employee password
+export const changeEmployeePassword = async (id: number, oldPassword: string, newPassword: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/employees/${id}/change_password/`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
 };
