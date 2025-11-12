@@ -161,6 +161,7 @@ class Client(models.Model):
     """Client model"""
     
     STATUS_CHOICES = [
+        ('pending', 'Pending'),
         ('active', 'Active'),
         ('inactive', 'Inactive'),
         ('onboarding', 'Onboarding'),
