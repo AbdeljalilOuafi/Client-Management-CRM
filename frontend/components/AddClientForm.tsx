@@ -20,6 +20,10 @@ const clientFormSchema = z.object({
   // Options
   generatePaymentLink: z.boolean().default(true),
   generateContract: z.boolean().default(true),
+  isFreeTrial: z.boolean().default(false),
+  freeTrialDays: z.string().optional().refine((val) => !val || (parseInt(val) >= 1), {
+    message: "Free trial days must be at least 1",
+  }),
   
   // Basic Information
   firstName: z.string().min(1, "First name is required"),
@@ -57,6 +61,11 @@ const clientFormSchema = z.object({
   
   // Subscription fields (conditional)
   subscriptionInterval: z.enum(["monthly", "weekly", ""]).optional(),
+  subscriptionAmount: z.string()
+    .optional()
+    .refine((val) => !val || (parseFloat(val) >= 1), {
+      message: "Amount must be greater than 0",
+    }),
   firstPaymentType: z.enum(["deposit", "full", ""]).optional(),
   depositAmount: z.string()
     .optional()
@@ -65,11 +74,11 @@ const clientFormSchema = z.object({
     }),
   remainderDate: z.string().optional(),
   
-  minimumTerm: z.string().min(1, "Minimum term is required"),
+  minimumTerm: z.number().min(1, "Minimum term must be at least 1"),
   
   // Start Date & Coaching
-  startingToday: z.enum(["yes", "no", ""]),
-  startDate: z.string().optional(),
+  startingToday: z.enum(["yes", "no", ""]).default("no"),
+  startDate: z.string().min(1, "Start date is required"),
   assignedCoach: z.string().min(1, "Assigned coach is required"),
   checkInDay: z.string().min(1, "Check-in day is required"),
   
@@ -107,13 +116,18 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
     defaultValues: {
       generatePaymentLink: true,
       generateContract: true,
+      isFreeTrial: false,
+      freeTrialDays: "",
       countryCode: "+1",
       currency: "USD",
       financialAgreement: "",
       pifPaymentType: "",
       subscriptionInterval: "",
       firstPaymentType: "",
-      startingToday: "",
+      startingToday: "no",
+      startDate: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+      minimumTerm: 1,
+      checkInDay: "Monday",
       numInstalments: 1,
       instalments: [],
     },
@@ -131,6 +145,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   const firstPaymentType = watch("firstPaymentType");
   const startingToday = watch("startingToday");
   const numInstalments = watch("numInstalments");
+  const isFreeTrial = watch("isFreeTrial");
 
   // Fetch package types using React Query
   const { data: packageTypes } = useQuery({
@@ -176,15 +191,41 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       );
       replace(newInstalments);
     }
-  }, [numInstalments, pifPaymentType, fields, replace]);
+  }, [numInstalments, pifPaymentType, replace]);
 
   // Form submission handler
   const onSubmit = async (data: ClientFormData) => {
     try {
+      // Get user data from localStorage
+      const userDataString = localStorage.getItem("user");
+      let userId = null;
+      let accountId = null;
+
+      if (userDataString) {
+        try {
+          const userData = JSON.parse(userDataString);
+          userId = userData.id;
+          accountId = userData.account_id;
+        } catch (parseError) {
+          console.error("Error parsing user data from localStorage:", parseError);
+        }
+      }
+
+      // Generate a unique client ID (you can modify this logic as needed)
+      const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Prepare payload with user and client IDs
+      const payload = {
+        userId,
+        accountId,
+        clientId,
+        ...data,
+      };
+
       // TODO: Replace with actual webhook URL when available
       const webhookUrl = "YOUR_N8N_WEBHOOK_URL_HERE";
       
-      console.log("Form Data:", data);
+      console.log("Form Data:", payload);
       
       // Simulated API call
       // const response = await fetch(webhookUrl, {
@@ -192,7 +233,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       //   headers: {
       //     "Content-Type": "application/json",
       //   },
-      //   body: JSON.stringify(data),
+      //   body: JSON.stringify(payload),
       // });
 
       // if (!response.ok) {
@@ -257,6 +298,41 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             Generate contract
           </Label>
         </div>
+
+        <div className="flex items-center space-x-2">
+          <Controller
+            name="isFreeTrial"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="isFreeTrial"
+                checked={field.value}
+                onCheckedChange={field.onChange}
+              />
+            )}
+          />
+          <Label htmlFor="isFreeTrial" className="text-sm font-medium cursor-pointer">
+            Free Trial
+          </Label>
+        </div>
+
+        {isFreeTrial && (
+          <div className="space-y-2 pl-6">
+            <Label htmlFor="freeTrialDays">Free Trial Duration (days) *</Label>
+            <Input
+              id="freeTrialDays"
+              type="number"
+              min="1"
+              placeholder="e.g., 7, 14, 30"
+              {...register("freeTrialDays")}
+              onWheel={(e) => e.currentTarget.blur()}
+              className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.freeTrialDays ? "border-destructive" : ""}`}
+            />
+            {errors.freeTrialDays && (
+              <p className="text-xs text-destructive">{errors.freeTrialDays.message}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ========================================================================
@@ -357,7 +433,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         <h3 className="text-lg font-semibold">Package & Payment Information</h3>
 
         <div className="space-y-2">
-          <Label htmlFor="packageType">Type of Client *</Label>
+          <Label htmlFor="packageType">Product Name *</Label>
           <Controller
             name="packageType"
             control={control}
@@ -455,7 +531,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     step="0.01"
                     min="1"
                     {...register("pifFullAmount")}
-                    className={errors.pifFullAmount ? "border-destructive" : ""}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.pifFullAmount ? "border-destructive" : ""}`}
                   />
                   {errors.pifFullAmount && (
                     <p className="text-xs text-destructive">{errors.pifFullAmount.message}</p>
@@ -468,6 +545,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     type="number"
                     min="1"
                     {...register("pifMonths")}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
                 <div className="space-y-2">
@@ -478,7 +557,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     step="0.01"
                     min="1"
                     {...register("monthlyRollingAmount")}
-                    className={errors.monthlyRollingAmount ? "border-destructive" : ""}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.monthlyRollingAmount ? "border-destructive" : ""}`}
                   />
                   {errors.monthlyRollingAmount && (
                     <p className="text-xs text-destructive">{errors.monthlyRollingAmount.message}</p>
@@ -497,6 +577,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     min="1"
                     max="5"
                     {...register("numInstalments", { valueAsNumber: true })}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
                 {fields.map((field, index) => (
@@ -517,7 +599,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                           step="0.01"
                           min="1"
                           {...register(`instalments.${index}.amount`)}
-                          className={errors.instalments?.[index]?.amount ? "border-destructive" : ""}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.instalments?.[index]?.amount ? "border-destructive" : ""}`}
                         />
                         {errors.instalments?.[index]?.amount && (
                           <p className="text-xs text-destructive">
@@ -556,6 +639,23 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="subscriptionAmount">Subscription Amount *</Label>
+              <Input
+                id="subscriptionAmount"
+                type="number"
+                step="0.01"
+                min="1"
+                placeholder="Enter subscription amount"
+                {...register("subscriptionAmount")}
+                onWheel={(e) => e.currentTarget.blur()}
+                className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.subscriptionAmount ? "border-destructive" : ""}`}
+              />
+              {errors.subscriptionAmount && (
+                <p className="text-xs text-destructive">{errors.subscriptionAmount.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label>First Payment *</Label>
               <Controller
                 name="firstPaymentType"
@@ -584,7 +684,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     step="0.01"
                     min="1"
                     {...register("depositAmount")}
-                    className={errors.depositAmount ? "border-destructive" : ""}
+                    onWheel={(e) => e.currentTarget.blur()}
+                    className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.depositAmount ? "border-destructive" : ""}`}
                   />
                   {errors.depositAmount && (
                     <p className="text-xs text-destructive">{errors.depositAmount.message}</p>
@@ -608,8 +709,11 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
           <Input
             id="minimumTerm"
             type="number"
-            {...register("minimumTerm")}
-            className={errors.minimumTerm ? "border-destructive" : ""}
+            min="1"
+            step="1"
+            {...register("minimumTerm", { valueAsNumber: true })}
+            onWheel={(e) => e.currentTarget.blur()}
+            className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.minimumTerm ? "border-destructive" : ""}`}
           />
           {errors.minimumTerm && (
             <p className="text-xs text-destructive">{errors.minimumTerm.message}</p>
@@ -645,16 +749,18 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
           )}
         </div>
 
-        {startingToday === "no" && (
-          <div className="space-y-2">
-            <Label htmlFor="startDate">Start Date *</Label>
-            <Input
-              id="startDate"
-              type="date"
-              {...register("startDate")}
-            />
-          </div>
-        )}
+        <div className="space-y-2">
+          <Label htmlFor="startDate">Start Date *</Label>
+          <Input
+            id="startDate"
+            type="date"
+            {...register("startDate")}
+            className={errors.startDate ? "border-destructive" : ""}
+          />
+          {errors.startDate && (
+            <p className="text-xs text-destructive">{errors.startDate.message}</p>
+          )}
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="assignedCoach">Assigned Coach *</Label>

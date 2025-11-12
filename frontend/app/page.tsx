@@ -77,10 +77,23 @@ export default function Index() {
       setLoading(true);
       setError(null);
       const response = await listClients({
-        status: statusFilter !== "all" ? statusFilter : undefined,
+        status: statusFilter,
         search: searchQuery || undefined,
       });
-      setClients(response.results);
+      
+      // Filter client-side for statuses not supported by backend
+      let filteredClients = response.results;
+      
+      if (statusFilter === "paused") {
+        filteredClients = response.results.filter(client => client.status === "paused");
+      } else if (statusFilter === "pending") {
+        filteredClients = response.results.filter(client => client.status === "pending");
+      } else if (statusFilter === "all") {
+        // Exclude pending clients from "All Clients" view
+        filteredClients = response.results.filter(client => client.status !== "pending");
+      }
+      
+      setClients(filteredClients);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Failed to fetch clients";
       setError(errorMsg);
@@ -317,6 +330,8 @@ export default function Index() {
                       <SelectItem value="all">All Clients</SelectItem>
                       <SelectItem value="active">Active Clients</SelectItem>
                       <SelectItem value="inactive">Inactive Clients</SelectItem>
+                      <SelectItem value="paused">Paused Clients</SelectItem>
+                      <SelectItem value="pending">Pending Clients</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

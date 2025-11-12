@@ -6,7 +6,7 @@ export interface Client {
   first_name: string;
   last_name: string;
   email: string;
-  status: "active" | "inactive";
+  status: "active" | "inactive" | "paused" | "pending";
   address?: string;
   instagram_handle?: string;
   ghl_id?: string;
@@ -67,9 +67,11 @@ export const listClients = async (params?: {
 }): Promise<ClientsResponse> => {
   const queryParams = new URLSearchParams();
   
-  if (params?.status && params.status !== "all") {
+  // Only send status to API if it's a backend-supported value (active/inactive)
+  if (params?.status && params.status !== "all" && (params.status === "active" || params.status === "inactive")) {
     queryParams.append("status", params.status);
   }
+  // Note: "paused" and "pending" will be filtered client-side in the component
   if (params?.search) {
     queryParams.append("search", params.search);
   }
