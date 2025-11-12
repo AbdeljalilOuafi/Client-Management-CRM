@@ -96,6 +96,9 @@ class Employee(AbstractBaseUser, PermissionsMixin):
         ('super_admin', 'Super Admin'),
         ('admin', 'Admin'),
         ('employee', 'Employee'),
+        ('coach', 'Coach'),
+        ('closer', 'Closer'),
+        ('setter', 'Setter'),
     ]
     
     STATUS_CHOICES = [
