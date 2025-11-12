@@ -21,8 +21,12 @@ const clientFormSchema = z.object({
   generatePaymentLink: z.boolean().default(true),
   generateContract: z.boolean().default(true),
   isFreeTrial: z.boolean().default(false),
-  freeTrialDays: z.string().optional().refine((val) => !val || (parseInt(val) >= 1), {
-    message: "Free trial days must be at least 1",
+  freeTrialDays: z.string().optional().refine((val) => {
+    if (!val) return true;
+    const num = parseInt(val);
+    return num >= 1 && Number.isInteger(parseFloat(val));
+  }, {
+    message: "Free trial days must be a whole number (at least 1)",
   }),
   
   // Basic Information
@@ -323,8 +327,13 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
               id="freeTrialDays"
               type="number"
               min="1"
+              step="1"
               placeholder="e.g., 7, 14, 30"
               {...register("freeTrialDays")}
+              onInput={(e) => {
+                const target = e.target as HTMLInputElement;
+                target.value = target.value.replace(/[^0-9]/g, '');
+              }}
               onWheel={(e) => e.currentTarget.blur()}
               className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.freeTrialDays ? "border-destructive" : ""}`}
             />
@@ -712,6 +721,10 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             min="1"
             step="1"
             {...register("minimumTerm", { valueAsNumber: true })}
+            onInput={(e) => {
+              const target = e.target as HTMLInputElement;
+              target.value = target.value.replace(/[^0-9]/g, '');
+            }}
             onWheel={(e) => e.currentTarget.blur()}
             className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.minimumTerm ? "border-destructive" : ""}`}
           />
