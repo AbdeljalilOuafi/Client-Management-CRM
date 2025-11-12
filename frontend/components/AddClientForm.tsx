@@ -35,7 +35,7 @@ const clientFormSchema = z.object({
   email: z.string().email("Invalid email address"),
   countryCode: z.string().default("+1"),
   phone: z.string().min(1, "Phone number is required"),
-  dob: z.string().min(1, "Date of birth is required"),
+  dob: z.string().optional(),
   
   // Package & Payment Information
   packageType: z.string().min(1, "Package type is required"),
@@ -264,11 +264,11 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto pr-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 max-h-[75vh] overflow-y-auto pr-2 pb-4">
       {/* ========================================================================
           OPTIONS
           ======================================================================== */}
-      <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+      <div className="space-y-4 p-6 bg-muted/30 rounded-xl border border-border/50 shadow-sm">
         <div className="flex items-center space-x-2">
           <Controller
             name="generatePaymentLink"
@@ -347,8 +347,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       {/* ========================================================================
           BASIC INFORMATION
           ======================================================================== */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Basic Information</h3>
+      <div className="space-y-5 p-6 bg-card rounded-xl border border-border/50 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">Basic Information</h3>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -421,25 +421,21 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="dob">Date of Birth (DD/MM/YYYY) *</Label>
+          <Label htmlFor="dob">Date of Birth (DD/MM/YYYY)</Label>
           <Input
             id="dob"
             type="text"
             placeholder="DD/MM/YYYY"
             {...register("dob")}
-            className={errors.dob ? "border-destructive" : ""}
           />
-          {errors.dob && (
-            <p className="text-xs text-destructive">{errors.dob.message}</p>
-          )}
         </div>
       </div>
 
       {/* ========================================================================
           PACKAGE & PAYMENT INFORMATION
           ======================================================================== */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Package & Payment Information</h3>
+      <div className="space-y-5 p-6 bg-card rounded-xl border border-border/50 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">Package & Payment Information</h3>
 
         <div className="space-y-2">
           <Label htmlFor="packageType">Product Name *</Label>
@@ -510,7 +506,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
 
         {/* PIF Options */}
         {financialAgreement === "pif" && (
-          <div className="space-y-4 pl-4 border-l-2 border-primary">
+          <div className="space-y-5 pl-6 pr-4 py-4 border-l-4 border-primary/50 bg-primary/5 rounded-r-lg">
             <div className="space-y-2">
               <Label>Payment Method *</Label>
               <Controller
@@ -585,14 +581,19 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     type="number"
                     min="1"
                     max="5"
+                    step="1"
                     {...register("numInstalments", { valueAsNumber: true })}
+                    onInput={(e) => {
+                      const target = e.target as HTMLInputElement;
+                      target.value = target.value.replace(/[^0-9]/g, '');
+                    }}
                     onWheel={(e) => e.currentTarget.blur()}
                     className="[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
                 {fields.map((field, index) => (
-                  <div key={field.id} className="space-y-2 p-4 bg-muted rounded-md">
-                    <h4 className="font-medium">Instalment {index + 1}</h4>
+                  <div key={field.id} className="space-y-3 p-5 bg-muted/50 rounded-lg border border-border/30">
+                    <h4 className="font-semibold text-sm text-muted-foreground">Instalment {index + 1}</h4>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Date *</Label>
@@ -627,7 +628,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
 
         {/* Subscription Options */}
         {financialAgreement === "subscription" && (
-          <div className="space-y-4 pl-4 border-l-2 border-primary">
+          <div className="space-y-5 pl-6 pr-4 py-4 border-l-4 border-primary/50 bg-primary/5 rounded-r-lg">
             <div className="space-y-2">
               <Label htmlFor="subscriptionInterval">Subscription Interval *</Label>
               <Controller
@@ -737,8 +738,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       {/* ========================================================================
           START DATE & COACHING
           ======================================================================== */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Start Date & Coaching</h3>
+      <div className="space-y-5 p-6 bg-card rounded-xl border border-border/50 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">Start Date & Coaching</h3>
 
         <div className="space-y-2">
           <Label>Are they starting today? *</Label>
@@ -829,23 +830,33 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       </div>
 
       {/* ========================================================================
-          ADDITIONAL NOTES
+          NOTES
           ======================================================================== */}
-      <div className="space-y-2">
-        <Label htmlFor="notes">Extra Notes</Label>
-        <Textarea
-          id="notes"
-          {...register("notes")}
-          placeholder="Add any additional notes here..."
-          rows={4}
-        />
+      <div className="space-y-5 p-6 bg-card rounded-xl border border-border/50 shadow-sm">
+        <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">Additional Notes</h3>
+
+        <div className="space-y-2">
+          <Label htmlFor="notes">Notes (Optional)</Label>
+          <Textarea
+            id="notes"
+            {...register("notes")}
+            rows={4}
+            placeholder="Add any additional notes about the client..."
+            className="resize-none"
+          />
+        </div>
       </div>
 
       {/* ========================================================================
           SUBMIT BUTTON
           ======================================================================== */}
-      <div className="flex justify-end gap-4">
-        <Button type="submit" disabled={isSubmitting}>
+      <div className="flex justify-end gap-4 pt-6 border-t border-border/50">
+        <Button 
+          type="submit" 
+          disabled={isSubmitting}
+          className="min-w-[150px] shadow-lg hover:shadow-xl transition-all"
+          size="lg"
+        >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
