@@ -434,26 +434,23 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         ...data,
       };
 
-      // TODO: Replace with actual webhook URL when available
-      const webhookUrl = "YOUR_N8N_WEBHOOK_URL_HERE";
+      // Webhook URL for new client form
+      const webhookUrl = "https://auto.onsync.ai/webhook/98df8b98-e503-4821-ad1d-500ad5b61182";
       
       console.log("Form Data:", payload);
       
-      // Simulated API call
-      // const response = await fetch(webhookUrl, {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      //   body: JSON.stringify(payload),
-      // });
+      // Send data to webhook
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-      // if (!response.ok) {
-      //   throw new Error("Failed to submit form");
-      // }
-
-      // Simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!response.ok) {
+        throw new Error("Failed to submit form");
+      }
 
       toast({
         title: "Success!",
