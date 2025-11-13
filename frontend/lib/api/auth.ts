@@ -78,9 +78,10 @@ export const signup = async (signupData: SignupData): Promise<SignupResponse> =>
 
   const data = await response.json();
   
-  // Store token in localStorage
+  // Store token and account info in localStorage
   if (typeof window !== "undefined") {
     localStorage.setItem("auth_token", data.token);
+    localStorage.setItem("accountId", data.account.id.toString());
     localStorage.setItem("user", JSON.stringify({
       id: data.user.id,
       email: data.user.email,
@@ -118,9 +119,10 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
 
     const data = await response.json();
     
-    // Store token in localStorage
+    // Store token and account info in localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("accountId", data.user.account_id.toString());
       localStorage.setItem("user", JSON.stringify(data.user));
     }
 
@@ -153,6 +155,7 @@ export const logout = async (): Promise<void> => {
   // Clear local storage
   if (typeof window !== "undefined") {
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("accountId");
     localStorage.removeItem("user");
   }
 };
@@ -197,6 +200,18 @@ export const getStoredUser = (): User | null => {
       } catch {
         return null;
       }
+    }
+  }
+  return null;
+};
+
+// Get stored account ID
+export const getAccountId = (): number | null => {
+  if (typeof window !== "undefined") {
+    const accountId = localStorage.getItem("accountId");
+    if (accountId) {
+      const parsed = parseInt(accountId, 10);
+      return isNaN(parsed) ? null : parsed;
     }
   }
   return null;

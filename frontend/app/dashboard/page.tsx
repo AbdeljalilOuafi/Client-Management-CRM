@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { useRouter } from "next/navigation";
-import { Users, LayoutDashboard, CreditCard, DollarSign, Plus, Trash2, Sparkles } from "lucide-react";
+import { Plus, Trash2, Sparkles, LayoutDashboard, CreditCard } from "lucide-react";
+import { Navbar } from "@/components/Navbar";
 import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 import { ChartWidget } from "@/components/dashboard/ChartWidget";
 import { TableWidget } from "@/components/dashboard/TableWidget";
@@ -12,7 +12,6 @@ import { AddWidgetDialog } from "@/components/dashboard/AddWidgetDialog";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 export default function Dashboard() {
-  const router = useRouter();
   const {
     widgets,
     isLoading,
@@ -58,53 +57,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <motion.h1 
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent"
-              >
-                FitCoach Manager
-              </motion.h1>
-              <div className="flex gap-2">
-                {[
-                  { icon: Users, label: 'Clients', path: '/' },
-                  { icon: CreditCard, label: 'Payments', path: '/payments' },
-                  { icon: DollarSign, label: 'Instalments', path: '/instalments' },
-                  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', active: true },
-                  { icon: Users, label: 'Staff', path: '/staff' },
-                ].map((item) => (
-                  <motion.div key={item.path} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      variant="ghost"
-                      className={`gap-2 transition-all ${
-                        item.active 
-                          ? 'bg-primary/10 text-primary border-b-2 border-primary rounded-b-none' 
-                          : 'hover:bg-muted'
-                      }`}
-                      onClick={() => router.push(item.path)}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      {item.label}
-                    </Button>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="flex items-center gap-4"
-            >
-              <span className="text-sm text-muted-foreground">Coach Portal</span>
-            </motion.div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">

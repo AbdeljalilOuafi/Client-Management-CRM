@@ -4,9 +4,8 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Users, LayoutDashboard, CreditCard, ArrowUp, ArrowDown, Maximize2, DollarSign, UserPlus, Filter, CheckCircle2 } from "lucide-react";
+import { Search, Users, ArrowUp, ArrowDown, Maximize2, UserPlus, Filter, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useRouter } from "next/navigation";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ClientDetailsDialog } from "@/components/clients/ClientDetailsDialog";
+import { Navbar } from "@/components/Navbar";
 
 const columnDefinitions = [
   { id: "id", label: "ID", default: true },
@@ -41,7 +41,6 @@ const columnDefinitions = [
 ];
 
 export default function Index() {
-  const router = useRouter();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -149,37 +148,7 @@ export default function Index() {
   return (
     <AuthGuard>
       <div className="min-h-screen bg-background">
-      <nav className="border-b bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <h1 className="text-2xl font-bold">FitCoach Manager</h1>
-              <div className="flex gap-6">
-                <Button variant="ghost" className="gap-2 border-b-2 border-primary" onClick={() => router.push('/clients')}>
-                  <Users className="h-4 w-4" />
-                  Clients
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/payments')}>
-                  <CreditCard className="h-4 w-4" />
-                  Payments
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/instalments')}>
-                  <DollarSign className="h-4 w-4" />
-                  Instalments
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/dashboard')}>
-                  <LayoutDashboard className="h-4 w-4" />
-                  Dashboard
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/staff')}>
-                  <Users className="h-4 w-4" />
-                  Staff
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <main className="container mx-auto px-6 py-8">
         <div className="space-y-6">

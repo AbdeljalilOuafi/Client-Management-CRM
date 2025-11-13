@@ -4,14 +4,14 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronRight, Search, Users, LayoutDashboard, CreditCard, DollarSign, Loader2, Filter } from "lucide-react";
+import { ChevronRight, Search, Loader2, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useRouter } from "next/navigation";
 import { listPayments, getPaymentStatistics, Payment, PaymentStatistics } from "@/lib/api/payments";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Navbar } from "@/components/Navbar";
 
 const columnDefinitions = [
   { id: "id", label: "Payment ID", default: true },
@@ -26,7 +26,6 @@ const columnDefinitions = [
 ];
 
 const PaymentsContent = () => {
-  const router = useRouter();
   const { toast } = useToast();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -110,41 +109,7 @@ const PaymentsContent = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Navigation */}
-      <nav className="border-b bg-card">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-8">
-              <h1 className="text-2xl font-bold">FitCoach Manager</h1>
-              <div className="flex gap-6">
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/')}>
-                  <Users className="h-4 w-4" />
-                  Clients
-                </Button>
-                <Button variant="ghost" className="gap-2 border-b-2 border-primary">
-                  <CreditCard className="h-4 w-4" />
-                  Payments
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/instalments')}>
-                  <DollarSign className="h-4 w-4" />
-                  Instalments
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/dashboard')}>
-                  <LayoutDashboard className="h-4 w-4" />
-                  Dashboard
-                </Button>
-                <Button variant="ghost" className="gap-2" onClick={() => router.push('/staff')}>
-                  <Users className="h-4 w-4" />
-                  Staff
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">Coach Portal</span>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Main Content */}
       <main className="container mx-auto px-6 py-8">
