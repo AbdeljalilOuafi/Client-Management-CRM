@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Users, LayoutDashboard, CreditCard, DollarSign } from "lucide-react";
+import { Users, LayoutDashboard, CreditCard, DollarSign, FileText } from "lucide-react";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 
 export function Navbar() {
@@ -34,6 +34,11 @@ export function Navbar() {
       label: "Staff",
       icon: Users,
       path: "/staff",
+    },
+    {
+      label: "Check-in Forms",
+      icon: FileText,
+      path: "/check-in-forms",
     },
   ];
 
