@@ -434,8 +434,12 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         ...data,
       };
 
-      // Webhook URL for new client form
-      const webhookUrl = "https://auto.onsync.ai/webhook/98df8b98-e503-4821-ad1d-500ad5b61182";
+      // Webhook URL for new client form (from environment variable)
+      const webhookUrl = process.env.NEXT_PUBLIC_ADD_CLIENT_WEBHOOK_URL;
+      
+      if (!webhookUrl) {
+        throw new Error("Webhook URL is not configured. Please set NEXT_PUBLIC_ADD_CLIENT_WEBHOOK_URL in .env.local");
+      }
       
       console.log("Form Data:", payload);
       
