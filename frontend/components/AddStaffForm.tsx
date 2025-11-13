@@ -36,8 +36,8 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         name: fullName,
         email: formData.email,
         password: "TempPass123!", // Temporary password - should be changed on first login
-        role: "employee", // Backend role
-        job_role: formData.role, // Actual job role (Setter, Closer, etc.)
+        role: formData.role, // Backend role (admin, employee, coach, closer, setter)
+        job_role: formData.role, // Job role (same as role for now)
         phone_number: formData.phoneNumber || undefined,
         status: "active",
         is_active: true,
@@ -120,11 +120,11 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
               <SelectValue placeholder="Select role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="setter">Setter</SelectItem>
-              <SelectItem value="closer">Closer</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="manager">Manager</SelectItem>
+              <SelectItem value="employee">Employee</SelectItem>
               <SelectItem value="coach">Coach</SelectItem>
+              <SelectItem value="closer">Closer</SelectItem>
+              <SelectItem value="setter">Setter</SelectItem>
             </SelectContent>
           </Select>
         </div>
