@@ -451,7 +451,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         },
         body: JSON.stringify(payload),
       });
-
+      
       if (!response.ok) {
         throw new Error("Failed to submit form");
       }
@@ -460,6 +460,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         title: "Success!",
         description: "Client has been added successfully.",
       });
+      console.log("Response:", response.status);
 
       onSuccess();
     } catch (error) {

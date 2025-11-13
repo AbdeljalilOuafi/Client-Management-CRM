@@ -6,6 +6,7 @@ export interface Client {
   first_name: string;
   last_name: string;
   email: string;
+  phone?: string;
   status: "active" | "inactive" | "paused" | "pending";
   address?: string;
   instagram_handle?: string;
@@ -26,6 +27,29 @@ export interface Client {
   closer_id?: number;
   setter_id?: number;
   timezone?: string;
+  package_type?: string;
+  payment_method?: string;
+  payment_amount?: number;
+  latest_payment_amount?: number;
+  number_months_paid?: number;
+  payment_plan?: string;
+  ltv?: number;
+  native_currency?: string;
+  day_of_month_payment?: number;
+  start_date?: string;
+  end_date?: string;
+  next_payment_date?: string;
+  latest_payment_date?: string;
+  no_months?: number;
+  minimum_term?: number;
+  wedding_date?: string;
+  coach_name?: string;
+  closer?: string;
+  setter?: string;
+  monthly_calls?: number;
+  cta_lead_origin?: string;
+  stripe_customer_id?: string;
+  mamo_pay_id?: string;
 }
 
 export interface ClientsResponse {
