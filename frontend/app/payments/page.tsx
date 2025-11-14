@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Navbar } from "@/components/Navbar";
+import { PackageManagement } from "@/components/PackageManagement";
 
 const columnDefinitions = [
   { id: "id", label: "Payment ID", default: true },
@@ -115,9 +116,12 @@ const PaymentsContent = () => {
       <main className="container mx-auto px-6 py-8">
         <div className="space-y-6">
           {/* Header */}
-          <div>
-            <h2 className="text-3xl font-bold">Payment Management</h2>
-            <p className="text-muted-foreground">Track and manage client payments</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-3xl font-bold">Payment Management</h2>
+              <p className="text-muted-foreground">Track and manage client payments</p>
+            </div>
+            <PackageManagement />
           </div>
 
           {/* Stats Cards */}
