@@ -313,46 +313,6 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             Generate contract
           </Label>
         </div>
-
-        <div className="flex items-center space-x-2">
-          <Controller
-            name="isFreeTrial"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="isFreeTrial"
-                checked={field.value}
-                onCheckedChange={field.onChange}
-              />
-            )}
-          />
-          <Label htmlFor="isFreeTrial" className="text-sm font-medium cursor-pointer">
-            Free Trial
-          </Label>
-        </div>
-
-        {isFreeTrial && (
-          <div className="space-y-2 pl-6">
-            <Label htmlFor="freeTrialDays">Free Trial Duration (days) *</Label>
-            <Input
-              id="freeTrialDays"
-              type="number"
-              min="1"
-              step="1"
-              placeholder="e.g., 7, 14, 30"
-              {...register("freeTrialDays")}
-              onInput={(e) => {
-                const target = e.target as HTMLInputElement;
-                target.value = target.value.replace(/[^0-9]/g, '');
-              }}
-              onWheel={(e) => e.currentTarget.blur()}
-              className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.freeTrialDays ? "border-destructive" : ""}`}
-            />
-            {errors.freeTrialDays && (
-              <p className="text-xs text-destructive">{errors.freeTrialDays.message}</p>
-            )}
-          </div>
-        )}
       </div>
 
       {/* ========================================================================
@@ -519,21 +479,39 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       <div className="space-y-5 p-6 bg-card rounded-xl border border-border/50 shadow-sm">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <h3 className="text-lg font-semibold text-foreground">Package & Payment Information</h3>
-          <div className="flex items-center space-x-2">
-            <Controller
-              name="isFreeClient"
-              control={control}
-              render={({ field }) => (
-                <Checkbox
-                  id="isFreeClient"
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              )}
-            />
-            <Label htmlFor="isFreeClient" className="text-sm font-medium cursor-pointer">
-              Free Client
-            </Label>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center space-x-2">
+              <Controller
+                name="isFreeClient"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="isFreeClient"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+              <Label htmlFor="isFreeClient" className="text-sm font-medium cursor-pointer">
+                Free Client
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Controller
+                name="isFreeTrial"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="isFreeTrial"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
+              />
+              <Label htmlFor="isFreeTrial" className="text-sm font-medium cursor-pointer">
+                Free Trial
+              </Label>
+            </div>
           </div>
         </div>
 
@@ -561,6 +539,29 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             <p className="text-xs text-destructive">{errors.packageType.message}</p>
           )}
         </div>
+
+        {isFreeTrial && (
+          <div className="space-y-2">
+            <Label htmlFor="freeTrialDays">Free Trial Duration (days) *</Label>
+            <Input
+              id="freeTrialDays"
+              type="number"
+              min="1"
+              step="1"
+              placeholder="e.g., 7, 14, 30"
+              {...register("freeTrialDays")}
+              onInput={(e) => {
+                const target = e.target as HTMLInputElement;
+                target.value = target.value.replace(/[^0-9]/g, '');
+              }}
+              onWheel={(e) => e.currentTarget.blur()}
+              className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.freeTrialDays ? "border-destructive" : ""}`}
+            />
+            {errors.freeTrialDays && (
+              <p className="text-xs text-destructive">{errors.freeTrialDays.message}</p>
+            )}
+          </div>
+        )}
 
         {!isFreeClient && (
           <div className="space-y-2">
