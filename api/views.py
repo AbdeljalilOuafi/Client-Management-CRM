@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import authenticate
-from django.db.models import Q
+from django.db.models import Q, Sum
+from dateutil.relativedelta import relativedelta
 
 from .models import (
     Account, Employee, Client, Package, ClientPackage,
@@ -353,6 +354,131 @@ class ClientViewSet(viewsets.ModelViewSet):
         }
         
         return Response(stats)
+
+    @action(detail=True, methods=['get'], url_path='payment-details')
+    def payment_details(self, request, pk=None):
+        """
+        Get comprehensive payment and package information for a client
+        GET /api/clients/{id}/payment-details/
+        """
+        client = self.get_object()
+        
+        # Serialize client data using existing serializer
+        client_serializer = self.get_serializer(client)
+        client_data = client_serializer.data
+        
+        # Get active client package
+        client_package = ClientPackage.objects.filter(
+            client=client,
+            status='active'
+        ).select_related('package').first()
+        
+        # Get successful payments
+        successful_payments = Payment.objects.filter(
+            client=client,
+            status='paid'
+        ).order_by('-payment_date')
+        
+        # Build package info
+        package_info = {
+            'package_type': client_package.package_type if client_package else None,
+            'status': client_package.status if client_package else None,
+            'start_date': client_package.start_date if client_package else None,
+            'end_date': client_package.package_end_date if client_package else None,
+            'minimum_term': client_package.minimum_term if client_package else None,
+            'review_type': client_package.review_type if client_package else None,
+            'payment_schedule': client_package.payment_schedule if client_package else None,
+            'payments_left': client_package.payments_left if client_package else None,
+        }
+        
+        # Build payment info
+        payment_info = {
+            'payment_method': self._get_payment_method(successful_payments),
+            'payment_amount': float(client_package.monthly_payment_amount) if client_package and client_package.monthly_payment_amount else 0.00,
+            'latest_payment_amount': self._get_latest_payment_amount(successful_payments),
+            'latest_payment_date': self._get_latest_payment_date(successful_payments),
+            'next_payment_date': self._calculate_next_payment_date(client_package, successful_payments),
+            'ltv': self._calculate_ltv(successful_payments),
+            'currency': client.currency or 'USD',
+            'day_of_month': self._get_payment_day(successful_payments),
+            'no_more_payments': client.no_more_payments,
+            'number_of_months': self._calculate_months(client_package),
+            'number_of_months_paid': successful_payments.count(),
+        }
+        
+        return Response({
+            'client': client_data,
+            'package_info': package_info,
+            'payment_info': payment_info,
+        })
+    
+    def _get_payment_method(self, payments_queryset):
+        """Determine payment method based on latest payment"""
+        latest_payment = payments_queryset.first()
+        if latest_payment and latest_payment.stripe_customer_id:
+            return 'Stripe'
+        return 'Manual'
+    
+    def _get_latest_payment_amount(self, payments_queryset):
+        """Get amount from most recent payment"""
+        latest_payment = payments_queryset.first()
+        if latest_payment:
+            return float(latest_payment.amount)
+        return 0.00
+    
+    def _get_latest_payment_date(self, payments_queryset):
+        """Get date of most recent payment"""
+        latest_payment = payments_queryset.first()
+        if latest_payment:
+            return latest_payment.payment_date
+        return None
+    
+    def _calculate_next_payment_date(self, client_package, payments_queryset):
+        """Calculate next payment date based on payment schedule"""
+        if not client_package or not client_package.payment_schedule:
+            return None
+        
+        latest_payment = payments_queryset.first()
+        if not latest_payment:
+            return None
+        
+        latest_date = latest_payment.payment_date
+        schedule = client_package.payment_schedule.lower()
+        
+        if schedule == 'monthly':
+            return latest_date + relativedelta(months=1)
+        elif schedule == 'quarterly':
+            return latest_date + relativedelta(months=3)
+        elif schedule == 'semi_annually':
+            return latest_date + relativedelta(months=6)
+        elif schedule == 'annually':
+            return latest_date + relativedelta(years=1)
+        
+        return None
+    
+    def _get_payment_day(self, payments_queryset):
+        """Extract day of month from first payment"""
+        first_payment = payments_queryset.last()  # last() because ordered DESC
+        if first_payment:
+            return first_payment.payment_date.day
+        return None
+    
+    def _calculate_ltv(self, payments_queryset):
+        """Calculate lifetime value (sum of all successful payments)"""
+        ltv = payments_queryset.aggregate(total=Sum('amount'))['total']
+        return float(ltv) if ltv else 0.00
+    
+    def _calculate_months(self, client_package):
+        """Calculate number of months between start and end dates"""
+        if not client_package or not client_package.start_date or not client_package.package_end_date:
+            return None
+        
+        start = client_package.start_date
+        end = client_package.package_end_date
+        
+        # Calculate difference in months
+        months = (end.year - start.year) * 12 + (end.month - start.month)
+        return months if months >= 0 else None
 
 
 class PackageViewSet(viewsets.ModelViewSet):
