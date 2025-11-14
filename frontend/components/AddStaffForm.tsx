@@ -121,7 +121,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="employee">Employee</SelectItem>
+              <SelectItem value="employee">Manager</SelectItem>
               <SelectItem value="coach">Coach</SelectItem>
               <SelectItem value="closer">Closer</SelectItem>
               <SelectItem value="setter">Setter</SelectItem>
