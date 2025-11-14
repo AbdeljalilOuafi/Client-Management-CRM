@@ -1,12 +1,16 @@
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Client } from "@/lib/api/clients";
+import { ClientDetailsResponse } from "@/lib/api/client-details";
 
 interface TeamSupportCardProps {
   client: Client;
+  detailedData?: ClientDetailsResponse | null;
 }
 
-export function TeamSupportCard({ client }: TeamSupportCardProps) {
+export function TeamSupportCard({ client, detailedData }: TeamSupportCardProps) {
+  const packageInfo = detailedData?.package_info;
+  const clientData = detailedData?.client;
   return (
     <Card className="border-2 hover:shadow-lg transition-shadow duration-300">
       <CardHeader className="bg-muted/30 border-b">
@@ -18,27 +22,27 @@ export function TeamSupportCard({ client }: TeamSupportCardProps) {
       <CardContent className="grid grid-cols-2 gap-6 p-6">
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Coach</Label>
-          <p className="font-semibold text-purple-600 dark:text-purple-400 py-2 px-3 bg-purple-50 dark:bg-purple-950/30 rounded-md border border-purple-200 dark:border-purple-800">{client.coach_name || "-"}</p>
+          <p className="font-semibold text-purple-600 dark:text-purple-400 py-2 px-3 bg-purple-50 dark:bg-purple-950/30 rounded-md border border-purple-200 dark:border-purple-800">{clientData?.coach_name || client.coach_name || "-"}</p>
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Closer</Label>
-          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{client.closer || "-"}</p>
+          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{clientData?.closer_name || client.closer || "-"}</p>
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Setter</Label>
-          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{client.setter || "-"}</p>
+          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{clientData?.setter_name || client.setter || "-"}</p>
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Review Type</Label>
-          <p className="font-mono font-bold text-lg text-primary py-2 px-3 bg-primary/10 rounded-md border border-primary/30">{client.monthly_calls || "-"}</p>
+          <p className="font-mono font-bold text-lg text-primary py-2 px-3 bg-primary/10 rounded-md border border-primary/30">{packageInfo?.review_type || client.monthly_calls || "-"}</p>
         </div>
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-muted-foreground">CTA/Lead Origin</Label>
-          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{client.cta_lead_origin || client.lead_origin || "-"}</p>
+          <Label className="text-sm font-medium text-muted-foreground">Lead Origin</Label>
+          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{clientData?.lead_origin || client.cta_lead_origin || client.lead_origin || "-"}</p>
         </div>
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Notice Given</Label>
-          <p className={`font-semibold py-2 px-3 rounded-md ${client.notice_given ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800' : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800'}`}>{client.notice_given ? "Yes" : "No"}</p>
+          <p className={`font-semibold py-2 px-3 rounded-md ${(clientData?.notice_given ?? client.notice_given) ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800' : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800'}`}>{(clientData?.notice_given ?? client.notice_given) ? "Yes" : "No"}</p>
         </div>
       </CardContent>
     </Card>

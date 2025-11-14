@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit2, Save } from "lucide-react";
+import { Edit2, Save, Loader2 } from "lucide-react";
 import { Client, updateClient } from "@/lib/api/clients";
+import { getClientPaymentDetails, ClientDetailsResponse } from "@/lib/api/client-details";
 import { useToast } from "@/hooks/use-toast";
 import { PersonalInfoCard } from "./PersonalInfoCard";
 import { PackageInfoCard } from "./PackageInfoCard";
@@ -25,6 +26,30 @@ export function ClientDetailsDialog({ client, open, onOpenChange, onClientUpdate
   const [editedClient, setEditedClient] = useState<Client | null>(null);
   const [statusChangeOpen, setStatusChangeOpen] = useState(false);
   const [statusChangeType, setStatusChangeType] = useState<"stop" | "pause" | "package_change" | null>(null);
+  const [detailedData, setDetailedData] = useState<ClientDetailsResponse | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  // Fetch detailed payment data when dialog opens
+  useEffect(() => {
+    if (open && client) {
+      setLoadingDetails(true);
+      getClientPaymentDetails(client.id)
+        .then((data) => {
+          setDetailedData(data);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch client payment details:", error);
+          toast({
+            title: "Warning",
+            description: "Could not load detailed payment information",
+            variant: "destructive",
+          });
+        })
+        .finally(() => {
+          setLoadingDetails(false);
+        });
+    }
+  }, [open, client, toast]);
 
   const handleEditClient = () => {
     if (client) {
@@ -120,17 +145,35 @@ export function ClientDetailsDialog({ client, open, onOpenChange, onClientUpdate
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 pt-4">
-            <PersonalInfoCard
-              client={client}
-              isEditing={isEditing}
-              editedClient={editedClient}
-              onFieldUpdate={updateEditedField}
-            />
-            <PackageInfoCard client={client} />
-            <DatesTimelineCard client={client} />
-            <TeamSupportCard client={client} />
-            <TechnicalInfoCard client={client} />
-            <StatusChangeScheduleCard onStatusChangeSelect={handleStatusChangeSelect} />
+            {loadingDetails ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-3 text-muted-foreground">Loading client details...</span>
+              </div>
+            ) : (
+              <>
+                <PersonalInfoCard
+                  client={client}
+                  isEditing={isEditing}
+                  editedClient={editedClient}
+                  onFieldUpdate={updateEditedField}
+                />
+                <PackageInfoCard 
+                  client={client} 
+                  detailedData={detailedData}
+                />
+                <DatesTimelineCard 
+                  client={client}
+                  detailedData={detailedData}
+                />
+                <TeamSupportCard 
+                  client={client}
+                  detailedData={detailedData}
+                />
+                <TechnicalInfoCard client={client} />
+                <StatusChangeScheduleCard onStatusChangeSelect={handleStatusChangeSelect} />
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
