@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Navbar } from "@/components/Navbar";
 import { PackageManagement } from "@/components/PackageManagement";
+import { AddPaymentDialog } from "@/components/payments/AddPaymentDialog";
 
 const columnDefinitions = [
   { id: "id", label: "Payment ID", default: true },
@@ -121,7 +122,10 @@ const PaymentsContent = () => {
               <h2 className="text-3xl font-bold">Payment Management</h2>
               <p className="text-muted-foreground">Track and manage client payments</p>
             </div>
-            <PackageManagement />
+            <div className="flex gap-2">
+              <AddPaymentDialog />
+              <PackageManagement />
+            </div>
           </div>
 
           {/* Stats Cards */}

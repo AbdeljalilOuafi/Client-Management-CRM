@@ -772,23 +772,6 @@ const InstalmentsContent = () => {
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Hash className="h-3.5 w-3.5" />
-                        Instalment Number
-                      </Label>
-                      {isEditing ? (
-                        <Input
-                          type="number"
-                          value={editedInstalment?.instalment_number || ""}
-                          onChange={(e) => updateEditedField("instalment_number", parseInt(e.target.value))}
-                          className="h-10"
-                        />
-                      ) : (
-                        <p className="text-base font-medium pl-5">{selectedInstalment.instalment_number || "N/A"}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                         <Calendar className="h-3.5 w-3.5" />
                         Created Date
                       </Label>
