@@ -29,7 +29,7 @@ export function TeamSupportCard({ client }: TeamSupportCardProps) {
           <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{client.setter || "-"}</p>
         </div>
         <div className="space-y-2">
-          <Label className="text-sm font-medium text-muted-foreground">Monthly Calls</Label>
+          <Label className="text-sm font-medium text-muted-foreground">Review Type</Label>
           <p className="font-mono font-bold text-lg text-primary py-2 px-3 bg-primary/10 rounded-md border border-primary/30">{client.monthly_calls || "-"}</p>
         </div>
         <div className="space-y-2">

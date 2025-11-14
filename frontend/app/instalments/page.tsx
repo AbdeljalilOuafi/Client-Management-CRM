@@ -500,6 +500,7 @@ const InstalmentsContent = () => {
                   {visibleColumns.account_name && <TableHead>Account Name</TableHead>}
                   {visibleColumns.date_created && <TableHead>Created Date</TableHead>}
                   {visibleColumns.date_updated && <TableHead>Updated Date</TableHead>}
+                  <TableHead className="w-12">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -562,6 +563,16 @@ const InstalmentsContent = () => {
                           {instalment.date_updated ? new Date(instalment.date_updated).toLocaleDateString() : "N/A"}
                         </TableCell>
                       )}
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openDeleteDialog(instalment)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -725,49 +736,25 @@ const InstalmentsContent = () => {
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                         <CreditCard className="h-3.5 w-3.5" />
-                        Stripe Account
+                        Stripe Account (View Only)
                       </Label>
-                      {isEditing ? (
-                        <Input
-                          value={editedInstalment?.stripe_account || ""}
-                          onChange={(e) => updateEditedField("stripe_account", e.target.value)}
-                          className="h-10"
-                        />
-                      ) : (
-                        <p className="text-base font-medium pl-5">{selectedInstalment.stripe_account || "N/A"}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <FileText className="h-3.5 w-3.5" />
-                        Invoice ID
-                      </Label>
-                      {isEditing ? (
-                        <Input
-                          value={editedInstalment?.invoice_id || ""}
-                          onChange={(e) => updateEditedField("invoice_id", e.target.value)}
-                          className="h-10"
-                        />
-                      ) : (
-                        <p className="text-base font-medium pl-5">{selectedInstalment.invoice_id || "N/A"}</p>
-                      )}
+                      <p className="text-base font-medium pl-5">{selectedInstalment.stripe_account || "N/A"}</p>
                     </div>
 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                         <Hash className="h-3.5 w-3.5" />
-                        Stripe Customer ID
+                        Stripe Customer ID (View Only)
                       </Label>
-                      {isEditing ? (
-                        <Input
-                          value={editedInstalment?.stripe_customer_id || ""}
-                          onChange={(e) => updateEditedField("stripe_customer_id", e.target.value)}
-                          className="h-10"
-                        />
-                      ) : (
-                        <p className="text-base font-medium pl-5">{selectedInstalment.stripe_customer_id || "N/A"}</p>
-                      )}
+                      <p className="text-base font-medium pl-5">{selectedInstalment.stripe_customer_id || "N/A"}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        <FileText className="h-3.5 w-3.5" />
+                        Invoice ID (View Only)
+                      </Label>
+                      <p className="text-base font-medium pl-5">{selectedInstalment.invoice_id || "N/A"}</p>
                     </div>
 
                     <div className="space-y-2">

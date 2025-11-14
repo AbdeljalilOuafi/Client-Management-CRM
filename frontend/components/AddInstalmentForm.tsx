@@ -75,8 +75,8 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
-  // When client is selected, populate client ID
-  const handleClientSelect = (clientId: number) => {
+  // When client is selected, populate client ID and fetch Stripe details
+  const handleClientSelect = async (clientId: number) => {
     const client = clients.find(c => c.id === clientId);
     if (client) {
       setFormData(prev => ({
@@ -84,6 +84,22 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
         clientName: `${client.first_name} ${client.last_name}`,
         clientId: client.id.toString(),
       }));
+      
+      // TODO: Fetch client's Stripe details from backend
+      // Example: GET /api/clients/{clientId}/stripe-details
+      // When endpoint is ready, uncomment and implement:
+      /*
+      try {
+        const stripeDetails = await fetchClientStripeDetails(clientId);
+        setFormData(prev => ({
+          ...prev,
+          stripeAccount: stripeDetails.stripe_account || "",
+          stripeCustomerId: stripeDetails.stripe_customer_id || "",
+        }));
+      } catch (error) {
+        console.error("Failed to fetch Stripe details:", error);
+      }
+      */
     }
     setOpen(false);
   };
@@ -111,6 +127,8 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
       // Convert datetime-local format to YYYY-MM-DD
       const scheduleDate = formData.instalmentDatetime.split('T')[0];
       
+      // TODO: stripe_account and stripe_customer_id will be automatically fetched from the database
+      // based on the selected client when the backend endpoint is ready
       await createInstalment({
         client: parseInt(formData.clientId),
         amount: formData.instalmentAmount,
@@ -119,8 +137,7 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
         status: "open",
         instalment_number: formData.instalmentNumber ? parseInt(formData.instalmentNumber) : undefined,
         invoice_id: formData.invoiceId || undefined,
-        stripe_account: formData.stripeAccount || undefined,
-        stripe_customer_id: formData.stripeCustomerId || undefined,
+        // stripe_account and stripe_customer_id will be auto-populated by backend
       });
 
       toast.success("Instalment added successfully!");
@@ -184,7 +201,7 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
         </Popover>
       </div>
 
-      <div className="space-y-2">
+      {/* <div className="space-y-2">
         <Label htmlFor="clientId">Client ID (View Only)</Label>
         <Input
           id="clientId"
@@ -192,7 +209,7 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
           disabled
           className="bg-muted"
         />
-      </div>
+      </div> */}
 
       <div className="space-y-2">
         <Label htmlFor="instalmentNumber">Instalment Number (Optional)</Label>
@@ -245,7 +262,7 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
         />
       </div>
 
-      <div className="space-y-2">
+      {/* <div className="space-y-2">
         <Label htmlFor="invoiceId">Invoice ID (Optional)</Label>
         <Input
           id="invoiceId"
@@ -253,25 +270,27 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
           onChange={(e) => setFormData(prev => ({ ...prev, invoiceId: e.target.value }))}
           placeholder="INV-12345"
         />
-      </div>
+      </div> */}
 
       <div className="space-y-2">
-        <Label htmlFor="stripeAccount">Stripe Account (Optional)</Label>
+        <Label htmlFor="stripeAccount">Stripe Account (View Only)</Label>
         <Input
           id="stripeAccount"
           value={formData.stripeAccount}
-          onChange={(e) => setFormData(prev => ({ ...prev, stripeAccount: e.target.value }))}
-          placeholder="acct_..."
+          disabled
+          className="bg-muted"
+          placeholder="Will be auto-populated from client data"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="stripeCustomerId">Stripe Customer ID (Optional)</Label>
+        <Label htmlFor="stripeCustomerId">Stripe Customer ID (View Only)</Label>
         <Input
           id="stripeCustomerId"
           value={formData.stripeCustomerId}
-          onChange={(e) => setFormData(prev => ({ ...prev, stripeCustomerId: e.target.value }))}
-          placeholder="cus_..."
+          disabled
+          className="bg-muted"
+          placeholder="Will be auto-populated from client data"
         />
       </div>
 
