@@ -37,7 +37,7 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
 
   if (loading) {
     return (
-      <div className="space-y-4 pt-4 border-t">
+      <div className="space-y-4">
         <h4 className="text-sm font-semibold text-muted-foreground mb-3">Package History</h4>
         {[1, 2].map((i) => (
           <div key={i} className="p-4 bg-muted/30 rounded-lg space-y-3">
@@ -52,7 +52,7 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
 
   if (history.length === 0) {
     return (
-      <div className="pt-4 border-t">
+      <div>
         <h4 className="text-sm font-semibold text-muted-foreground mb-3">Package History</h4>
         <div className="p-8 text-center bg-muted/20 rounded-lg border border-dashed">
           <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
@@ -63,7 +63,7 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
   }
 
   return (
-    <div className="pt-4 border-t">
+    <div>
       <h4 className="text-sm font-semibold text-muted-foreground mb-3">Package History</h4>
       <div className="space-y-3">
         {history.map((item) => (
