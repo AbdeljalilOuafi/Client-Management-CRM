@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import (
     Account, Employee, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer
+    Payment, Installment, StripeCustomer, StripeApiKey
 )
 
 
@@ -170,10 +170,12 @@ class ClientSerializer(serializers.ModelSerializer):
 
 
 class PackageSerializer(serializers.ModelSerializer):
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    
     class Meta:
         model = Package
-        fields = ['id', 'package_name', 'description']
-        read_only_fields = ['id']
+        fields = ['id', 'account', 'account_name', 'package_name', 'description']
+        read_only_fields = ['id', 'account_name']
 
 
 class ClientPackageSerializer(serializers.ModelSerializer):
@@ -250,16 +252,33 @@ class InstallmentSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+class StripeApiKeySerializer(serializers.ModelSerializer):
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    
+    class Meta:
+        model = StripeApiKey
+        fields = [
+            'id', 'account', 'account_name', 'stripe_account', 'api_key',
+            'is_active', 'checkout_thanks_url', 'checkout_cancelled_url',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'account_name', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'api_key': {'write_only': True}  # Don't expose API key in responses
+        }
+
+
 class StripeCustomerSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
+    stripe_account_name = serializers.CharField(source='stripe_account.stripe_account', read_only=True)
     
     class Meta:
         model = StripeCustomer
         fields = [
-            'id', 'account', 'stripe_account', 'client', 'client_name',
-            'email', 'status', 'stripe_customer_id'
+            'stripe_customer_id', 'account', 'stripe_account', 'stripe_account_name',
+            'client', 'client_name', 'email', 'status'
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['stripe_customer_id', 'stripe_account_name', 'client_name']
 
     def get_client_name(self, obj):
         return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()

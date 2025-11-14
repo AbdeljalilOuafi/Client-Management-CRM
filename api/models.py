@@ -218,12 +218,14 @@ class Package(models.Model):
     """Package model"""
     
     id = models.AutoField(primary_key=True)
-    package_name = models.CharField(max_length=255, unique=True)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
+    package_name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = 'packages'
+        unique_together = [['account', 'package_name']]
 
     def __str__(self):
         return self.package_name
@@ -277,6 +279,27 @@ class ClientPackage(models.Model):
         return f"{self.client} - {self.package}"
 
 
+class StripeApiKey(models.Model):
+    """Stripe API Key model for managing multiple Stripe accounts"""
+    
+    id = models.AutoField(primary_key=True)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='client_account_id', null=True, blank=True)
+    stripe_account = models.CharField(max_length=255, unique=True)
+    api_key = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    checkout_thanks_url = models.TextField(null=True, blank=True)
+    checkout_cancelled_url = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'stripe_api_keys'
+
+    def __str__(self):
+        return f"Stripe Account: {self.stripe_account}"
+
+
 class StripeCustomer(models.Model):
     """Stripe Customer model"""
     
@@ -285,21 +308,27 @@ class StripeCustomer(models.Model):
         ('inactive', 'Inactive'),
     ]
 
-    id = models.AutoField(primary_key=True)
+    # Primary key is now stripe_customer_id (Stripe's customer ID)
+    stripe_customer_id = models.CharField(max_length=255, primary_key=True)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     client = models.ForeignKey(Client, on_delete=models.CASCADE, db_column='client_id')
-    stripe_customer_id = models.CharField(max_length=255, unique=True)
-    stripe_account = models.CharField(max_length=255, null=True, blank=True)
+    stripe_account = models.ForeignKey(
+        StripeApiKey, 
+        on_delete=models.CASCADE, 
+        db_column='stripe_account',
+        to_field='stripe_account',
+        null=True, 
+        blank=True
+    )
     email = models.EmailField(max_length=255, null=True, blank=True)
     status = models.CharField(max_length=50, null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = 'stripe_customers'
-        unique_together = [['client', 'stripe_account']]
 
     def __str__(self):
-        return f"StripeCustomer {self.email}"
+        return f"StripeCustomer {self.email} ({self.stripe_customer_id})"
 
 
 class Payment(models.Model):

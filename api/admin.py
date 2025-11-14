@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     Account, Employee, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer
+    Payment, Installment, StripeCustomer, StripeApiKey
 )
 
 
@@ -61,7 +61,8 @@ class ClientPackageAdmin(admin.ModelAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ['id', 'client', 'amount', 'currency', 'status', 'payment_date']
+    list_display = ['id', 'client', 'amount', 'currency', 'status', 'payment_date'
+]
     list_filter = ['status', 'currency']
     search_fields = ['id', 'client__email', 'client__first_name']
     raw_id_fields = ['client', 'client_package']
@@ -79,7 +80,16 @@ class InstallmentAdmin(admin.ModelAdmin):
 
 @admin.register(StripeCustomer)
 class StripeCustomerAdmin(admin.ModelAdmin):
-    list_display = ['id', 'email', 'client', 'stripe_customer_id', 'status']
+    list_display = ['stripe_customer_id', 'email', 'client', 'stripe_account', 'status']
     list_filter = ['status']
     search_fields = ['email', 'stripe_customer_id', 'client__email']
-    raw_id_fields = ['account', 'client']
+    raw_id_fields = ['account', 'client', 'stripe_account']
+
+
+@admin.register(StripeApiKey)
+class StripeApiKeyAdmin(admin.ModelAdmin):
+    list_display = ['id', 'stripe_account', 'account', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
+    search_fields = ['stripe_account', 'api_key']
+    raw_id_fields = ['account']
+    readonly_fields = ['created_at', 'updated_at']

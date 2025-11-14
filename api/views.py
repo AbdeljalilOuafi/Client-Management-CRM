@@ -8,7 +8,7 @@ from django.db.models import Q
 
 from .models import (
     Account, Employee, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer, EmployeeToken
+    Payment, Installment, StripeCustomer, StripeApiKey, EmployeeToken
 )
 from .serializers import (
     AccountSerializer, EmployeeSerializer, EmployeeCreateSerializer,
@@ -358,17 +358,23 @@ class ClientViewSet(viewsets.ModelViewSet):
 class PackageViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Packages.
-    All authenticated users can perform CRUD operations on packages.
+    All authenticated users can perform CRUD operations on packages in their account.
     """
     queryset = Package.objects.all()
     serializer_class = PackageSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAccountMember]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['package_name', 'description']
     ordering_fields = ['package_name']
     ordering = ['package_name']
 
-    # Removed get_permissions - all authenticated users can CRUD packages
+    def get_queryset(self):
+        # Users can only see packages in their account
+        return Package.objects.filter(account_id=self.request.user.account_id)
+
+    def perform_create(self, serializer):
+        # Automatically set the account to the current user's account
+        serializer.save(account_id=self.request.user.account_id)
 
 
 class ClientPackageViewSet(viewsets.ModelViewSet):
@@ -477,4 +483,4 @@ class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):
         # Users can only see stripe customers in their account
         return StripeCustomer.objects.filter(
             account_id=self.request.user.account_id
-        ).select_related('client', 'account')
+        ).select_related('client', 'account', 'stripe_account')
