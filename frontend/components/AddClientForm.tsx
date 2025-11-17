@@ -24,6 +24,7 @@ import { COUNTRY_CODES, getPopularCountries, getAllCountries, type Country } fro
 const clientFormSchema = z.object({
   // Options
   generatePaymentLink: z.boolean().default(true),
+  sendPaymentLinkToClient: z.boolean().default(false),
   generateContract: z.boolean().default(true),
   isFreeTrial: z.boolean().default(false),
   isFreeClient: z.boolean().default(false),
@@ -296,6 +297,26 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             Generate payment link
           </Label>
         </div>
+
+        {/* Nested checkbox - only shows when generatePaymentLink is checked */}
+        {watch("generatePaymentLink") && (
+          <div className="flex items-center space-x-2 ml-6 pl-4 border-l-2 border-primary/30">
+            <Controller
+              name="sendPaymentLinkToClient"
+              control={control}
+              render={({ field }) => (
+                <Checkbox
+                  id="sendPaymentLinkToClient"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              )}
+            />
+            <Label htmlFor="sendPaymentLinkToClient" className="text-sm font-medium cursor-pointer">
+              Send payment link to client
+            </Label>
+          </div>
+        )}
 
         <div className="flex items-center space-x-2">
           <Controller
