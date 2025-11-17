@@ -66,6 +66,7 @@ export const PackageManagement = () => {
   const [packages, setPackages] = useState<PackageType[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingPackage, setEditingPackage] = useState<PackageType | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [packageToDelete, setPackageToDelete] = useState<PackageType | null>(null);
   const [activeTab, setActiveTab] = useState<string>("add");
@@ -167,6 +168,7 @@ export const PackageManagement = () => {
       });
       
       setEditingPackage(null);
+      setEditDialogOpen(false);
       resetForm();
     } catch (error) {
       console.error("Failed to update package:", error);
@@ -267,7 +269,7 @@ export const PackageManagement = () => {
       is_active: pkg.is_active,
     });
     setFormErrors({});
-    setActiveTab("add"); // Switch to add tab for editing
+    setEditDialogOpen(true);
   };
 
   const handleDelete = (pkg: PackageType) => {
@@ -322,9 +324,7 @@ export const PackageManagement = () => {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="add">
-                {editingPackage ? 'Edit Package' : 'Add New Package'}
-              </TabsTrigger>
+              <TabsTrigger value="add">Add New Package</TabsTrigger>
               <TabsTrigger value="existing">Existing Packages</TabsTrigger>
             </TabsList>
 
@@ -402,19 +402,12 @@ export const PackageManagement = () => {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        {editingPackage ? 'Updating...' : 'Creating...'}
+                        Creating...
                       </>
                     ) : (
-                      <>
-                        {editingPackage ? 'Update Package' : 'Add Package'}
-                      </>
+                      'Add Package'
                     )}
                   </Button>
-                  {editingPackage && (
-                    <Button type="button" variant="outline" onClick={handleCancel}>
-                      Cancel
-                    </Button>
-                  )}
                 </div>
               </form>
               </div>
@@ -485,6 +478,108 @@ export const PackageManagement = () => {
               </div>
             </TabsContent>
           </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Package Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Package</DialogTitle>
+            <DialogDescription>
+              Update the details of {editingPackage?.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">
+                Package Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., Premium Coaching"
+                className={formErrors.name ? "border-red-500" : ""}
+              />
+              {formErrors.name && (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {formErrors.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description (Optional)</Label>
+              <Textarea
+                id="edit-description"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Brief description of the package"
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-default_price">Default Price (Optional)</Label>
+              <Input
+                id="edit-default_price"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.default_price}
+                onChange={(e) => setFormData(prev => ({ ...prev, default_price: e.target.value }))}
+                placeholder="0.00"
+                className={formErrors.default_price ? "border-red-500" : ""}
+              />
+              {formErrors.default_price && (
+                <p className="text-sm text-red-500 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  {formErrors.default_price}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="edit-is_active">Active Status</Label>
+                <p className="text-sm text-muted-foreground">
+                  Make this package available for use
+                </p>
+              </div>
+              <Switch
+                id="edit-is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Package'
+                )}
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => {
+                  setEditDialogOpen(false);
+                  setEditingPackage(null);
+                  resetForm();
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
 
