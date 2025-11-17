@@ -224,3 +224,7 @@ LOGGING = {
         },
     },
 }
+
+# Test Runner - Use custom runner that doesn't create test database
+# Since models are managed=False, we use the actual database for testing
+TEST_RUNNER = 'api.test_runner.NoDbTestRunner'
