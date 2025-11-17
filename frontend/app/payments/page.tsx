@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { AppLayout } from "@/components/AppLayout";
 import { PackageManagement } from "@/components/PackageManagement";
 import { AddPaymentDialog } from "@/components/payments/AddPaymentDialog";
+import { getToastErrorMessage } from "@/lib/utils/errorHandler";
 
 const columnDefinitions = [
   { id: "id", label: "Payment ID", default: true },
@@ -60,11 +61,10 @@ const PaymentsContent = () => {
       });
       setPayments(response.results);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to fetch payments";
-      setError(errorMessage);
+      const errorMessage = getToastErrorMessage(err, "Failed to fetch payments");
+      setError(errorMessage.description);
       toast({
-        title: "Error",
-        description: errorMessage,
+        ...errorMessage,
         variant: "destructive",
       });
     } finally {

@@ -18,6 +18,7 @@ import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ClientDetailsDialog } from "@/components/clients/ClientDetailsDialog";
 import { AppLayout } from "@/components/AppLayout";
+import { getToastErrorMessage } from "@/lib/utils/errorHandler";
 
 const columnDefinitions = [
   { id: "id", label: "ID", default: true },
@@ -93,11 +94,10 @@ export default function Index() {
       
       setClients(filteredClients);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to fetch clients";
-      setError(errorMsg);
+      const errorMessage = getToastErrorMessage(err, "Failed to fetch clients");
+      setError(errorMessage.description);
       toast({
-        title: "Error",
-        description: errorMsg,
+        ...errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -112,9 +112,9 @@ export default function Index() {
       setStatistics(stats);
     } catch (err) {
       console.error("Error fetching statistics:", err);
+      const errorMessage = getToastErrorMessage(err, "Failed to fetch statistics");
       toast({
-        title: "Error",
-        description: "Failed to fetch statistics",
+        ...errorMessage,
         variant: "destructive",
       });
     } finally {

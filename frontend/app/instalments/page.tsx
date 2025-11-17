@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AddInstalmentForm } from "@/components/AddInstalmentForm";
+import { getToastErrorMessage } from "@/lib/utils/errorHandler";
 import { toast } from "sonner";
 import { listInstalments, Instalment as ApiInstalment } from "@/lib/api/instalments";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -96,9 +97,11 @@ const InstalmentsContent = () => {
         page_size: 100,
       });
       setInstalments(response.results);
-    } catch (error: any) {
-      toast.error("Failed to fetch instalments");
-      console.error(error);
+    } catch (err) {
+      const errorMessage = getToastErrorMessage(err, "Failed to fetch instalments");
+      toast.error(errorMessage.title, {
+        description: errorMessage.description,
+      });
     } finally {
       setLoading(false);
     }
