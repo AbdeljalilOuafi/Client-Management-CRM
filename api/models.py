@@ -122,6 +122,14 @@ class Employee(AbstractBaseUser, PermissionsMixin):
     # Custom fields for role-based permissions
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
     
+    # Custom permission flags for granular access control
+    can_view_all_clients = models.BooleanField(default=False, help_text="Can view all clients in account (not just assigned)")
+    can_manage_all_clients = models.BooleanField(default=False, help_text="Can create/update/delete all clients (not just assigned)")
+    can_view_all_payments = models.BooleanField(default=False, help_text="Can view all payments in account")
+    can_manage_all_payments = models.BooleanField(default=False, help_text="Can create/update/delete payments")
+    can_view_all_installments = models.BooleanField(default=False, help_text="Can view all installments in account")
+    can_manage_all_installments = models.BooleanField(default=False, help_text="Can create/update/delete installments")
+    
     # Django Auth Required Fields
     password = models.CharField(max_length=128)
     is_active = models.BooleanField(default=True)

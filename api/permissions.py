@@ -66,3 +66,125 @@ class IsSelfOrAdmin(permissions.BasePermission):
         
         # Regular employees can only access themselves
         return obj.id == request.user.id
+
+
+class CanViewClients(permissions.BasePermission):
+    """
+    Permission to view clients:
+    - Super admin: always allowed
+    - User with can_view_all_clients: always allowed  
+    - Otherwise: ViewSet filters to only assigned clients
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        # Super admin can view all
+        if request.user.is_super_admin:
+            return True
+        # User with explicit permission can view all
+        if getattr(request.user, 'can_view_all_clients', False):
+            return True
+        # Others can view but ViewSet will filter to assigned only
+        return True
+
+
+class CanManageClients(permissions.BasePermission):
+    """
+    Permission to create/update/delete clients:
+    - Super admin: always allowed
+    - User with can_manage_all_clients: always allowed
+    - Otherwise: not allowed to create, can only update/delete assigned (checked in ViewSet)
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        # Super admin can manage all
+        if request.user.is_super_admin:
+            return True
+        # User with explicit permission can manage all
+        if getattr(request.user, 'can_manage_all_clients', False):
+            return True
+        # For create action, deny if no manage permission
+        if view.action == 'create':
+            return False
+        # For update/delete, allow but ViewSet will check assignment
+        return True
+    
+    def has_object_permission(self, request, view, obj):
+        """Check if user can modify this specific client"""
+        if request.user.is_super_admin:
+            return True
+        if getattr(request.user, 'can_manage_all_clients', False):
+            return True
+        # Check if client is assigned to user
+        return (obj.coach_id == request.user.id or 
+                obj.closer_id == request.user.id or 
+                obj.setter_id == request.user.id)
+
+
+class CanViewPayments(permissions.BasePermission):
+    """
+    Permission to view payments:
+    - Super admin: always allowed
+    - User with can_view_all_payments: always allowed
+    - Otherwise: ViewSet filters to payments for assigned clients only
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_super_admin:
+            return True
+        if getattr(request.user, 'can_view_all_payments', False):
+            return True
+        return True
+
+
+class CanManagePayments(permissions.BasePermission):
+    """
+    Permission to create/update/delete payments:
+    - Super admin: always allowed
+    - User with can_manage_all_payments: always allowed
+    - Otherwise: not allowed
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_super_admin:
+            return True
+        if getattr(request.user, 'can_manage_all_payments', False):
+            return True
+        return False
+
+
+class CanViewInstallments(permissions.BasePermission):
+    """
+    Permission to view installments:
+    - Super admin: always allowed
+    - User with can_view_all_installments: always allowed
+    - Otherwise: ViewSet filters to installments for assigned clients only
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_super_admin:
+            return True
+        if getattr(request.user, 'can_view_all_installments', False):
+            return True
+        return True
+
+
+class CanManageInstallments(permissions.BasePermission):
+    """
+    Permission to create/update/delete installments:
+    - Super admin: always allowed
+    - User with can_manage_all_installments: always allowed
+    - Otherwise: not allowed
+    """
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        if request.user.is_super_admin:
+            return True
+        if getattr(request.user, 'can_manage_all_installments', False):
+            return True
+        return False

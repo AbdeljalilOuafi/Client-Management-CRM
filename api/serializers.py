@@ -23,7 +23,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'account', 'account_name', 'name', 'email', 'job_role',
             'phone_number', 'role', 'status', 'is_active', 'password', 'last_login',
-            'slack_user_id', 'slack_user_name', 'timezone'
+            'slack_user_id', 'slack_user_name', 'timezone',
+            'can_view_all_clients', 'can_manage_all_clients',
+            'can_view_all_payments', 'can_manage_payments',
+            'can_view_all_installments', 'can_manage_installments'
         ]
         read_only_fields = ['id', 'last_login', 'account_name']
         extra_kwargs = {
@@ -74,7 +77,10 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         model = Employee
         fields = [
             'name', 'email', 'job_role', 'phone_number', 'role',
-            'password', 'permissions', 'is_active', 'status'
+            'password', 'permissions', 'is_active', 'status',
+            'can_view_all_clients', 'can_manage_all_clients',
+            'can_view_all_payments', 'can_manage_payments',
+            'can_view_all_installments', 'can_manage_installments'
         ]
 
     def create(self, validated_data):

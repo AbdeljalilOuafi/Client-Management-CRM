@@ -19,7 +19,8 @@ from .serializers import (
 )
 from .permissions import (
     IsAccountMember, IsSuperAdminOrAdmin, IsSuperAdmin,
-    CanManageEmployees, IsSelfOrAdmin
+    CanManageEmployees, IsSelfOrAdmin, CanViewClients, CanManageClients,
+    CanViewPayments, CanManagePayments, CanViewInstallments, CanManageInstallments
 )
 
 
@@ -63,6 +64,14 @@ class AuthViewSet(viewsets.ViewSet):
                     'role': user.role,
                     'account_id': user.account_id,
                     'account_name': user.account.name,
+                    'permissions': {
+                        'can_view_all_clients': user.can_view_all_clients,
+                        'can_manage_all_clients': user.can_manage_all_clients,
+                        'can_view_all_payments': user.can_view_all_payments,
+                        'can_manage_all_payments': user.can_manage_all_payments,
+                        'can_view_all_installments': user.can_view_all_installments,
+                        'can_manage_all_installments': user.can_manage_all_installments
+                    }
                 }
             })
         else:
@@ -133,7 +142,7 @@ class AuthViewSet(viewsets.ViewSet):
                     timezone=account_data.get('timezone', 'UTC')
                 )
                 
-                # Create Super Admin Employee
+                # Create Super Admin Employee with full permissions
                 employee = Employee.objects.create(
                     account=account,
                     name=user_data.get('name'),
@@ -144,7 +153,14 @@ class AuthViewSet(viewsets.ViewSet):
                     status='active',
                     is_active=True,
                     is_staff=True,
-                    is_superuser=True
+                    is_superuser=True,
+                    # Super admin gets all permissions by default
+                    can_view_all_clients=True,
+                    can_manage_all_clients=True,
+                    can_view_all_payments=True,
+                    can_manage_all_payments=True,
+                    can_view_all_installments=True,
+                    can_manage_all_installments=True
                 )
                 employee.set_password(user_data.get('password'))
                 employee.save()
@@ -164,7 +180,15 @@ class AuthViewSet(viewsets.ViewSet):
                         'id': employee.id,
                         'email': employee.email,
                         'name': employee.name,
-                        'role': employee.role
+                        'role': employee.role,
+                        'permissions': {
+                            'can_view_all_clients': employee.can_view_all_clients,
+                            'can_manage_all_clients': employee.can_manage_all_clients,
+                            'can_view_all_payments': employee.can_view_all_payments,
+                            'can_manage_all_payments': employee.can_manage_all_payments,
+                            'can_view_all_installments': employee.can_view_all_installments,
+                            'can_manage_all_installments': employee.can_manage_all_installments
+                        }
                     }
                 }, status=status.HTTP_201_CREATED)
                 
@@ -288,33 +312,51 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 class ClientViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Clients.
-    All authenticated users can perform CRUD operations on clients in their account.
+    Permissions controlled by can_view_all_clients and can_manage_all_clients flags.
     """
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
-    permission_classes = [IsAuthenticated, IsAccountMember]
+    permission_classes = [IsAuthenticated, IsAccountMember, CanViewClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'coach', 'closer', 'setter', 'country', 'currency']
     search_fields = ['first_name', 'last_name', 'email', 'instagram_handle']
     ordering_fields = ['first_name', 'last_name', 'email', 'client_start_date']
     ordering = ['first_name']
 
+    def get_permissions(self):
+        """Use CanManageClients for create/update/delete operations"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAccountMember(), CanManageClients()]
+        return super().get_permissions()
+
     def get_queryset(self):
-        # Users can only see clients in their account
-        queryset = Client.objects.filter(account_id=self.request.user.account_id)
+        """
+        Filter queryset based on permissions:
+        - Super admin: sees all clients in account
+        - Has 'can_view_all_clients': sees all clients in account
+        - Otherwise: sees only assigned clients (coach/closer/setter)
+        """
+        user = self.request.user
+        queryset = Client.objects.filter(account_id=user.account_id)
         
-        # Additional filtering for assigned coach/closer/setter
-        role_filter = self.request.query_params.get('my_clients', None)
-        if role_filter:
-            queryset = queryset.filter(
-                Q(coach=self.request.user) |
-                Q(closer=self.request.user) |
-                Q(setter=self.request.user)
-            )
+        # Super admin sees everything
+        if user.is_super_admin:
+            return queryset.select_related('account', 'coach', 'closer', 'setter')
+        
+        # Check if user has permission to view all clients
+        if user.can_view_all_clients:
+            return queryset.select_related('account', 'coach', 'closer', 'setter')
+        
+        # Otherwise, filter to only assigned clients
+        queryset = queryset.filter(
+            Q(coach=user) | Q(closer=user) | Q(setter=user)
+        ).distinct()
         
         return queryset.select_related('account', 'coach', 'closer', 'setter')
 
-    # Removed get_permissions - all authenticated account members can CRUD clients
+    def perform_create(self, serializer):
+        """Ensure account is set (permission already checked by CanManageClients)"""
+        serializer.save(account_id=self.request.user.account_id)
 
     @action(detail=False, methods=['get'])
     def my_clients(self, request):
@@ -529,22 +571,49 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Payments.
-    All authenticated users can perform CRUD operations on payments in their account.
+    Permissions controlled by can_view_all_payments and can_manage_all_payments flags.
     """
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
-    permission_classes = [IsAuthenticated, IsAccountMember]
+    permission_classes = [IsAuthenticated, IsAccountMember, CanViewPayments]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['client', 'status', 'currency']
     search_fields = ['client__first_name', 'client__last_name', 'id']
     ordering_fields = ['payment_date', 'amount']
     ordering = ['-payment_date']
 
+    def get_permissions(self):
+        """Use CanManagePayments for create/update/delete operations"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAccountMember(), CanManagePayments()]
+        return super().get_permissions()
+
     def get_queryset(self):
-        # Users can only see payments in their account - direct account_id lookup
-        return Payment.objects.filter(
-            account_id=self.request.user.account_id
-        ).select_related('client', 'client_package', 'account')
+        """
+        Filter queryset based on permissions:
+        - Super admin: sees all payments in account
+        - Has 'can_view_all_payments': sees all payments in account
+        - Otherwise: sees only payments for assigned clients
+        """
+        user = self.request.user
+        queryset = Payment.objects.filter(account_id=user.account_id)
+        
+        # Super admin sees everything
+        if user.is_super_admin:
+            return queryset.select_related('client', 'client_package', 'account')
+        
+        # Check if user can view all payments
+        if user.can_view_all_payments:
+            return queryset.select_related('client', 'client_package', 'account')
+        
+        # Otherwise, filter to only payments for assigned clients
+        queryset = queryset.filter(
+            Q(client__coach=user) |
+            Q(client__closer=user) |
+            Q(client__setter=user)
+        ).distinct()
+        
+        return queryset.select_related('client', 'client_package', 'account')
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -571,24 +640,57 @@ class PaymentViewSet(viewsets.ModelViewSet):
 class InstallmentViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing Installments.
-    All authenticated users can perform CRUD operations on installments in their account.
+    Permissions controlled by can_view_all_installments and can_manage_all_installments flags.
     """
     queryset = Installment.objects.all()
     serializer_class = InstallmentSerializer
-    permission_classes = [IsAuthenticated, IsAccountMember]
+    permission_classes = [IsAuthenticated, IsAccountMember, CanViewInstallments]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['client', 'status']
     search_fields = ['client__first_name', 'client__last_name']
     ordering_fields = ['schedule_date', 'amount']
     ordering = ['-schedule_date']
 
-    def get_queryset(self):
-        # Users can only see installments in their account - direct account_id lookup
-        return Installment.objects.filter(
-            account_id=self.request.user.account_id
-        ).select_related('client', 'account')
+    def get_permissions(self):
+        """Use CanManageInstallments for create/update/delete operations"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAccountMember(), CanManageInstallments()]
+        return super().get_permissions()
 
-    # Removed get_permissions - all authenticated account members can CRUD installments
+    def get_queryset(self):
+        """
+        Filter queryset based on permissions:
+        - Super admin: sees all installments in account
+        - Has 'can_view_all_installments': sees all installments in account
+        - Otherwise: sees only installments for assigned clients
+        """
+        user = self.request.user
+        queryset = Installment.objects.filter(account_id=user.account_id)
+        
+        # Super admin sees everything
+        if user.is_super_admin:
+            return queryset.select_related('client', 'account')
+        
+        # Check if user can view all installments
+        if user.can_view_all_installments:
+            return queryset.select_related('client', 'account')
+        
+        # Otherwise, filter to only installments for assigned clients
+        queryset = queryset.filter(
+            Q(client__coach=user) |
+            Q(client__closer=user) |
+            Q(client__setter=user)
+        ).distinct()
+        
+        return queryset.select_related('client', 'account')
+
+    def perform_create(self, serializer):
+        """Auto-set account from client (permission already checked by CanManageInstallments)"""
+        # Auto-set account from client if not provided
+        if 'account' not in serializer.validated_data and 'client' in serializer.validated_data:
+            serializer.save(account=serializer.validated_data['client'].account)
+        else:
+            serializer.save()
 
 
 class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):

@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: crm-test-db
+    environment:
+      POSTGRES_DB: crm_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./scripts/init_test_db.sh:/docker-entrypoint-initdb.d/init_test_db.sh
+      - ./supabase/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crm-test-network
+
+volumes:
+  postgres_test_data:
+    driver: local
+
+networks:
+  crm-test-network:
+    driver: bridge
