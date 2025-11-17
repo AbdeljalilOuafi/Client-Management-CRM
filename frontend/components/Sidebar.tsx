@@ -25,6 +25,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false);
   const [collapseTimeout, setCollapseTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const navItems = [
     {
@@ -70,6 +71,9 @@ export function Sidebar() {
   };
 
   const handleMouseLeave = () => {
+    // Don't collapse if dropdown is open
+    if (isDropdownOpen) return;
+    
     const timeout = setTimeout(() => {
       setIsExpanded(false);
     }, 150);
@@ -105,7 +109,7 @@ export function Sidebar() {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 py-4 overflow-y-auto">
+        <nav className="flex-1 py-4 overflow-y-auto scrollbar-hide">
           <div className="space-y-1 px-2">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -158,32 +162,25 @@ export function Sidebar() {
         {/* Footer Section */}
         <div className="border-t border-border p-2 space-y-1">
           {/* Theme Toggle */}
-          <div
-            className={cn(
-              "flex items-center transition-all duration-200",
-              !isExpanded && "justify-center"
-            )}
-          >
-            {!isExpanded ? (
-              <Tooltip delayDuration={0}>
-                <TooltipTrigger asChild>
-                  <div>
-                    <ThemeToggle />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="ml-2">
-                  Toggle theme
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <div className="flex items-center gap-3 w-full px-2">
-                <ThemeToggle />
-                <span className="text-sm text-muted-foreground transition-opacity duration-200">
-                  Theme
-                </span>
-              </div>
-            )}
-          </div>
+          {!isExpanded ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <div className="flex justify-center">
+                  <ThemeToggle 
+                    onOpenChange={setIsDropdownOpen}
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="ml-2">
+                Toggle theme
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <ThemeToggle 
+              onOpenChange={setIsDropdownOpen}
+              showLabel
+            />
+          )}
 
           {/* User Profile */}
           <div

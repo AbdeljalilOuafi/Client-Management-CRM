@@ -12,15 +12,27 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  onOpenChange?: (open: boolean) => void;
+  showLabel?: boolean;
+}
+
+export function ThemeToggle({ onOpenChange, showLabel = false }: ThemeToggleProps = {}) {
   const { setTheme } = useTheme();
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        <Button 
+          variant="ghost" 
+          size={showLabel ? "default" : "icon"}
+          className={showLabel ? "w-full justify-start gap-3 px-2" : "relative"}
+        >
+          <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 flex-shrink-0" />
+          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 flex-shrink-0" />
+          {showLabel && (
+            <span className="text-sm text-muted-foreground">Theme</span>
+          )}
           <span className="sr-only">Toggle theme</span>
         </Button>
       </DropdownMenuTrigger>
