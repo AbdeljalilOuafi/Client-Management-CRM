@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ClientDetailsDialog } from "@/components/clients/ClientDetailsDialog";
 import { AppLayout } from "@/components/AppLayout";
 import { getToastErrorMessage } from "@/lib/utils/errorHandler";
+import { ImportExportButtons } from "@/components/ImportExportButtons";
 
 const columnDefinitions = [
   { id: "id", label: "ID", default: true },
@@ -155,20 +156,23 @@ export default function Index() {
               <h2 className="text-3xl font-bold">Client Management</h2>
               <p className="text-muted-foreground">Manage and track your clients</p>
             </div>
-            <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
-                  <UserPlus className="h-4 w-4" />
-                  Add New Client
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
-                <DialogHeader>
-                  <DialogTitle className="text-2xl">Add New Client</DialogTitle>
-                </DialogHeader>
-                <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
-              </DialogContent>
-            </Dialog>
+            <div className="flex items-center gap-2">
+              <ImportExportButtons entityType="clients" />
+              <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
+                    <UserPlus className="h-4 w-4" />
+                    Add New Client
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
+                  <DialogHeader>
+                    <DialogTitle className="text-2xl">Add New Client</DialogTitle>
+                  </DialogHeader>
+                  <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

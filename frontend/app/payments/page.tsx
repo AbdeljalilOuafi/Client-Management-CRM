@@ -15,6 +15,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { PackageManagement } from "@/components/PackageManagement";
 import { AddPaymentDialog } from "@/components/payments/AddPaymentDialog";
 import { getToastErrorMessage } from "@/lib/utils/errorHandler";
+import { ImportExportButtons } from "@/components/ImportExportButtons";
 
 const columnDefinitions = [
   { id: "id", label: "Payment ID", default: true },
@@ -119,6 +120,7 @@ const PaymentsContent = () => {
               <p className="text-muted-foreground">Track and manage client payments</p>
             </div>
             <div className="flex gap-2">
+              <ImportExportButtons entityType="payments" />
               <AddPaymentDialog />
               <PackageManagement />
             </div>
