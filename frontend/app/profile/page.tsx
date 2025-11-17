@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AuthGuard } from "@/components/AuthGuard";
 import { ArrowLeft, User, Mail, Briefcase, Building2 } from "lucide-react";
 import { getStoredUser } from "@/lib/api/auth";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -14,10 +14,8 @@ export default function ProfilePage() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-background">
-        <Navbar />
-
-        <main className="container mx-auto px-6 py-8">
+      <AppLayout>
+        <div className="container mx-auto px-6 py-8">
           <div className="max-w-3xl mx-auto space-y-6">
             <div className="flex items-center gap-4">
               <Button
@@ -111,8 +109,8 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     </AuthGuard>
   );
 }

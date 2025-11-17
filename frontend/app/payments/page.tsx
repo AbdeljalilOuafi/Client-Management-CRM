@@ -11,7 +11,7 @@ import { AuthGuard } from "@/components/AuthGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { PackageManagement } from "@/components/PackageManagement";
 import { AddPaymentDialog } from "@/components/payments/AddPaymentDialog";
 
@@ -110,12 +110,8 @@ const PaymentsContent = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
-        <div className="space-y-6">
+    <div className="container mx-auto px-6 py-8">
+      <div className="space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
@@ -276,8 +272,7 @@ const PaymentsContent = () => {
             <span>Total Payments: {statistics?.total_payments || 0}</span>
             <span>Filtered Results: {filteredPayments.length}</span>
           </div>
-        </div>
-      </main>
+      </div>
     </div>
   );
 };
@@ -285,7 +280,9 @@ const PaymentsContent = () => {
 const Payments = () => {
   return (
     <AuthGuard>
-      <PaymentsContent />
+      <AppLayout>
+        <PaymentsContent />
+      </AppLayout>
     </AuthGuard>
   );
 };

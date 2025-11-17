@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, FileText, ExternalLink } from "lucide-react";
 import FormBuilder from "@/components/FormBuilder";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
+import { AuthGuard } from "@/components/AuthGuard";
 
 interface Form {
   id: string;
@@ -82,7 +83,7 @@ const INITIAL_MOCK_FORMS: Form[] = [
   },
 ];
 
-export default function CheckinFormsPage() {
+function CheckinFormsContent() {
   const { toast } = useToast();
   const [forms, setForms] = useState<Form[]>(INITIAL_MOCK_FORMS);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -213,11 +214,11 @@ export default function CheckinFormsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="container mx-auto px-6 py-8">
+      
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      
         <div className="space-y-6">
           {/* Header */}
           <div className="flex justify-between items-center">
@@ -296,7 +297,7 @@ export default function CheckinFormsPage() {
             </Card>
           )}
         </div>
-      </main>
+      
 
       {/* Create Form Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={(open) => {
@@ -438,5 +439,15 @@ export default function CheckinFormsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function CheckinFormsPage() {
+  return (
+    <AuthGuard>
+      <AppLayout>
+        <CheckinFormsContent />
+      </AppLayout>
+    </AuthGuard>
   );
 }

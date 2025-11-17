@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, Filter, Trash2, Maximize2, Edit2, Save, X, User, Calendar, CheckCircle2, FileText, Hash, DollarSign, CreditCard } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
@@ -244,11 +244,11 @@ const InstalmentsContent = () => {
     .reduce((sum, i) => sum + Number(i.amount), 0);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="container mx-auto px-6 py-8">
+      
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -586,7 +586,7 @@ const InstalmentsContent = () => {
             <span>Filtered Results: {filteredInstalments.length}</span>
           </div>
         </div>
-      </main>
+      
 
       {/* Instalment Detail Dialog */}
       <Dialog open={!!selectedInstalment} onOpenChange={(open) => !open && setSelectedInstalment(null)}>
@@ -824,7 +824,9 @@ const InstalmentsContent = () => {
 const Instalments = () => {
   return (
     <AuthGuard>
-      <InstalmentsContent />
+      <AppLayout>
+        <InstalmentsContent />
+      </AppLayout>
     </AuthGuard>
   );
 };

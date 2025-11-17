@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ClientDetailsDialog } from "@/components/clients/ClientDetailsDialog";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 
 const columnDefinitions = [
   { id: "id", label: "ID", default: true },
@@ -147,11 +147,9 @@ export default function Index() {
 
   return (
     <AuthGuard>
-      <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <main className="container mx-auto px-6 py-8">
-        <div className="space-y-6">
+      <AppLayout>
+        <div className="container mx-auto px-6 py-8">
+          <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-3xl font-bold">Client Management</h2>
@@ -434,19 +432,19 @@ export default function Index() {
           <div className="flex gap-4 text-sm text-muted-foreground">
             <span>Showing: {sortedClients.length} clients</span>
           </div>
+          </div>
         </div>
-      </main>
 
-      <ClientDetailsDialog
-        client={selectedClient}
-        open={clientDetailsOpen}
-        onOpenChange={(open) => {
-          setClientDetailsOpen(open);
-          if (!open) setSelectedClient(null);
-        }}
-        onClientUpdated={handleClientUpdated}
-      />
-      </div>
+        <ClientDetailsDialog
+          client={selectedClient}
+          open={clientDetailsOpen}
+          onOpenChange={(open) => {
+            setClientDetailsOpen(open);
+            if (!open) setSelectedClient(null);
+          }}
+          onClientUpdated={handleClientUpdated}
+        />
+      </AppLayout>
     </AuthGuard>
   );
 }

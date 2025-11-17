@@ -15,7 +15,11 @@ import { Button } from "@/components/ui/button";
 import { logout, getStoredUser } from "@/lib/api/auth";
 import { useToast } from "@/hooks/use-toast";
 
-export function UserProfileMenu() {
+interface UserProfileMenuProps {
+  collapsed?: boolean;
+}
+
+export function UserProfileMenu({ collapsed = false }: UserProfileMenuProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -64,11 +68,20 @@ export function UserProfileMenu() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-10 w-10 rounded-full p-0 hover:opacity-80 transition-opacity"
+          className={`relative h-10 p-0 hover:opacity-80 transition-all ${
+            collapsed ? "w-10 rounded-full" : "w-full rounded-lg justify-start gap-3 px-2"
+          }`}
         >
-          <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-sm shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+          <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-md hover:shadow-lg transition-shadow cursor-pointer flex-shrink-0">
             {userInitials}
           </div>
+          {!collapsed && (
+            <div className="flex flex-col items-start min-w-0 flex-1">
+              <span className="text-sm font-medium truncate w-full text-left">
+                {user?.name || "User"}
+              </span>
+            </div>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>

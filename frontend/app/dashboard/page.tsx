@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Sparkles, LayoutDashboard, CreditCard } from "lucide-react";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { useDashboardLayout } from "@/hooks/useDashboardLayout";
 import { ChartWidget } from "@/components/dashboard/ChartWidget";
 import { TableWidget } from "@/components/dashboard/TableWidget";
@@ -56,11 +56,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+    <AppLayout>
+      <div className="container mx-auto px-6 py-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -211,7 +208,7 @@ export default function Dashboard() {
             </DragDropContext>
           )}
         </AnimatePresence>
-      </main>
+      </div>
 
       {/* Add Widget Dialog */}
       <AddWidgetDialog
@@ -223,6 +220,6 @@ export default function Dashboard() {
         maxCharts={maxCharts}
         maxTables={maxTables}
       />
-    </div>
+    </AppLayout>
   );
 }

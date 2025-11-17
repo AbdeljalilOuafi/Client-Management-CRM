@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Navbar } from "@/components/Navbar";
+import { AppLayout } from "@/components/AppLayout";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -123,11 +123,11 @@ const StaffContent = () => {
   const uniqueRoles = Array.from(new Set(employees.map(e => e.role)));
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
+    <div className="container mx-auto px-6 py-8">
+      
 
       {/* Main Content */}
-      <main className="container mx-auto px-6 py-8">
+      
         <div className="space-y-6">
           {/* Header */}
           <motion.div
@@ -365,7 +365,7 @@ const StaffContent = () => {
             </Card>
           </motion.div>
         </div>
-      </main>
+      
 
       {/* Add Staff Dialog */}
       <Dialog open={showAddStaff} onOpenChange={setShowAddStaff}>
@@ -412,7 +412,9 @@ const StaffContent = () => {
 const Staff = () => {
   return (
     <AuthGuard>
-      <StaffContent />
+      <AppLayout>
+        <StaffContent />
+      </AppLayout>
     </AuthGuard>
   );
 };
