@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import authenticate
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Min, Max
 from dateutil.relativedelta import relativedelta
 
 from .models import (
@@ -521,6 +521,50 @@ class ClientViewSet(viewsets.ModelViewSet):
         # Calculate difference in months
         months = (end.year - start.year) * 12 + (end.month - start.month)
         return months if months >= 0 else None
+
+    @action(detail=True, methods=['get'], url_path='package-history')
+    def package_history(self, request, pk=None):
+        """
+        Get historical packages for a client (inactive packages only)
+        GET /api/clients/{id}/package-history/
+        
+        Returns all packages the client has had in the past with status='inactive',
+        ordered by most recent first (based on package_end_date).
+        """
+        client = self.get_object()
+        
+        # Get all inactive packages for this client
+        inactive_packages = ClientPackage.objects.filter(
+            client=client,
+            status='inactive'
+        ).select_related('package').order_by('-package_end_date', '-start_date')
+        
+        # Serialize the packages using ClientPackageSerializer
+        serializer = ClientPackageSerializer(inactive_packages, many=True)
+        
+        # Calculate summary statistics
+        total_packages = inactive_packages.count()
+        
+        # Get date range if packages exist
+        if total_packages > 0:
+            earliest_start = inactive_packages.aggregate(
+                earliest=Min('start_date')
+            )['earliest']
+            latest_end = inactive_packages.aggregate(
+                latest=Max('package_end_date')
+            )['latest']
+        else:
+            earliest_start = None
+            latest_end = None
+        
+        return Response({
+            'client_id': client.id,
+            'client_name': f"{client.first_name} {client.last_name or ''}".strip(),
+            'total_inactive_packages': total_packages,
+            'earliest_package_start': earliest_start,
+            'latest_package_end': latest_end,
+            'packages': serializer.data
+        })
 
 
 class PackageViewSet(viewsets.ModelViewSet):
