@@ -4,6 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Users, LayoutDashboard, CreditCard, DollarSign, FileText } from "lucide-react";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Navbar() {
   const router = useRouter();
@@ -69,7 +70,10 @@ export function Navbar() {
               })}
             </div>
           </div>
-          <UserProfileMenu />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <UserProfileMenu />
+          </div>
         </div>
       </div>
     </nav>

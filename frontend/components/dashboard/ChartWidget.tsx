@@ -109,7 +109,7 @@ export const ChartWidget = ({ widget, onDelete, onEdit, isDragging }: ChartWidge
                 dataKey={key} 
                 stroke={LINE_COLORS[index % LINE_COLORS.length]}
                 strokeWidth={3}
-                dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                dot={{ r: 4, strokeWidth: 2, fill: 'hsl(var(--background))' }}
                 activeDot={{ r: 6, strokeWidth: 2 }}
                 animationDuration={1000}
                 filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
@@ -181,7 +181,7 @@ export const ChartWidget = ({ widget, onDelete, onEdit, isDragging }: ChartWidge
                 <Cell 
                   key={`cell-${index}`} 
                   fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]}
-                  stroke="#fff"
+                  stroke="hsl(var(--background))"
                   strokeWidth={2}
                 />
               ))}
