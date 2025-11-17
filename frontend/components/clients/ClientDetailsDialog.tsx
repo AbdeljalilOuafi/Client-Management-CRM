@@ -182,6 +182,7 @@ export function ClientDetailsDialog({ client, open, onOpenChange, onClientUpdate
         open={statusChangeOpen}
         onOpenChange={setStatusChangeOpen}
         type={statusChangeType}
+        clientId={client?.id}
       />
     </>
   );
