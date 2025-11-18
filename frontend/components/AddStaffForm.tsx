@@ -22,12 +22,28 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     email: "",
     phoneNumber: "",
     role: "",
+    password: "",
+    confirmPassword: "",
     startDate: new Date().toISOString().split('T')[0],
   });
+  const [passwordError, setPasswordError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+    
+    // Validate password strength
+    if (formData.password.length < 8) {
+      setPasswordError("Password must be at least 8 characters long");
+      return;
+    }
+    
+    setPasswordError("");
     setIsSubmitting(true);
 
     try {
@@ -35,7 +51,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
       await createEmployee({
         name: fullName,
         email: formData.email,
-        password: "TempPass123!", // Temporary password - should be changed on first login
+        password: formData.password,
         role: formData.role, // Backend role (admin, employee, coach, closer, setter)
         job_role: formData.role, // Job role (same as role for now)
         phone_number: formData.phoneNumber || undefined,
@@ -137,6 +153,44 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
             value={formData.startDate}
             onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
           />
+        </div>
+      </div>
+
+      {/* Password Fields */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="password">Password *</Label>
+          <Input
+            id="password"
+            type="password"
+            required
+            value={formData.password}
+            onChange={(e) => {
+              setFormData({ ...formData, password: e.target.value });
+              setPasswordError("");
+            }}
+            placeholder="Min. 8 characters"
+            className={passwordError ? "border-red-500" : ""}
+          />
+          <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="confirmPassword">Confirm Password *</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            required
+            value={formData.confirmPassword}
+            onChange={(e) => {
+              setFormData({ ...formData, confirmPassword: e.target.value });
+              setPasswordError("");
+            }}
+            placeholder="Re-enter password"
+            className={passwordError ? "border-red-500" : ""}
+          />
+          {passwordError && (
+            <p className="text-xs text-red-500">{passwordError}</p>
+          )}
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4 border-t">
