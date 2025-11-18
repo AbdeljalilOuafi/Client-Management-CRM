@@ -21,7 +21,6 @@ import {
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 import * as LucideIcons from "lucide-react";
-import { DebugPermissions } from "@/components/DebugPermissions";
 
 export function Sidebar() {
   const router = useRouter();
@@ -188,7 +187,6 @@ export function Sidebar() {
           </div>
         </div>
       </div>
-      <DebugPermissions />
     </aside>
   );
 }
