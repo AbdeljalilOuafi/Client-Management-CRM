@@ -1,24 +1,31 @@
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Client } from "@/lib/api/clients";
+import { ClientDetailsResponse } from "@/lib/api/client-details";
 
 interface TechnicalInfoCardProps {
   client: Client;
+  detailedData?: ClientDetailsResponse | null;
 }
 
-export function TechnicalInfoCard({ client }: TechnicalInfoCardProps) {
+export function TechnicalInfoCard({ client, detailedData }: TechnicalInfoCardProps) {
+  const clientData = detailedData?.client;
   return (
     <Card className="border-2 hover:shadow-lg transition-shadow duration-300">
       <CardHeader className="bg-muted/30 border-b">
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-orange-500"></div>
-          Technical Information
+          Other Information
         </CardTitle>
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-6 p-6">
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">GHL ID</Label>
           <p className="font-mono font-semibold text-sm text-foreground py-2 px-3 bg-muted/50 rounded-md border border-muted break-all">{client.ghl_id || "-"}</p>
+        </div>
+        <div className="space-y-2">
+          <Label className="text-sm font-medium text-muted-foreground">Lead Origin</Label>
+          <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{clientData?.lead_origin || client.cta_lead_origin || client.lead_origin || "-"}</p>
         </div>
         {client.stripe_customer_id && (
           <div className="space-y-2">

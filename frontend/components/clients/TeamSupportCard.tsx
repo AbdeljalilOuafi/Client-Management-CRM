@@ -36,10 +36,10 @@ export function TeamSupportCard({ client, detailedData }: TeamSupportCardProps) 
           <Label className="text-sm font-medium text-muted-foreground">Review Type</Label>
           <p className="font-mono font-bold text-lg text-primary py-2 px-3 bg-primary/10 rounded-md border border-primary/30">{packageInfo?.review_type || client.monthly_calls || "-"}</p>
         </div>
-        <div className="space-y-2">
+        {/* <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Lead Origin</Label>
           <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">{clientData?.lead_origin || client.cta_lead_origin || client.lead_origin || "-"}</p>
-        </div>
+        </div> */}
         <div className="space-y-2">
           <Label className="text-sm font-medium text-muted-foreground">Notice Given</Label>
           <p className={`font-semibold py-2 px-3 rounded-md ${(clientData?.notice_given ?? client.notice_given) ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800' : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800'}`}>{(clientData?.notice_given ?? client.notice_given) ? "Yes" : "No"}</p>

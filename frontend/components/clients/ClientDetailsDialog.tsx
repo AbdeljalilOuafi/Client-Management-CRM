@@ -12,6 +12,7 @@ import { TeamSupportCard } from "./TeamSupportCard";
 import { TechnicalInfoCard } from "./TechnicalInfoCard";
 import { StatusChangeScheduleCard } from "./StatusChangeScheduleCard";
 import { StatusChangeDialog } from "./StatusChangeDialog";
+import { StatusChangeAlerts } from "./StatusChangeAlerts";
 
 interface ClientDetailsDialogProps {
   client: Client | null;
@@ -93,6 +94,13 @@ export function ClientDetailsDialog({ client, open, onOpenChange, onClientUpdate
     setStatusChangeOpen(true);
   };
 
+  const handleEditScheduledChange = (change: any) => {
+    // Open the status change dialog with pre-filled data
+    setStatusChangeType(change.type);
+    setStatusChangeOpen(true);
+    // TODO: Pass the change data to pre-fill the form when backend integration is ready
+  };
+
   const handleDialogClose = (open: boolean) => {
     if (!open) {
       setIsEditing(false);
@@ -145,6 +153,14 @@ export function ClientDetailsDialog({ client, open, onOpenChange, onClientUpdate
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 pt-4">
+            {/* Status Change Alerts - Show at the top */}
+            {client && (
+              <StatusChangeAlerts
+                clientId={client.id}
+                onEdit={handleEditScheduledChange}
+              />
+            )}
+
             {loadingDetails ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -170,7 +186,10 @@ export function ClientDetailsDialog({ client, open, onOpenChange, onClientUpdate
                   client={client}
                   detailedData={detailedData}
                 />
-                <TechnicalInfoCard client={client} />
+                <TechnicalInfoCard 
+                  client={client}
+                  detailedData={detailedData}
+                />
                 <StatusChangeScheduleCard onStatusChangeSelect={handleStatusChangeSelect} />
               </>
             )}

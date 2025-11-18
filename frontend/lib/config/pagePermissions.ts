@@ -136,7 +136,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     path: "/profile",
     icon: "User",
     description: "User profile and settings",
-    showInNav: true,
+    showInNav: false, // Hidden from nav - accessible via UserProfileMenu at bottom of sidebar
     navOrder: 10,
     // All authenticated users can view and edit their own profile
   },
