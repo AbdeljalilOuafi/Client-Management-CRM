@@ -377,6 +377,11 @@ export default function Index() {
             </Card>
           )}
 
+          {/* Showing count at bottom */}
+          <div className="text-sm text-muted-foreground mt-4">
+            <span>Showing: {sortedClients.length} clients</span>
+          </div>
+
           </div>
         </div>
 
