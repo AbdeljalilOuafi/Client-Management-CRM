@@ -20,12 +20,26 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
     if (isOpen && !loaded) {
       setLoading(true);
       getClientPackageHistory(clientId)
-        .then((data: PackageHistoryItem[]) => {
-          setHistory(data);
+        .then((data: any) => {
+          // Handle different response formats
+          if (Array.isArray(data)) {
+            setHistory(data);
+          } else if (data && Array.isArray(data.results)) {
+            // If backend returns paginated response with results array
+            setHistory(data.results);
+          } else if (data && typeof data === 'object') {
+            // If backend returns single object, wrap in array
+            setHistory([data]);
+          } else {
+            console.warn("Unexpected package history format:", data);
+            setHistory([]);
+          }
           setLoaded(true);
         })
         .catch((error: Error) => {
           console.error("Failed to fetch package history:", error);
+          setHistory([]);
+          setLoaded(true);
         })
         .finally(() => {
           setLoading(false);
@@ -74,14 +88,16 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-primary" />
-                <h5 className="font-semibold text-foreground">{item.package_name}</h5>
+                <h5 className="font-semibold text-foreground">{item.package_name || "Unknown Package"}</h5>
               </div>
-              <Badge
-                variant={item.status === "completed" ? "secondary" : "default"}
-                className="text-xs"
-              >
-                {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-              </Badge>
+              {item.status && (
+                <Badge
+                  variant={item.status === "completed" ? "secondary" : "default"}
+                  className="text-xs"
+                >
+                  {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                </Badge>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
@@ -89,22 +105,24 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
                 <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
                 <Label className="text-xs text-muted-foreground">Payment:</Label>
                 <span className="font-semibold text-green-600 dark:text-green-400">
-                  {item.currency} ${item.payment_amount.toFixed(2)}
+                  {item.currency || "USD"} ${item.payment_amount ? item.payment_amount.toFixed(2) : "0.00"}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
                 <Label className="text-xs text-muted-foreground">Method:</Label>
-                <span className="font-medium">{item.payment_method}</span>
+                <span className="font-medium">{item.payment_method || "-"}</span>
               </div>
 
-              <div className="flex items-center gap-2">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                <Label className="text-xs text-muted-foreground">Start:</Label>
-                <span className="font-medium">
-                  {new Date(item.start_date).toLocaleDateString()}
-                </span>
-              </div>
+              {item.start_date && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Label className="text-xs text-muted-foreground">Start:</Label>
+                  <span className="font-medium">
+                    {new Date(item.start_date).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
 
               {item.end_date && (
                 <div className="flex items-center gap-2">
