@@ -16,6 +16,7 @@ import { PackageManagement } from "@/components/PackageManagement";
 import { AddPaymentDialog } from "@/components/payments/AddPaymentDialog";
 import { getToastErrorMessage } from "@/lib/utils/errorHandler";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const columnDefinitions = [
   { id: "id", label: "Payment ID", default: true },
@@ -31,6 +32,7 @@ const columnDefinitions = [
 
 const PaymentsContent = () => {
   const { toast } = useToast();
+  const { canManageAllPayments } = usePermissions();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -121,7 +123,7 @@ const PaymentsContent = () => {
             </div>
             <div className="flex gap-2">
               <ImportExportButtons entityType="payments" />
-              <AddPaymentDialog />
+              {canManageAllPayments() && <AddPaymentDialog />}
               <PackageManagement />
             </div>
           </div>

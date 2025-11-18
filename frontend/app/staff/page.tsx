@@ -15,14 +15,29 @@ import { listEmployees, Employee } from "@/lib/api/staff";
 import { Search, Plus, ChevronDown, ChevronUp, Settings2, ArrowUpDown, Users } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
+import { updateEmployeePermissions } from "@/lib/api/staff";
+import { PermissionString } from "@/lib/types/permissions";
+import { PAGE_PERMISSIONS } from "@/lib/config/pagePermissions";
 
 interface ColumnDefinition {
   id: string;
   label: string;
   visible: boolean;
 }
+
+// Helper to map page IDs to permission fields
+const getPagePermissionFields = (pageId: string): { view?: keyof Employee; edit?: keyof Employee } => {
+  const mapping: Record<string, { view?: keyof Employee; edit?: keyof Employee }> = {
+    "clients": { view: "can_view_all_clients", edit: "can_manage_all_clients" },
+    "payments": { view: "can_view_all_payments", edit: "can_manage_all_payments" },
+    "instalments": { view: "can_view_all_installments", edit: "can_manage_all_installments" },
+    // Add more mappings as you add new permission fields to Employee
+  };
+  return mapping[pageId] || {};
+};
 
 const StaffContent = () => {
   const { toast } = useToast();
@@ -46,6 +61,14 @@ const StaffContent = () => {
     { id: "status", label: "Status", visible: true },
     { id: "is_active", label: "Active", visible: true },
   ]);
+
+  // Get pages that have manageable permissions (exclude profile, dashboard, etc.)
+  const manageablePages = PAGE_PERMISSIONS.filter(page => {
+    const fields = getPagePermissionFields(page.id);
+    const hasFields = !!(fields.view || fields.edit);
+    console.log(`[Staff] Page ${page.id}: hasFields=${hasFields}`, fields);
+    return hasFields; // Only show pages with actual permission fields
+  });
 
   useEffect(() => {
     fetchEmployees();
@@ -94,6 +117,58 @@ const StaffContent = () => {
     }
   };
 
+  const handlePermissionToggle = async (
+    employee: Employee,
+    permissionField: keyof Employee,
+    checked: boolean
+  ) => {
+    try {
+      // Build the permissions array based on current state
+      const permissions: PermissionString[] = [];
+      
+      // Helper to map field names to API permission strings
+      const fieldToPermission: Record<string, PermissionString> = {
+        can_view_all_clients: "view_all_clients",
+        can_manage_all_clients: "manage_all_clients",
+        can_view_all_payments: "view_all_payments",
+        can_manage_all_payments: "manage_all_payments",
+        can_view_all_installments: "view_all_installments",
+        can_manage_all_installments: "manage_all_installments",
+      };
+
+      // Add all currently enabled permissions
+      Object.keys(fieldToPermission).forEach((field) => {
+        const isEnabled = field === permissionField ? checked : employee[field as keyof Employee];
+        if (isEnabled) {
+          permissions.push(fieldToPermission[field]);
+        }
+      });
+
+      // Update via API
+      await updateEmployeePermissions(employee.id, permissions);
+
+      // Update local state
+      setEmployees(prev =>
+        prev.map(emp =>
+          emp.id === employee.id
+            ? { ...emp, [permissionField]: checked }
+            : emp
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: "Permissions updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating permissions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update permissions",
+        variant: "destructive",
+      });
+    }
+  };
 
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch =
@@ -306,48 +381,67 @@ const StaffContent = () => {
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: "auto" }}
                                         exit={{ opacity: 0, height: 0 }}
-                                        className="p-6 bg-muted/50 space-y-4 rounded-lg"
+                                        className="p-6 bg-muted/30 space-y-6"
                                       >
-                                        <h3 className="text-lg font-semibold">Employee Details</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">Email</p>
-                                            <p className="font-medium">{employee.email}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">Phone</p>
-                                            <p className="font-medium">{employee.phone_number || "-"}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">System Role</p>
-                                            <p className="font-medium capitalize">{employee.role}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">Job Title</p>
-                                            <p className="font-medium">{employee.job_role || "-"}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">Status</p>
-                                            <p className="font-medium">{employee.status || "-"}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-sm text-muted-foreground">Active</p>
-                                            <p className={`font-medium ${employee.is_active ? "text-green-600" : "text-red-600"}`}>
-                                              {employee.is_active ? "Yes" : "No"}
+                                        {employee.role === "super_admin" ? (
+                                          <div className="text-center py-4">
+                                            <p className="text-sm text-muted-foreground">
+                                              Super admins have all permissions by default and cannot be modified.
                                             </p>
                                           </div>
-                                        </div>
-                                        {employee.permissions && employee.permissions.length > 0 && (
-                                          <div>
-                                            <p className="text-sm text-muted-foreground mb-2">Permissions</p>
-                                            <div className="flex flex-wrap gap-2">
-                                              {employee.permissions.map((permission, idx) => (
-                                                <span key={idx} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded-md">
-                                                  {permission}
-                                                </span>
-                                              ))}
-                                            </div>
-                                          </div>
+                                        ) : (
+                                          <>
+                                            <h3 className="text-lg font-semibold">Permissions</h3>
+                                            
+                                            {/* Dynamically render all manageable pages */}
+                                            {manageablePages.map((page) => {
+                                              const fields = getPagePermissionFields(page.id);
+                                              const hasViewField = !!fields.view;
+                                              const hasEditField = !!fields.edit;
+
+                                              // Skip if no permission fields
+                                              if (!hasViewField && !hasEditField) return null;
+
+                                              return (
+                                                <div key={page.id} className="space-y-3">
+                                                  <h4 className="font-medium text-sm">{page.name}</h4>
+                                                  <div className="flex items-center gap-6">
+                                                    {/* View Checkbox */}
+                                                    {hasViewField && (
+                                                      <div className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                          id={`view-${page.id}-${employee.id}`}
+                                                          checked={Boolean(employee[fields.view!])}
+                                                          onCheckedChange={(checked) => 
+                                                            handlePermissionToggle(employee, fields.view!, checked as boolean)
+                                                          }
+                                                        />
+                                                        <Label htmlFor={`view-${page.id}-${employee.id}`} className="cursor-pointer">
+                                                          View
+                                                        </Label>
+                                                      </div>
+                                                    )}
+
+                                                    {/* Edit Checkbox */}
+                                                    {hasEditField && (
+                                                      <div className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                          id={`edit-${page.id}-${employee.id}`}
+                                                          checked={Boolean(employee[fields.edit!])}
+                                                          onCheckedChange={(checked) => 
+                                                            handlePermissionToggle(employee, fields.edit!, checked as boolean)
+                                                          }
+                                                        />
+                                                        <Label htmlFor={`edit-${page.id}-${employee.id}`} className="cursor-pointer">
+                                                          Edit
+                                                        </Label>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </>
                                         )}
                                       </motion.div>
                                     </TableCell>
@@ -412,9 +506,11 @@ const StaffContent = () => {
 const Staff = () => {
   return (
     <AuthGuard>
-      <AppLayout>
-        <StaffContent />
-      </AppLayout>
+      <PermissionGuard requiredRole={["admin", "super_admin"]} fallbackPath="/dashboard">
+        <AppLayout>
+          <StaffContent />
+        </AppLayout>
+      </PermissionGuard>
     </AuthGuard>
   );
 };

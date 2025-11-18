@@ -20,6 +20,7 @@ import { listInstalments, Instalment as ApiInstalment } from "@/lib/api/instalme
 import { AuthGuard } from "@/components/AuthGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Instalment {
   id: number;
@@ -56,6 +57,7 @@ const columnDefinitions = [
 ];
 
 const InstalmentsContent = () => {
+  const { canManageAllInstallments } = usePermissions();
   const [statusFilter, setStatusFilter] = useState<string>("open");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortColumn, setSortColumn] = useState<string>("schedule_date");
@@ -259,20 +261,22 @@ const InstalmentsContent = () => {
               <h2 className="text-3xl font-bold">Instalment Management</h2>
               <p className="text-muted-foreground">Track and manage client instalments</p>
             </div>
-            <Dialog open={addInstalmentOpen} onOpenChange={setAddInstalmentOpen}>
-              <DialogTrigger asChild>
-                <Button>Add Instalment</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Add New Instalment</DialogTitle>
-                </DialogHeader>
-                <AddInstalmentForm onSuccess={() => {
-                  setAddInstalmentOpen(false);
-                  fetchInstalments();
-                }} />
-              </DialogContent>
-            </Dialog>
+            {canManageAllInstallments() && (
+              <Dialog open={addInstalmentOpen} onOpenChange={setAddInstalmentOpen}>
+                <DialogTrigger asChild>
+                  <Button>Add Instalment</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Add New Instalment</DialogTitle>
+                  </DialogHeader>
+                  <AddInstalmentForm onSuccess={() => {
+                    setAddInstalmentOpen(false);
+                    fetchInstalments();
+                  }} />
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
 
           {/* Stats Cards */}

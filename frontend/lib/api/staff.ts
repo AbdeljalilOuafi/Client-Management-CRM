@@ -1,3 +1,5 @@
+import { EmployeeWithPermissions, UserRole, PermissionString } from "@/lib/types/permissions";
+
 const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 
 export interface Employee {
@@ -5,14 +7,24 @@ export interface Employee {
   name: string;
   email: string;
   phone_number?: string | null;
-  role: string; // "admin" or "employee"
-  job_role?: string | null; // Actual job title like "Sales Manager", "Coach", etc.
+  role: UserRole;
+  job_role?: string | null;
   status?: string;
   is_active: boolean;
-  permissions?: string[]; // Array of permission strings like "view_all_clients", "manage_all_clients"
+  account?: number;
+  account_name?: string;
+  can_view_all_clients?: boolean;
+  can_manage_all_clients?: boolean;
+  can_view_all_payments?: boolean;
+  can_manage_all_payments?: boolean;
+  can_view_all_installments?: boolean;
+  can_manage_all_installments?: boolean;
   created_at?: string;
   updated_at?: string;
 }
+
+// Re-export for convenience
+export type { EmployeeWithPermissions };
 
 export interface EmployeesResponse {
   count: number;
@@ -146,7 +158,10 @@ export const deleteEmployee = async (id: number): Promise<void> => {
 };
 
 // Update employee permissions
-export const updateEmployeePermissions = async (id: number, permissions: string[]): Promise<{ message: string }> => {
+export const updateEmployeePermissions = async (
+  id: number, 
+  permissions: PermissionString[]
+): Promise<{ message: string }> => {
   const response = await fetch(`${API_BASE_URL}/employees/${id}/update_permissions/`, {
     method: "POST",
     headers: getHeaders(),

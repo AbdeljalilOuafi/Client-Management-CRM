@@ -20,6 +20,7 @@ import { ClientDetailsDialog } from "@/components/clients/ClientDetailsDialog";
 import { AppLayout } from "@/components/AppLayout";
 import { getToastErrorMessage } from "@/lib/utils/errorHandler";
 import { ImportExportButtons } from "@/components/ImportExportButtons";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const columnDefinitions = [
   { id: "id", label: "ID", default: true },
@@ -44,6 +45,7 @@ const columnDefinitions = [
 
 export default function Index() {
   const { toast } = useToast();
+  const { canManageAllClients } = usePermissions();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortColumn, setSortColumn] = useState<string>("id");
@@ -158,20 +160,22 @@ export default function Index() {
             </div>
             <div className="flex items-center gap-2">
               <ImportExportButtons entityType="clients" />
-              <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
-                <DialogTrigger asChild>
-                  <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
-                    <UserPlus className="h-4 w-4" />
-                    Add New Client
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
-                  <DialogHeader>
-                    <DialogTitle className="text-2xl">Add New Client</DialogTitle>
-                  </DialogHeader>
-                  <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
-                </DialogContent>
-              </Dialog>
+              {canManageAllClients() && (
+                <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
+                      <UserPlus className="h-4 w-4" />
+                      Add New Client
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl">Add New Client</DialogTitle>
+                    </DialogHeader>
+                    <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           </div>
 

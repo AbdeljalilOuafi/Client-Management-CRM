@@ -1,3 +1,5 @@
+import { Permissions, UserWithPermissions, UserRole } from "@/lib/types/permissions";
+
 const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 
 export interface LoginCredentials {
@@ -7,23 +9,17 @@ export interface LoginCredentials {
 
 export interface LoginResponse {
   token: string;
-  user: {
-    id: number;
-    email: string;
-    name: string;
-    role: string;
-    account_id: number;
-    account_name: string;
-  };
+  user: UserWithPermissions;
 }
 
 export interface User {
   id: number;
   email: string;
   name: string;
-  role: string;
+  role: UserRole;
   account_id: number;
   account_name: string;
+  permissions?: Permissions;
 }
 
 export interface SignupData {
@@ -53,12 +49,7 @@ export interface SignupResponse {
     name: string;
     email: string;
   };
-  user: {
-    id: number;
-    email: string;
-    name: string;
-    role: string;
-  };
+  user: UserWithPermissions;
 }
 
 // Signup
@@ -78,18 +69,12 @@ export const signup = async (signupData: SignupData): Promise<SignupResponse> =>
 
   const data = await response.json();
   
-  // Store token and account info in localStorage
+  // Store token, account info, and permissions in localStorage
   if (typeof window !== "undefined") {
     localStorage.setItem("auth_token", data.token);
     localStorage.setItem("accountId", data.account.id.toString());
-    localStorage.setItem("user", JSON.stringify({
-      id: data.user.id,
-      email: data.user.email,
-      name: data.user.name,
-      role: data.user.role,
-      account_id: data.account.id,
-      account_name: data.account.name,
-    }));
+    localStorage.setItem("user", JSON.stringify(data.user));
+    localStorage.setItem("permissions", JSON.stringify(data.user.permissions));
   }
 
   return data;
@@ -119,11 +104,12 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
 
     const data = await response.json();
     
-    // Store token and account info in localStorage
+    // Store token, account info, and permissions in localStorage
     if (typeof window !== "undefined") {
       localStorage.setItem("auth_token", data.token);
       localStorage.setItem("accountId", data.user.account_id.toString());
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("permissions", JSON.stringify(data.user.permissions));
     }
 
     return data;
@@ -157,6 +143,7 @@ export const logout = async (): Promise<void> => {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("accountId");
     localStorage.removeItem("user");
+    localStorage.removeItem("permissions");
   }
 };
 
@@ -212,6 +199,21 @@ export const getAccountId = (): number | null => {
     if (accountId) {
       const parsed = parseInt(accountId, 10);
       return isNaN(parsed) ? null : parsed;
+    }
+  }
+  return null;
+};
+
+// Get stored permissions
+export const getStoredPermissions = (): Permissions | null => {
+  if (typeof window !== "undefined") {
+    const permsStr = localStorage.getItem("permissions");
+    if (permsStr) {
+      try {
+        return JSON.parse(permsStr);
+      } catch {
+        return null;
+      }
     }
   }
   return null;

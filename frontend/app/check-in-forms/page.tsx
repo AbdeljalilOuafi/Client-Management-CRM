@@ -13,6 +13,7 @@ import { Plus, Edit, Trash2, FileText, ExternalLink } from "lucide-react";
 import FormBuilder from "@/components/FormBuilder";
 import { AppLayout } from "@/components/AppLayout";
 import { AuthGuard } from "@/components/AuthGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 
 interface Form {
   id: string;
@@ -445,9 +446,11 @@ function CheckinFormsContent() {
 export default function CheckinFormsPage() {
   return (
     <AuthGuard>
-      <AppLayout>
-        <CheckinFormsContent />
-      </AppLayout>
+      <PermissionGuard requiredRole="super_admin" fallbackPath="/dashboard">
+        <AppLayout>
+          <CheckinFormsContent />
+        </AppLayout>
+      </PermissionGuard>
     </AuthGuard>
   );
 }

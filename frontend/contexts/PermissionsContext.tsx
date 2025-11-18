@@ -1,0 +1,198 @@
+"use client";
+
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { UserWithPermissions, Permissions, UserRole } from "@/lib/types/permissions";
+import { getStoredUser, getStoredPermissions } from "@/lib/api/auth";
+import { 
+  canViewPage, 
+  canEditOnPage, 
+  getAccessiblePages, 
+  getEditablePages,
+  getNavigationPages,
+  PagePermission 
+} from "@/lib/config/pagePermissions";
+
+interface PermissionsContextType {
+  user: UserWithPermissions | null;
+  permissions: Permissions | null;
+  isLoading: boolean;
+  
+  // Role checks
+  isSuperAdmin: () => boolean;
+  isAdmin: () => boolean;
+  isAdminOrAbove: () => boolean;
+  
+  // Permission checks
+  canViewAllClients: () => boolean;
+  canManageAllClients: () => boolean;
+  canViewAllPayments: () => boolean;
+  canManageAllPayments: () => boolean;
+  canViewAllInstallments: () => boolean;
+  canManageAllInstallments: () => boolean;
+  
+  // Page access checks (legacy - kept for backwards compatibility)
+  canAccessStaffPage: () => boolean;
+  canAccessCheckInPage: () => boolean;
+  
+  // New page-based permission system
+  canViewPage: (pageId: string) => boolean;
+  canEditOnPage: (pageId: string) => boolean;
+  getAccessiblePages: () => PagePermission[];
+  getEditablePages: () => PagePermission[];
+  getNavigationPages: () => PagePermission[];
+  
+  // Refresh permissions
+  refreshPermissions: () => void;
+}
+
+const PermissionsContext = createContext<PermissionsContextType | undefined>(undefined);
+
+export function PermissionsProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<UserWithPermissions | null>(null);
+  const [permissions, setPermissions] = useState<Permissions | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadPermissions = () => {
+    const storedUser = getStoredUser();
+    const storedPermissions = getStoredPermissions();
+    
+    console.log('[PermissionsContext] Loading permissions:', {
+      storedUser,
+      storedPermissions,
+      userRole: storedUser?.role,
+    });
+    
+    if (storedUser) {
+      setUser(storedUser as UserWithPermissions);
+      // Use stored permissions or extract from user object
+      const perms = storedPermissions || (storedUser as any).permissions;
+      setPermissions(perms || null);
+      
+      console.log('[PermissionsContext] Permissions loaded:', {
+        role: storedUser.role,
+        permissions: perms,
+      });
+    } else {
+      setUser(null);
+      setPermissions(null);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadPermissions();
+  }, []);
+
+  // Role checks
+  const isSuperAdmin = (): boolean => {
+    return user?.role === "super_admin";
+  };
+
+  const isAdmin = (): boolean => {
+    return user?.role === "admin";
+  };
+
+  const isAdminOrAbove = (): boolean => {
+    return user?.role === "super_admin" || user?.role === "admin";
+  };
+
+  // Permission checks
+  const canViewAllClients = (): boolean => {
+    return isSuperAdmin() || permissions?.can_view_all_clients === true;
+  };
+
+  const canManageAllClients = (): boolean => {
+    return isSuperAdmin() || permissions?.can_manage_all_clients === true;
+  };
+
+  const canViewAllPayments = (): boolean => {
+    return isSuperAdmin() || permissions?.can_view_all_payments === true;
+  };
+
+  const canManageAllPayments = (): boolean => {
+    return isSuperAdmin() || permissions?.can_manage_all_payments === true;
+  };
+
+  const canViewAllInstallments = (): boolean => {
+    return isSuperAdmin() || permissions?.can_view_all_installments === true;
+  };
+
+  const canManageAllInstallments = (): boolean => {
+    return isSuperAdmin() || permissions?.can_manage_all_installments === true;
+  };
+
+  // Page access checks
+  const canAccessStaffPage = (): boolean => {
+    // Only admin and super_admin can see the Staff page
+    return isAdminOrAbove();
+  };
+
+  const canAccessCheckInPage = (): boolean => {
+    // Only super_admin can see the Check-in page
+    return isSuperAdmin();
+  };
+
+  const refreshPermissions = () => {
+    loadPermissions();
+  };
+
+  // New page-based permission methods
+  const canViewPageMethod = (pageId: string): boolean => {
+    return canViewPage(pageId, user, permissions);
+  };
+
+  const canEditOnPageMethod = (pageId: string): boolean => {
+    return canEditOnPage(pageId, user, permissions);
+  };
+
+  const getAccessiblePagesMethod = (): PagePermission[] => {
+    return getAccessiblePages(user, permissions);
+  };
+
+  const getEditablePagesMethod = (): PagePermission[] => {
+    return getEditablePages(user, permissions);
+  };
+
+  const getNavigationPagesMethod = (): PagePermission[] => {
+    const navPages = getNavigationPages();
+    // Filter by what user can access
+    return navPages.filter(page => canViewPage(page.id, user, permissions));
+  };
+
+  const value: PermissionsContextType = {
+    user,
+    permissions,
+    isLoading,
+    isSuperAdmin,
+    isAdmin,
+    isAdminOrAbove,
+    canViewAllClients,
+    canManageAllClients,
+    canViewAllPayments,
+    canManageAllPayments,
+    canViewAllInstallments,
+    canManageAllInstallments,
+    canAccessStaffPage,
+    canAccessCheckInPage,
+    canViewPage: canViewPageMethod,
+    canEditOnPage: canEditOnPageMethod,
+    getAccessiblePages: getAccessiblePagesMethod,
+    getEditablePages: getEditablePagesMethod,
+    getNavigationPages: getNavigationPagesMethod,
+    refreshPermissions,
+  };
+
+  return (
+    <PermissionsContext.Provider value={value}>
+      {children}
+    </PermissionsContext.Provider>
+  );
+}
+
+export function usePermissions(): PermissionsContextType {
+  const context = useContext(PermissionsContext);
+  if (context === undefined) {
+    throw new Error("usePermissions must be used within a PermissionsProvider");
+  }
+  return context;
+}

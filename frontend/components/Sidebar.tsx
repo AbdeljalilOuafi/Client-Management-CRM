@@ -19,6 +19,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import * as LucideIcons from "lucide-react";
 
 export function Sidebar() {
   const router = useRouter();
@@ -26,39 +28,31 @@ export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [collapseTimeout, setCollapseTimeout] = useState<NodeJS.Timeout | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const { getNavigationPages, isLoading, user } = usePermissions();
+  
+  // Get navigation pages dynamically based on permissions
+  const navPages = getNavigationPages();
+  
+  // Debug logging
+  console.log('[Sidebar] Permissions state:', {
+    isLoading,
+    userRole: user?.role,
+    navPagesCount: navPages.length,
+    navPages: navPages.map(p => p.name),
+  });
 
-  const navItems = [
-    {
-      label: "Clients",
-      icon: Users,
-      path: "/clients",
-    },
-    {
-      label: "Payments",
-      icon: CreditCard,
-      path: "/payments",
-    },
-    {
-      label: "Instalments",
-      icon: DollarSign,
-      path: "/instalments",
-    },
-    {
-      label: "Dashboard",
-      icon: LayoutDashboard,
-      path: "/dashboard",
-    },
-    {
-      label: "Staff",
-      icon: Users,
-      path: "/staff",
-    },
-    {
-      label: "Check-in Forms",
-      icon: FileText,
-      path: "/check-in-forms",
-    },
-  ];
+  // Helper to get icon component from string name
+  const getIconComponent = (iconName: string) => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent || LucideIcons.Circle; // Fallback to Circle if icon not found
+  };
+
+  // Convert page permissions to nav items
+  const navItems = navPages.map(page => ({
+    label: page.name,
+    icon: getIconComponent(page.icon),
+    path: page.path,
+  }));
 
   const isActive = (path: string) => pathname === path;
 
