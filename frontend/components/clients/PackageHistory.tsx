@@ -20,20 +20,8 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
     if (isOpen && !loaded) {
       setLoading(true);
       getClientPackageHistory(clientId)
-        .then((data: any) => {
-          // Handle different response formats
-          if (Array.isArray(data)) {
-            setHistory(data);
-          } else if (data && Array.isArray(data.results)) {
-            // If backend returns paginated response with results array
-            setHistory(data.results);
-          } else if (data && typeof data === 'object') {
-            // If backend returns single object, wrap in array
-            setHistory([data]);
-          } else {
-            console.warn("Unexpected package history format:", data);
-            setHistory([]);
-          }
+        .then((data: PackageHistoryItem[]) => {
+          setHistory(data);
           setLoaded(true);
         })
         .catch((error: Error) => {
