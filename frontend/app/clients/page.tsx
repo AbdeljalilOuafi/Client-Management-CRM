@@ -179,98 +179,6 @@ export default function Index() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {statsLoading ? (
-              <>
-                {[1, 2, 3].map((i) => (
-                  <Card key={i} className="shadow-sm hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-2">
-                      <Skeleton className="h-4 w-24" />
-                    </CardHeader>
-                    <CardContent>
-                      <Skeleton className="h-8 w-16" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </>
-            ) : statistics ? (
-              <>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0 }}
-                >
-                  <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-primary">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Total Clients
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <motion.div
-                        className="text-3xl font-bold"
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, delay: 0.1 }}
-                      >
-                        {statistics.total_clients}
-                      </motion.div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.1 }}
-                >
-                  <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-green-500">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        Active Clients
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <motion.div
-                        className="text-3xl font-bold text-green-600"
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, delay: 0.2 }}
-                      >
-                        {statistics.active_clients}
-                      </motion.div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.2 }}
-                >
-                  <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-gray-400">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                        <Users className="h-4 w-4 text-gray-600" />
-                        Inactive Clients
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <motion.div
-                        className="text-3xl font-bold text-gray-600"
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, delay: 0.3 }}
-                      >
-                        {statistics.inactive_clients}
-                      </motion.div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              </>
-            ) : null}
-          </div>
-
           <Card className="shadow-sm">
             <CardContent className="pt-6">
               <div className="flex gap-4 items-center flex-wrap">
@@ -332,6 +240,38 @@ export default function Index() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </div>
+
+              {/* Client Statistics Summary */}
+              <div className="flex gap-4 items-center text-sm border-t pt-4 mt-4">
+                {statsLoading ? (
+                  <div className="flex gap-4">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-5 w-32" />
+                  </div>
+                ) : statistics ? (
+                  <>
+                    <span className="font-semibold text-foreground">
+                      Total: <span className="text-primary">{statistics.total_clients || 0}</span>
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">
+                      Active: <span className="text-green-600">{statistics.active_clients || 0}</span>
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">
+                      Inactive: <span className="text-gray-600">{statistics.inactive_clients || 0}</span>
+                    </span>
+                    <span className="text-muted-foreground">|</span>
+                    <span className="font-medium">
+                      Pending: <span className="text-orange-600">{statistics.pending_clients || 0}</span>
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">No statistics available</span>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -437,9 +377,6 @@ export default function Index() {
             </Card>
           )}
 
-          <div className="flex gap-4 text-sm text-muted-foreground">
-            <span>Showing: {sortedClients.length} clients</span>
-          </div>
           </div>
         </div>
 
