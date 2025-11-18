@@ -364,7 +364,7 @@ export const PackageManagement = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="default_price">Default Price (Optional)</Label>
+                  <Label htmlFor="default_price">Default Price (One-Off)</Label>
                   <Input
                     id="default_price"
                     type="number"
@@ -381,20 +381,6 @@ export const PackageManagement = () => {
                       {formErrors.default_price}
                     </p>
                   )}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="is_active">Active Status</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Make this package available for use
-                    </p>
-                  </div>
-                  <Switch
-                    id="is_active"
-                    checked={formData.is_active}
-                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
-                  />
                 </div>
 
                 <div className="flex gap-2 pt-2">
@@ -445,9 +431,9 @@ export const PackageManagement = () => {
                           <p className="text-sm text-muted-foreground">{pkg.description}</p>
                         )}
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          {pkg.default_price && (
+                          {/* {pkg.default_price && (
                             <span>Default Price: ${pkg.default_price.toFixed(2)}</span>
-                          )}
+                          )} */}
                           <span>Created: {new Date(pkg.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
@@ -522,7 +508,7 @@ export const PackageManagement = () => {
               />
             </div>
 
-            <div className="space-y-2">
+            {/* <div className="space-y-2">
               <Label htmlFor="edit-default_price">Default Price (Optional)</Label>
               <Input
                 id="edit-default_price"
@@ -540,7 +526,7 @@ export const PackageManagement = () => {
                   {formErrors.default_price}
                 </p>
               )}
-            </div>
+            </div> */}
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">

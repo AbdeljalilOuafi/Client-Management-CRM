@@ -172,9 +172,9 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       
       // Mock data for now
       return [
-        { id: "1", name: "Premium Package" },
-        { id: "2", name: "Standard Package" },
-        { id: "3", name: "Basic Package" },
+        { id: "1", name: "Premium Package", is_active: true },
+        { id: "2", name: "Standard Package", is_active: true },
+        { id: "3", name: "Basic Package", is_active: true },
       ];
     },
   });
@@ -547,7 +547,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                   <SelectValue placeholder="Select package type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {packageTypes?.map((pkg) => (
+                  {packageTypes?.filter((pkg) => pkg.is_active !== false).map((pkg) => (
                     <SelectItem key={pkg.id} value={pkg.name}>
                       {pkg.name}
                     </SelectItem>
