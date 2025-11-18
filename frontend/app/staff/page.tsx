@@ -12,15 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { listEmployees, Employee } from "@/lib/api/staff";
-import { Search, Plus, ChevronDown, ChevronUp, Settings2, ArrowUpDown, Users } from "lucide-react";
+import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2 } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
-import { updateEmployeePermissions } from "@/lib/api/staff";
-import { PermissionString } from "@/lib/types/permissions";
-import { PAGE_PERMISSIONS } from "@/lib/config/pagePermissions";
+import { EmployeeDetailsDialog } from "@/components/staff/EmployeeDetailsDialog";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface ColumnDefinition {
   id: string;
@@ -28,26 +27,17 @@ interface ColumnDefinition {
   visible: boolean;
 }
 
-// Helper to map page IDs to permission fields
-const getPagePermissionFields = (pageId: string): { view?: keyof Employee; edit?: keyof Employee } => {
-  const mapping: Record<string, { view?: keyof Employee; edit?: keyof Employee }> = {
-    "clients": { view: "can_view_all_clients", edit: "can_manage_all_clients" },
-    "payments": { view: "can_view_all_payments", edit: "can_manage_all_payments" },
-    "instalments": { view: "can_view_all_installments", edit: "can_manage_all_installments" },
-    // Add more mappings as you add new permission fields to Employee
-  };
-  return mapping[pageId] || {};
-};
-
 const StaffContent = () => {
   const { toast } = useToast();
+  const { user } = usePermissions();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [sortColumn, setSortColumn] = useState<string>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -62,13 +52,6 @@ const StaffContent = () => {
     { id: "is_active", label: "Active", visible: true },
   ]);
 
-  // Get pages that have manageable permissions (exclude profile, dashboard, etc.)
-  const manageablePages = PAGE_PERMISSIONS.filter(page => {
-    const fields = getPagePermissionFields(page.id);
-    const hasFields = !!(fields.view || fields.edit);
-    console.log(`[Staff] Page ${page.id}: hasFields=${hasFields}`, fields);
-    return hasFields; // Only show pages with actual permission fields
-  });
 
   useEffect(() => {
     fetchEmployees();
@@ -98,14 +81,9 @@ const StaffContent = () => {
     );
   };
 
-  const toggleRowExpansion = (employeeId: number) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(employeeId)) {
-      newExpanded.delete(employeeId);
-    } else {
-      newExpanded.add(employeeId);
-    }
-    setExpandedRows(newExpanded);
+  const handleEmployeeClick = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeDialog(true);
   };
 
   const handleSort = (column: string) => {
@@ -117,58 +95,6 @@ const StaffContent = () => {
     }
   };
 
-  const handlePermissionToggle = async (
-    employee: Employee,
-    permissionField: keyof Employee,
-    checked: boolean
-  ) => {
-    try {
-      // Build the permissions array based on current state
-      const permissions: PermissionString[] = [];
-      
-      // Helper to map field names to API permission strings
-      const fieldToPermission: Record<string, PermissionString> = {
-        can_view_all_clients: "view_all_clients",
-        can_manage_all_clients: "manage_all_clients",
-        can_view_all_payments: "view_all_payments",
-        can_manage_all_payments: "manage_all_payments",
-        can_view_all_installments: "view_all_installments",
-        can_manage_all_installments: "manage_all_installments",
-      };
-
-      // Add all currently enabled permissions
-      Object.keys(fieldToPermission).forEach((field) => {
-        const isEnabled = field === permissionField ? checked : employee[field as keyof Employee];
-        if (isEnabled) {
-          permissions.push(fieldToPermission[field]);
-        }
-      });
-
-      // Update via API
-      await updateEmployeePermissions(employee.id, permissions);
-
-      // Update local state
-      setEmployees(prev =>
-        prev.map(emp =>
-          emp.id === employee.id
-            ? { ...emp, [permissionField]: checked }
-            : emp
-        )
-      );
-
-      toast({
-        title: "Success",
-        description: "Permissions updated successfully",
-      });
-    } catch (error) {
-      console.error("Error updating permissions:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update permissions",
-        variant: "destructive",
-      });
-    }
-  };
 
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch =
@@ -295,7 +221,7 @@ const StaffContent = () => {
                     <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-12"></TableHead>
+                          <TableHead className="w-16"></TableHead>
                           {visibleColumns.map(col => (
                             <TableHead
                               key={col.id}
@@ -335,24 +261,19 @@ const StaffContent = () => {
                               <>
                                 <motion.tr
                                   key={employee.id}
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ delay: index * 0.05 }}
-                                  className={`transition-colors hover:bg-muted/50 ${
-                                    index % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                                  }`}
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  className="border-b transition-colors hover:bg-muted/50"
                                 >
-                                  <TableCell>
+                                  <TableCell className="text-center">
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      onClick={() => toggleRowExpansion(employee.id)}
+                                      onClick={() => handleEmployeeClick(employee)}
+                                      className="h-8 w-8 p-0 hover:bg-primary/10"
                                     >
-                                      {expandedRows.has(employee.id) ? (
-                                        <ChevronUp className="h-4 w-4" />
-                                      ) : (
-                                        <ChevronDown className="h-4 w-4" />
-                                      )}
+                                      <Maximize2 className="h-4 w-4" />
                                     </Button>
                                   </TableCell>
                                   {visibleColumns.map(col => (
@@ -362,10 +283,12 @@ const StaffContent = () => {
                                       {col.id === "email" && (employee.email || "-")}
                                       {col.id === "phone_number" && (employee.phone_number || "-")}
                                       {col.id === "role" && (
-                                        <span className="capitalize">{employee.role}</span>
+                                        <span className="capitalize">{employee.role.replace("_", " ")}</span>
                                       )}
                                       {col.id === "job_role" && (employee.job_role || "-")}
-                                      {col.id === "status" && (employee.status || "-")}
+                                      {col.id === "status" && (
+                                        <span className="capitalize">{employee.status?.replace("_", " ") || "-"}</span>
+                                      )}
                                       {col.id === "is_active" && (
                                         <span className={employee.is_active ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                                           {employee.is_active ? "Active" : "Inactive"}
@@ -374,79 +297,6 @@ const StaffContent = () => {
                                     </TableCell>
                                   ))}
                                 </motion.tr>
-                                {expandedRows.has(employee.id) && (
-                                  <TableRow key={`${employee.id}-expanded`}>
-                                    <TableCell colSpan={visibleColumns.length + 1}>
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        className="p-6 bg-muted/30 space-y-6"
-                                      >
-                                        {employee.role === "super_admin" ? (
-                                          <div className="text-center py-4">
-                                            <p className="text-sm text-muted-foreground">
-                                              Super admins have all permissions by default and cannot be modified.
-                                            </p>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            <h3 className="text-lg font-semibold">Permissions</h3>
-                                            
-                                            {/* Dynamically render all manageable pages */}
-                                            {manageablePages.map((page) => {
-                                              const fields = getPagePermissionFields(page.id);
-                                              const hasViewField = !!fields.view;
-                                              const hasEditField = !!fields.edit;
-
-                                              // Skip if no permission fields
-                                              if (!hasViewField && !hasEditField) return null;
-
-                                              return (
-                                                <div key={page.id} className="space-y-3">
-                                                  <h4 className="font-medium text-sm">{page.name}</h4>
-                                                  <div className="flex items-center gap-6">
-                                                    {/* View Checkbox */}
-                                                    {hasViewField && (
-                                                      <div className="flex items-center space-x-2">
-                                                        <Checkbox
-                                                          id={`view-${page.id}-${employee.id}`}
-                                                          checked={Boolean(employee[fields.view!])}
-                                                          onCheckedChange={(checked) => 
-                                                            handlePermissionToggle(employee, fields.view!, checked as boolean)
-                                                          }
-                                                        />
-                                                        <Label htmlFor={`view-${page.id}-${employee.id}`} className="cursor-pointer">
-                                                          View
-                                                        </Label>
-                                                      </div>
-                                                    )}
-
-                                                    {/* Edit Checkbox */}
-                                                    {hasEditField && (
-                                                      <div className="flex items-center space-x-2">
-                                                        <Checkbox
-                                                          id={`edit-${page.id}-${employee.id}`}
-                                                          checked={Boolean(employee[fields.edit!])}
-                                                          onCheckedChange={(checked) => 
-                                                            handlePermissionToggle(employee, fields.edit!, checked as boolean)
-                                                          }
-                                                        />
-                                                        <Label htmlFor={`edit-${page.id}-${employee.id}`} className="cursor-pointer">
-                                                          Edit
-                                                        </Label>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                              );
-                                            })}
-                                          </>
-                                        )}
-                                      </motion.div>
-                                    </TableCell>
-                                  </TableRow>
-                                )}
                               </>
                             ))}
                           </AnimatePresence>
@@ -499,6 +349,15 @@ const StaffContent = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Employee Details Dialog */}
+      <EmployeeDetailsDialog
+        employee={selectedEmployee}
+        open={showEmployeeDialog}
+        onOpenChange={setShowEmployeeDialog}
+        onUpdate={fetchEmployees}
+        currentUserRole={user?.role || ""}
+      />
     </div>
   );
 };

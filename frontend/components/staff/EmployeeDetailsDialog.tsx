@@ -1,0 +1,499 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import { Employee, updateEmployee, updateEmployeePermissions } from "@/lib/api/staff";
+import { PermissionString, UserRole } from "@/lib/types/permissions";
+import { PAGE_PERMISSIONS } from "@/lib/config/pagePermissions";
+import { User, Mail, Phone, Briefcase, Shield, Settings, Save, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+
+interface EmployeeDetailsDialogProps {
+  employee: Employee | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onUpdate: () => void;
+  currentUserRole: string;
+}
+
+// Helper to map page IDs to permission fields
+const getPagePermissionFields = (pageId: string): { view?: keyof Employee; edit?: keyof Employee } => {
+  const mapping: Record<string, { view?: keyof Employee; edit?: keyof Employee }> = {
+    "clients": { view: "can_view_all_clients", edit: "can_manage_all_clients" },
+    "payments": { view: "can_view_all_payments", edit: "can_manage_all_payments" },
+    "instalments": { view: "can_view_all_installments", edit: "can_manage_all_installments" },
+  };
+  return mapping[pageId] || {};
+};
+
+export function EmployeeDetailsDialog({
+  employee,
+  open,
+  onOpenChange,
+  onUpdate,
+  currentUserRole,
+}: EmployeeDetailsDialogProps) {
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState<Partial<Employee>>({});
+  const [permissionChanges, setPermissionChanges] = useState<Record<string, boolean>>({});
+
+  // Get manageable pages
+  const manageablePages = PAGE_PERMISSIONS.filter(page => {
+    const fields = getPagePermissionFields(page.id);
+    return fields.view || fields.edit;
+  });
+
+  // Reset form when employee changes
+  useEffect(() => {
+    if (employee) {
+      setFormData({
+        name: employee.name,
+        email: employee.email,
+        phone_number: employee.phone_number,
+        job_role: employee.job_role,
+        role: employee.role,
+        status: employee.status,
+        is_active: employee.is_active,
+      });
+      setPermissionChanges({});
+      setIsEditing(false);
+    }
+  }, [employee]);
+
+  if (!employee) return null;
+
+  const canEdit = currentUserRole === "super_admin" || 
+                  (currentUserRole === "admin" && employee.role !== "super_admin");
+
+  const handleSaveInfo = async () => {
+    try {
+      setIsSaving(true);
+      await updateEmployee(employee.id, formData);
+      
+      toast({
+        title: "Success",
+        description: "Employee information updated successfully",
+      });
+      
+      onUpdate();
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error updating employee:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update employee information",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePermissionToggle = (field: keyof Employee, checked: boolean) => {
+    setPermissionChanges(prev => ({
+      ...prev,
+      [field]: checked,
+    }));
+  };
+
+  const handleSavePermissions = async () => {
+    try {
+      setIsSaving(true);
+
+      // Build permissions array based on current state + changes
+      const fieldToPermission: Record<string, PermissionString> = {
+        can_view_all_clients: "view_all_clients",
+        can_manage_all_clients: "manage_all_clients",
+        can_view_all_payments: "view_all_payments",
+        can_manage_all_payments: "manage_all_payments",
+        can_view_all_installments: "view_all_installments",
+        can_manage_all_installments: "manage_all_installments",
+      };
+
+      const permissions: PermissionString[] = [];
+      Object.keys(fieldToPermission).forEach((field) => {
+        const isEnabled = permissionChanges[field] !== undefined 
+          ? permissionChanges[field] 
+          : employee[field as keyof Employee];
+        
+        if (isEnabled) {
+          permissions.push(fieldToPermission[field]);
+        }
+      });
+
+      await updateEmployeePermissions(employee.id, permissions);
+
+      toast({
+        title: "Success",
+        description: "Permissions updated successfully",
+      });
+
+      onUpdate();
+      setPermissionChanges({});
+    } catch (error) {
+      console.error("Error updating permissions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update permissions",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const getPermissionValue = (field: keyof Employee): boolean => {
+    return permissionChanges[field] !== undefined 
+      ? permissionChanges[field] 
+      : Boolean(employee[field]);
+  };
+
+  const hasPermissionChanges = Object.keys(permissionChanges).length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
+              <User className="h-6 w-6 text-primary" />
+              {employee.name}
+            </DialogTitle>
+            <Badge variant={employee.is_active ? "default" : "secondary"}>
+              {employee.is_active ? "Active" : "Inactive"}
+            </Badge>
+          </div>
+        </DialogHeader>
+
+        <Tabs defaultValue="info" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="info">
+              <User className="h-4 w-4 mr-2" />
+              Information
+            </TabsTrigger>
+            <TabsTrigger value="permissions">
+              <Shield className="h-4 w-4 mr-2" />
+              Permissions
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Information Tab */}
+          <TabsContent value="info" className="space-y-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-lg">Employee Details</CardTitle>
+                {canEdit && (
+                  <Button
+                    variant={isEditing ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => setIsEditing(!isEditing)}
+                  >
+                    {isEditing ? (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Edit
+                      </>
+                    )}
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Full Name */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <User className="h-4 w-4" />
+                      Full Name
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.name || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Email */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      Email
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        type="email"
+                        value={formData.email || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.email}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Phone */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Phone className="h-4 w-4" />
+                      Phone Number
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.phone_number || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, phone_number: e.target.value }))}
+                      />
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.phone_number || "-"}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Job Role */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Briefcase className="h-4 w-4" />
+                      Job Title
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        value={formData.job_role || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, job_role: e.target.value }))}
+                      />
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.job_role || "-"}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* System Role */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Shield className="h-4 w-4" />
+                      System Role
+                    </Label>
+                    {isEditing && currentUserRole === "super_admin" ? (
+                      <Select
+                        value={formData.role || employee.role}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, role: value as UserRole }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="super_admin">Super Admin</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="coach">Coach</SelectItem>
+                          <SelectItem value="closer">Closer</SelectItem>
+                          <SelectItem value="setter">Setter</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md capitalize">
+                        {employee.role.replace("_", " ")}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Status
+                    </Label>
+                    {isEditing ? (
+                      <Select
+                        value={formData.status || employee.status}
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="on_leave">On Leave</SelectItem>
+                          <SelectItem value="terminated">Terminated</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md capitalize">
+                        {employee.status?.replace("_", " ") || "-"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {isEditing && (
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setFormData({
+                          name: employee.name,
+                          email: employee.email,
+                          phone_number: employee.phone_number,
+                          job_role: employee.job_role,
+                          role: employee.role,
+                          status: employee.status,
+                          is_active: employee.is_active,
+                        });
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveInfo} disabled={isSaving}>
+                      {isSaving ? (
+                        <>Saving...</>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Permissions Tab */}
+          <TabsContent value="permissions" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Access Permissions</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Control what this employee can view and manage
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {employee.role === "super_admin" ? (
+                  <div className="text-center py-8">
+                    <Shield className="h-12 w-12 mx-auto mb-4 text-primary" />
+                    <p className="text-lg font-semibold mb-2">Super Admin Access</p>
+                    <p className="text-sm text-muted-foreground">
+                      Super admins have full access to all features and cannot have their permissions modified.
+                    </p>
+                  </div>
+                ) : !canEdit ? (
+                  <div className="text-center py-8">
+                    <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      You don't have permission to modify this employee's permissions.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {manageablePages.map((page) => {
+                      const fields = getPagePermissionFields(page.id);
+                      const hasViewField = !!fields.view;
+                      const hasEditField = !!fields.edit;
+
+                      if (!hasViewField && !hasEditField) return null;
+
+                      return (
+                        <div key={page.id} className="space-y-3">
+                          <Separator />
+                          <h4 className="font-semibold text-base">{page.name}</h4>
+                          <div className="flex items-center gap-8 pl-4">
+                            {hasViewField && (
+                              <div className="flex items-center space-x-3">
+                                <Checkbox
+                                  id={`view-${page.id}`}
+                                  checked={getPermissionValue(fields.view!)}
+                                  onCheckedChange={(checked) =>
+                                    handlePermissionToggle(fields.view!, checked as boolean)
+                                  }
+                                />
+                                <Label
+                                  htmlFor={`view-${page.id}`}
+                                  className="cursor-pointer font-medium"
+                                >
+                                  View All
+                                </Label>
+                              </div>
+                            )}
+
+                            {hasEditField && (
+                              <div className="flex items-center space-x-3">
+                                <Checkbox
+                                  id={`edit-${page.id}`}
+                                  checked={getPermissionValue(fields.edit!)}
+                                  onCheckedChange={(checked) =>
+                                    handlePermissionToggle(fields.edit!, checked as boolean)
+                                  }
+                                />
+                                <Label
+                                  htmlFor={`edit-${page.id}`}
+                                  className="cursor-pointer font-medium"
+                                >
+                                  Manage All
+                                </Label>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <AnimatePresence>
+                      {hasPermissionChanges && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 20 }}
+                          className="flex justify-end gap-2 pt-4 border-t"
+                        >
+                          <Button
+                            variant="outline"
+                            onClick={() => setPermissionChanges({})}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSavePermissions} disabled={isSaving}>
+                            {isSaving ? (
+                              <>Saving...</>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4 mr-2" />
+                                Save Permissions
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}
