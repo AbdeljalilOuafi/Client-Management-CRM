@@ -5,7 +5,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import authenticate
 from django.db.models import Q, Sum, Min, Max
+from django.http import HttpResponse
 from dateutil.relativedelta import relativedelta
+import csv
+import io
+from datetime import datetime
+from django.db import transaction
 
 from .models import (
     Account, Employee, Client, Package, ClientPackage,
@@ -528,7 +533,7 @@ class ClientViewSet(viewsets.ModelViewSet):
         Get historical packages for a client (inactive packages only)
         GET /api/clients/{id}/package-history/
         
-        Returns all packages the client has had in the past with status='inactive',
+        Returns all packagescon the client has had in the past with status='inactive',
         ordered by most recent first (based on package_end_date).
         """
         client = self.get_object()
@@ -542,7 +547,7 @@ class ClientViewSet(viewsets.ModelViewSet):
         # Serialize the packages using ClientPackageSerializer
         serializer = ClientPackageSerializer(inactive_packages, many=True)
         
-        # Calculate summary statistics
+        # Calculate summary statconistics
         total_packages = inactive_packages.count()
         
         # Get date range if packages exist
@@ -565,6 +570,205 @@ class ClientViewSet(viewsets.ModelViewSet):
             'latest_package_end': latest_end,
             'packages': serializer.data
         })
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        """
+        Import clients from CSV file
+        POST /api/clients/import/
+        
+        Requires can_manage_all_clients permission.
+        CSV format: first_name,last_name,email,status,address,instagram_handle,ghl_id,
+                    client_start_date,client_end_date,dob,country,state,currency,gender,
+                    lead_origin,notice_given,no_more_payments
+        """
+        # Check permission - only users who can manage all clients can import
+        if not request.user.is_super_admin and not request.user.can_manage_all_clients:
+            return Response(
+                {'error': 'You do not have permission to import clients'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'No file provided. Please upload a CSV file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        csv_file = request.FILES['file']
+        
+        # Validate file type
+        if not csv_file.name.endswith('.csv'):
+            return Response(
+                {'error': 'Invalid file format. Please upload a CSV file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Limit file size (10MB)
+        if csv_file.size > 10 * 1024 * 1024:
+            return Response(
+                {'error': 'File too large. Maximum size is 10MB.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Read and decode CSV
+            decoded_file = csv_file.read().decode('utf-8')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+            
+            imported = 0
+            skipped = 0
+            errors = []
+            
+            with transaction.atomic():
+                for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
+                    try:
+                        # Skip if email already exists
+                        email = row.get('email', '').strip()
+                        if not email:
+                            errors.append({'row': row_num, 'error': 'Email is required'})
+                            skipped += 1
+                            continue
+                        
+                        if Client.objects.filter(email=email).exists():
+                            errors.append({'row': row_num, 'error': f'Client with email {email} already exists'})
+                            skipped += 1
+                            continue
+                        
+                        # Parse boolean fields
+                        notice_given = row.get('notice_given', '').lower() in ['true', '1', 'yes']
+                        no_more_payments = row.get('no_more_payments', '').lower() in ['true', '1', 'yes']
+                        
+                        # Parse date fields
+                        client_start_date = None
+                        if row.get('client_start_date'):
+                            try:
+                                client_start_date = datetime.strptime(row['client_start_date'], '%Y-%m-%d').date()
+                            except ValueError:
+                                errors.append({'row': row_num, 'error': f'Invalid client_start_date format: {row["client_start_date"]} (expected YYYY-MM-DD)'})
+                                skipped += 1
+                                continue
+                        
+                        client_end_date = None
+                        if row.get('client_end_date'):
+                            try:
+                                client_end_date = datetime.strptime(row['client_end_date'], '%Y-%m-%d').date()
+                            except ValueError:
+                                errors.append({'row': row_num, 'error': f'Invalid client_end_date format: {row["client_end_date"]} (expected YYYY-MM-DD)'})
+                                skipped += 1
+                                continue
+                        
+                        dob = None
+                        if row.get('dob'):
+                            try:
+                                dob = datetime.strptime(row['dob'], '%Y-%m-%d').date()
+                            except ValueError:
+                                errors.append({'row': row_num, 'error': f'Invalid dob format: {row["dob"]} (expected YYYY-MM-DD)'})
+                                skipped += 1
+                                continue
+                        
+                        # Validate status
+                        status_value = row.get('status', 'active').lower()
+                        valid_statuses = ['pending', 'active', 'inactive', 'onboarding', 'paused', 'cancelled']
+                        if status_value not in valid_statuses:
+                            errors.append({'row': row_num, 'error': f'Invalid status: {status_value}. Must be one of: {', '.join(valid_statuses)}'})
+                            skipped += 1
+                            continue
+                        
+                        # Create client
+                        Client.objects.create(
+                            account_id=request.user.account_id,
+                            first_name=row.get('first_name', '').strip(),
+                            last_name=row.get('last_name', '').strip() or None,
+                            email=email,
+                            status=status_value,
+                            address=row.get('address', '').strip() or None,
+                            instagram_handle=row.get('instagram_handle', '').strip() or None,
+                            ghl_id=row.get('ghl_id', '').strip() or None,
+                            client_start_date=client_start_date,
+                            client_end_date=client_end_date,
+                            dob=dob,
+                            country=row.get('country', '').strip() or None,
+                            state=row.get('state', '').strip() or None,
+                            currency=row.get('currency', '').strip() or None,
+                            gender=row.get('gender', '').strip() or None,
+                            lead_origin=row.get('lead_origin', '').strip() or None,
+                            notice_given=notice_given,
+                            no_more_payments=no_more_payments
+                        )
+                        imported += 1
+                        
+                    except Exception as e:
+                        errors.append({'row': row_num, 'error': str(e)})
+                        skipped += 1
+            
+            return Response({
+                'success': True,
+                'message': 'Import completed',
+                'imported': imported,
+                'skipped': skipped,
+                'errors': errors
+            })
+            
+        except Exception as e:
+            return Response(
+                {'success': False, 'error': f'Error processing CSV file: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export_csv(self, request):
+        """
+        Export clients to CSV file
+        GET /api/clients/export/
+        
+        Respects existing permissions:
+        - Super admin or can_view_all_clients: exports all clients in account
+        - Otherwise: exports only assigned clients
+        """
+        # Use existing get_queryset logic to respect permissions
+        queryset = self.get_queryset()
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        today = datetime.now().strftime('%Y-%m-%d')
+        response['Content-Disposition'] = f'attachment; filename="clients_{today}.csv"'
+        
+        writer = csv.writer(response)
+        
+        # Write headers
+        writer.writerow([
+            'id', 'first_name', 'last_name', 'email', 'status', 'address',
+            'instagram_handle', 'ghl_id', 'client_start_date', 'client_end_date',
+            'dob', 'country', 'state', 'currency', 'gender', 'lead_origin',
+            'notice_given', 'no_more_payments'
+        ])
+        
+        # Write data rows
+        for client in queryset:
+            writer.writerow([
+                client.id,
+                client.first_name,
+                client.last_name or '',
+                client.email,
+                client.status,
+                client.address or '',
+                client.instagram_handle or '',
+                client.ghl_id or '',
+                client.client_start_date.strftime('%Y-%m-%d') if client.client_start_date else '',
+                client.client_end_date.strftime('%Y-%m-%d') if client.client_end_date else '',
+                client.dob.strftime('%Y-%m-%d') if client.dob else '',
+                client.country or '',
+                client.state or '',
+                client.currency or '',
+                client.gender or '',
+                client.lead_origin or '',
+                'true' if client.notice_given else 'false',
+                'true' if client.no_more_payments else 'false'
+            ])
+        
+        return response
 
 
 class PackageViewSet(viewsets.ModelViewSet):
@@ -679,6 +883,212 @@ class PaymentViewSet(viewsets.ModelViewSet):
         }
         
         return Response(stats)
+
+    @action(detail=False, methods=['post'], url_path='import')
+    def import_csv(self, request):
+        """
+        Import payments from CSV file
+        POST /api/payments/import/
+        
+        Requires can_manage_all_payments permission.
+        CSV format: id,client_email,amount,currency,exchange_rate,native_account_currency,
+                    status,failure_reason,payment_date
+        """
+        # Check permission - only users who can manage all payments can import
+        if not request.user.is_super_admin and not request.user.can_manage_all_payments:
+            return Response(
+                {'error': 'You do not have permission to import payments'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if 'file' not in request.FILES:
+            return Response(
+                {'error': 'No file provided. Please upload a CSV file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        csv_file = request.FILES['file']
+        
+        # Validate file type
+        if not csv_file.name.endswith('.csv'):
+            return Response(
+                {'error': 'Invalid file format. Please upload a CSV file.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Limit file size (10MB)
+        if csv_file.size > 10 * 1024 * 1024:
+            return Response(
+                {'error': 'File too large. Maximum size is 10MB.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Read and decode CSV
+            decoded_file = csv_file.read().decode('utf-8')
+            io_string = io.StringIO(decoded_file)
+            reader = csv.DictReader(io_string)
+            
+            imported = 0
+            skipped = 0
+            errors = []
+            
+            with transaction.atomic():
+                for row_num, row in enumerate(reader, start=2):  # Start at 2 (header is row 1)
+                    try:
+                        # Validate required fields
+                        payment_id = row.get('id', '').strip()
+                        client_email = row.get('client_email', '').strip()
+                        
+                        if not payment_id:
+                            errors.append({'row': row_num, 'error': 'Payment ID is required'})
+                            skipped += 1
+                            continue
+                        
+                        if not client_email:
+                            errors.append({'row': row_num, 'error': 'Client email is required'})
+                            skipped += 1
+                            continue
+                        
+                        # Check if payment already exists
+                        if Payment.objects.filter(id=payment_id).exists():
+                            errors.append({'row': row_num,'error': f'Payment with ID {payment_id} already exists'})
+                            skipped += 1
+                            continue
+                        
+                        # Find client by email in the same account
+                        try:
+                            client = Client.objects.get(
+                                email=client_email,
+                                account_id=request.user.account_id
+                            )
+                        except Client.DoesNotExist:
+                            errors.append({'row': row_num, 'error': f'Client with email {client_email} not found in your account'})
+                            skipped += 1
+                            continue
+                        
+                        # Parse amount
+                        try:
+                            amount = float(row.get('amount', 0))
+                            if amount <= 0:
+                                raise ValueError("Amount must be positive")
+                        except ValueError as e:
+                            errors.append({'row': row_num, 'error': f'Invalid amount: {row.get("amount")} - {str(e)}'})
+                            skipped += 1
+                            continue
+                        
+                        # Parse exchange rate (optional)
+                        exchange_rate = None
+                        if row.get('exchange_rate'):
+                            try:
+                                exchange_rate = float(row['exchange_rate'])
+                            except ValueError:
+                                errors.append({'row': row_num, 'error': f'Invalid exchange_rate: {row["exchange_rate"]}'})
+                                skipped += 1
+                                continue
+                        
+                        # Parse payment date,
+                        payment_date = None
+                        if row.get('payment_date'):
+                            try:
+                                # Try multiple date formats
+                                for date_format in ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d']:
+                                    try:
+                                        payment_date = datetime.strptime(row['payment_date'], date_format)
+                                        break
+                                    except ValueError:
+                                        continue
+                                if not payment_date:
+                                    raise ValueError("Could not parse date")
+                            except ValueError:
+                                errors.append({'row': row_num, 'error': f'Invalid payment_date format: {row["payment_date"]} (expected YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)'})
+                                skipped += 1
+                                continue
+                        else:
+                            payment_date = datetime.now()
+                        
+                        # Validate status
+                        status_value = row.get('status', 'paid').lower()
+                        valid_statuses = ['paid', 'failed', 'refunded', 'disputed', 'incomplete']
+                        if status_value not in valid_statuses:
+                            errors.append({'row': row_num, 'error': f'Invalid status: {status_value}. Must be one of: {", ".join(valid_statuses)}'})
+                            skipped += 1
+                            continue
+                        
+                        # Create payment
+                        Payment.objects.create(
+                            id=payment_id,
+                            account_id=request.user.account_id,
+                            client=client,
+                            amount=amount,
+                            currency=row.get('currency', 'USD').strip().upper(),
+                            exchange_rate=exchange_rate,
+                            native_account_currency=row.get('native_account_currency', '').strip().upper() or None,
+                            status=status_value,
+                            failure_reason=row.get('failure_reason', '').strip() or None,
+                            payment_date=payment_date
+                        )
+                        imported += 1
+                        
+                    except Exception as e:
+                        errors.append({'row': row_num, 'error': str(e)})
+                        skipped += 1
+            
+            return Response({
+                'success': True,
+                'message': 'Import completed',
+                'imported': imported,
+                'skipped': skipped,
+                'errors': errors
+            })
+            
+        except Exception as e:
+            return Response(
+                {'success': False, 'error': f'Error processing CSV file: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(detail=False, methods=['get'], url_path='export')
+    def export_csv(self, request):
+        """
+        Export payments to CSV file
+        GET /api/payments/export/
+        
+        Respects existing permissions:
+        - Super admin or can_view_all_payments: exports all payments in account
+        - Otherwise: exports only payments for assigned clients
+        """
+        # Use existing get_queryset logic to respect permissions
+        queryset = self.get_queryset().select_related('client')
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv; charset=utf-8')
+        today = datetime.now().strftime('%Y-%m-%d')
+        response['Content-Disposition'] = f'attachment; filename="payments_{today}.csv"'
+        
+        writer = csv.writer(response)
+        
+        # Write headers
+        writer.writerow([
+            'id', 'client_email', 'amount', 'currency', 'exchange_rate',
+            'native_account_currency', 'status', 'failure_reason', 'payment_date'
+        ])
+        
+        # Write data rows
+        for payment in queryset:
+            writer.writerow([
+                payment.id,
+                payment.client.email,
+                f'{payment.amount:.2f}',
+                payment.currency or 'USD',
+                f'{payment.exchange_rate:.6f}' if payment.exchange_rate else '',
+                payment.native_account_currency or '',
+                payment.status,
+                payment.failure_reason or '',
+                payment.payment_date.strftime('%Y-%m-%d %H:%M:%S')
+            ])
+        
+        return response
 
 
 class InstallmentViewSet(viewsets.ModelViewSet):
