@@ -122,7 +122,13 @@ const PaymentsContent = () => {
               <p className="text-muted-foreground">Track and manage client payments</p>
             </div>
             <div className="flex gap-2">
-              <ImportExportButtons entityType="payments" />
+              <ImportExportButtons 
+                entityType="payments"
+                onImportSuccess={() => {
+                  fetchPayments();
+                  fetchStatistics();
+                }}
+              />
               {canManageAllPayments() && <AddPaymentDialog />}
               <PackageManagement />
             </div>

@@ -178,7 +178,13 @@ export default function Index() {
               <p className="text-muted-foreground">Manage and track your clients</p>
             </div>
             <div className="flex items-center gap-2">
-              <ImportExportButtons entityType="clients" />
+              <ImportExportButtons 
+                entityType="clients" 
+                onImportSuccess={() => {
+                  fetchClients();
+                  fetchStatistics();
+                }}
+              />
               {canManageAllClients() && (
                 <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
                   <DialogTrigger asChild>

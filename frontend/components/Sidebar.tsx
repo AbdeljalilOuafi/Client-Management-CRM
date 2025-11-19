@@ -10,6 +10,8 @@ import {
   DollarSign,
   FileText,
   Dumbbell,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -25,9 +27,7 @@ import * as LucideIcons from "lucide-react";
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [collapseTimeout, setCollapseTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true); // Default to expanded
   const { getNavigationPages, isLoading, user } = usePermissions();
   
   // Get navigation pages dynamically based on permissions
@@ -56,22 +56,8 @@ export function Sidebar() {
 
   const isActive = (path: string) => pathname === path;
 
-  const handleMouseEnter = () => {
-    if (collapseTimeout) {
-      clearTimeout(collapseTimeout);
-      setCollapseTimeout(null);
-    }
-    setIsExpanded(true);
-  };
-
-  const handleMouseLeave = () => {
-    // Don't collapse if dropdown is open
-    if (isDropdownOpen) return;
-    
-    const timeout = setTimeout(() => {
-      setIsExpanded(false);
-    }, 150);
-    setCollapseTimeout(timeout);
+  const toggleSidebar = () => {
+    setIsExpanded(!isExpanded);
   };
 
   return (
@@ -80,13 +66,11 @@ export function Sidebar() {
         "fixed left-0 top-0 h-screen bg-card border-r border-border z-50 transition-all duration-300 ease-in-out",
         isExpanded ? "w-64" : "w-16"
       )}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       style={{ willChange: "width" }}
     >
       <div className="flex flex-col h-full">
         {/* Header Section */}
-        <div className="flex items-center h-16 px-4 border-b border-border">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-border">
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex-shrink-0">
               <Dumbbell className="h-6 w-6 text-primary" />
@@ -100,6 +84,24 @@ export function Sidebar() {
               FitCoach Manager
             </span>
           </div>
+          
+          {/* Toggle Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className={cn(
+              "flex-shrink-0 h-8 w-8 transition-all",
+              !isExpanded && "ml-0"
+            )}
+            aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+          >
+            {isExpanded ? (
+              <ChevronLeft className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </Button>
         </div>
 
         {/* Navigation Items */}
@@ -160,9 +162,7 @@ export function Sidebar() {
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
                 <div className="flex justify-center">
-                  <ThemeToggle 
-                    onOpenChange={setIsDropdownOpen}
-                  />
+                  <ThemeToggle />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="right" className="ml-2">
@@ -170,10 +170,7 @@ export function Sidebar() {
               </TooltipContent>
             </Tooltip>
           ) : (
-            <ThemeToggle 
-              onOpenChange={setIsDropdownOpen}
-              showLabel
-            />
+            <ThemeToggle showLabel />
           )}
 
           {/* User Profile */}

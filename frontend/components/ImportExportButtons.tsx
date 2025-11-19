@@ -19,42 +19,48 @@ import { Upload, Download, FileSpreadsheet, FileText, Loader2, CheckCircle2, Ale
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { 
+  exportClients, 
+  importClients, 
+  exportPayments, 
+  importPayments,
+  ImportResult 
+} from "@/lib/api/importExport";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface ImportExportButtonsProps {
   entityType: "clients" | "payments";
-  onImport?: (file: File, format: string) => Promise<void>;
-  onExport?: (format: string) => Promise<void>;
+  onImportSuccess?: () => void; // Callback to refresh data after import
 }
 
 export function ImportExportButtons({ 
-  entityType, 
-  onImport, 
-  onExport 
+  entityType,
+  onImportSuccess
 }: ImportExportButtonsProps) {
   const { toast } = useToast();
+  const { isSuperAdmin } = usePermissions();
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [importFormat, setImportFormat] = useState<"csv" | "xlsx">("csv");
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [importSuccess, setImportSuccess] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // Validate file type
+      // Validate file type - only CSV is supported by backend
       const fileExtension = file.name.split('.').pop()?.toLowerCase();
-      if (fileExtension !== 'csv' && fileExtension !== 'xlsx') {
+      if (fileExtension !== 'csv') {
         toast({
           title: "Invalid File Type",
-          description: "Please select a CSV or XLSX file",
+          description: "Please select a CSV file",
           variant: "destructive",
         });
+        event.target.value = ''; // Reset input
         return;
       }
       setSelectedFile(file);
-      setImportFormat(fileExtension as "csv" | "xlsx");
     }
   };
 
@@ -69,61 +75,72 @@ export function ImportExportButtons({
     }
 
     setIsImporting(true);
-    setImportSuccess(false);
+    setImportResult(null);
 
     try {
-      if (onImport) {
-        await onImport(selectedFile, importFormat);
+      let result: ImportResult;
+      
+      if (entityType === "clients") {
+        result = await importClients(selectedFile);
       } else {
-        // Placeholder for backend integration
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        console.log("Import file:", selectedFile.name, "Format:", importFormat);
+        result = await importPayments(selectedFile);
       }
       
-      setImportSuccess(true);
+      setImportResult(result);
+      
+      // Show success toast
       toast({
-        title: "Import Successful",
-        description: `${entityType} data has been imported successfully`,
+        title: "Import Completed",
+        description: result.message,
       });
       
-      // Close dialog after a short delay
+      // Call success callback to refresh data
+      if (onImportSuccess) {
+        onImportSuccess();
+      }
+      
+      // Reset file input
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
+      // Close dialog after showing results
       setTimeout(() => {
         setImportDialogOpen(false);
         setSelectedFile(null);
-        setImportSuccess(false);
-      }, 2000);
+        setImportResult(null);
+      }, result.errors.length > 0 ? 5000 : 2000);
     } catch (error) {
       toast({
         title: "Import Failed",
         description: error instanceof Error ? error.message : "Failed to import data",
         variant: "destructive",
       });
+      
+      // Reset file input on error
+      const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
     } finally {
       setIsImporting(false);
     }
   };
 
-  const handleExport = async (format: "csv" | "xlsx") => {
+  const handleExport = async () => {
     setIsExporting(true);
 
     try {
-      if (onExport) {
-        await onExport(format);
+      if (entityType === "clients") {
+        await exportClients();
       } else {
-        // Placeholder for backend integration
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        console.log("Export format:", format);
-        
-        // Simulate file download
-        toast({
-          title: "Export Started",
-          description: `Preparing ${entityType} data for download...`,
-        });
+        await exportPayments();
       }
       
       toast({
         title: "Export Successful",
-        description: `${entityType} data exported as ${format.toUpperCase()}`,
+        description: `${entityType} data exported as CSV`,
       });
     } catch (error) {
       toast({
@@ -149,34 +166,27 @@ export function ImportExportButtons({
         Import
       </Button>
 
-      {/* Export Dropdown */}
-      <DropdownMenu open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-2" disabled={isExporting}>
-            {isExporting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Export
-              </>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => handleExport("csv")}>
-            <FileText className="h-4 w-4 mr-2" />
-            Export as CSV
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleExport("xlsx")}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Export as Excel
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Export Button - Only for Super Admins */}
+      {isSuperAdmin() && (
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={handleExport}
+          disabled={isExporting}
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Exporting...
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </>
+          )}
+        </Button>
+      )}
 
       {/* Import Dialog */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
@@ -184,7 +194,7 @@ export function ImportExportButtons({
           <DialogHeader>
             <DialogTitle>Import {entityType === "clients" ? "Clients" : "Payments"}</DialogTitle>
             <DialogDescription>
-              Upload a CSV or Excel file to import {entityType} data
+              Upload a CSV file to import {entityType} data
             </DialogDescription>
           </DialogHeader>
 
@@ -205,14 +215,14 @@ export function ImportExportButtons({
                 <input
                   id="file-upload"
                   type="file"
-                  accept=".csv,.xlsx"
+                  accept=".csv"
                   onChange={handleFileSelect}
                   className="hidden"
                   disabled={isImporting}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Supported formats: CSV, XLSX (Max 10MB)
+                Supported format: CSV only
               </p>
             </div>
 
@@ -231,12 +241,35 @@ export function ImportExportButtons({
               </Alert>
             )}
 
-            {/* Success Message */}
-            {importSuccess && (
-              <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-600">
-                  Import completed successfully!
+            {/* Import Result */}
+            {importResult && (
+              <Alert className={importResult.errors.length > 0 ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950" : "border-green-500 bg-green-50 dark:bg-green-950"}>
+                {importResult.errors.length > 0 ? (
+                  <AlertCircle className="h-4 w-4 text-yellow-600" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                )}
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-medium">
+                      {importResult.message}
+                    </p>
+                    {importResult.errors.length > 0 && (
+                      <div className="text-xs space-y-1">
+                        <p className="font-medium">Errors (showing first 5):</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          {importResult.errors.slice(0, 5).map((err, idx) => (
+                            <li key={idx}>
+                              Row {err.row}: {err.error}
+                            </li>
+                          ))}
+                        </ul>
+                        {importResult.errors.length > 5 && (
+                          <p className="italic">...and {importResult.errors.length - 5} more errors</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </AlertDescription>
               </Alert>
             )}
@@ -263,7 +296,12 @@ export function ImportExportButtons({
               onClick={() => {
                 setImportDialogOpen(false);
                 setSelectedFile(null);
-                setImportSuccess(false);
+                setImportResult(null);
+                // Reset file input
+                const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+                if (fileInput) {
+                  fileInput.value = '';
+                }
               }}
               disabled={isImporting}
             >
@@ -271,7 +309,7 @@ export function ImportExportButtons({
             </Button>
             <Button
               onClick={handleImport}
-              disabled={!selectedFile || isImporting || importSuccess}
+              disabled={!selectedFile || isImporting || (importResult !== null && importResult.errors.length === 0)}
             >
               {isImporting ? (
                 <>
