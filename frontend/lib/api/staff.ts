@@ -87,7 +87,20 @@ export const listEmployees = async (params?: {
     throw new Error(`Failed to fetch employees: ${response.statusText}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  
+  // Log the first employee to check if permissions are included
+  if (data.results && data.results.length > 0) {
+    console.log("[API listEmployees] Sample employee data:", {
+      id: data.results[0].id,
+      name: data.results[0].name,
+      can_view_all_clients: data.results[0].can_view_all_clients,
+      can_manage_all_clients: data.results[0].can_manage_all_clients,
+      hasPermissionFields: 'can_view_all_clients' in data.results[0],
+    });
+  }
+  
+  return data;
 };
 
 // Get a single employee by ID
@@ -162,18 +175,36 @@ export const updateEmployeePermissions = async (
   id: number, 
   permissions: PermissionString[]
 ): Promise<{ message: string }> => {
+  const payload = { permissions };
+  const headers = getHeaders();
+  
+  console.log("[API] ========== UPDATE PERMISSIONS REQUEST ==========");
+  console.log("[API] Employee ID:", id);
+  console.log("[API] Request URL:", `${API_BASE_URL}/employees/${id}/update_permissions/`);
+  console.log("[API] Request Method: POST");
+  console.log("[API] Request Headers:", headers);
+  console.log("[API] Request payload:", JSON.stringify(payload, null, 2));
+  console.log("[API] Permissions array:", permissions);
+  console.log("[API] Raw body string:", JSON.stringify(payload));
+  
   const response = await fetch(`${API_BASE_URL}/employees/${id}/update_permissions/`, {
     method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify({ permissions }),
+    headers: headers,
+    body: JSON.stringify(payload),
   });
+
+  console.log("[API] Response status:", response.status, response.statusText);
+  console.log("[API] Response headers:", Object.fromEntries(response.headers.entries()));
 
   if (!response.ok) {
     const errorData = await response.json();
+    console.error("[API] Permission update failed:", errorData);
     throw new Error(JSON.stringify(errorData));
   }
 
-  return response.json();
+  const result = await response.json();
+  console.log("[API] Permission update SUCCESS:", result);
+  return result;
 };
 
 // Change employee password

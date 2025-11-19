@@ -45,7 +45,7 @@ const columnDefinitions = [
 
 export default function Index() {
   const { toast } = useToast();
-  const { canManageAllClients } = usePermissions();
+  const { canManageAllClients, user } = usePermissions();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortColumn, setSortColumn] = useState<string>("id");
@@ -78,9 +78,22 @@ export default function Index() {
     try {
       setLoading(true);
       setError(null);
+      
+      console.log('[Clients Page] Fetching clients with filters:', {
+        statusFilter,
+        searchQuery,
+        userRole: user?.role,
+        userId: user?.id,
+      });
+      
       const response = await listClients({
         status: statusFilter,
         search: searchQuery || undefined,
+      });
+      
+      console.log('[Clients Page] API Response:', {
+        totalResults: response.results.length,
+        results: response.results,
       });
       
       // Filter client-side for statuses not supported by backend
@@ -95,8 +108,14 @@ export default function Index() {
         filteredClients = response.results.filter(client => client.status !== "pending");
       }
       
+      console.log('[Clients Page] Filtered clients:', {
+        count: filteredClients.length,
+        clients: filteredClients,
+      });
+      
       setClients(filteredClients);
     } catch (err) {
+      console.error('[Clients Page] Error fetching clients:', err);
       const errorMessage = getToastErrorMessage(err, "Failed to fetch clients");
       setError(errorMessage.description);
       toast({
@@ -328,10 +347,17 @@ export default function Index() {
                             <p className="text-sm text-muted-foreground">
                               {searchQuery || statusFilter !== "all" 
                                 ? "Try adjusting your search or filter criteria" 
-                                : "Get started by adding your first client"}
+                                : canManageAllClients()
+                                  ? "Get started by adding your first client"
+                                  : "You don't have any clients assigned to you yet"}
                             </p>
+                            {!canManageAllClients() && !searchQuery && statusFilter === "all" && (
+                              <p className="text-xs text-muted-foreground mt-2">
+                                Contact your admin to get clients assigned to you as a coach
+                              </p>
+                            )}
                           </div>
-                          {!searchQuery && statusFilter === "all" && (
+                          {!searchQuery && statusFilter === "all" && canManageAllClients() && (
                             <Button onClick={() => setAddClientOpen(true)} className="gap-2">
                               <UserPlus className="h-4 w-4" />
                               Add Your First Client

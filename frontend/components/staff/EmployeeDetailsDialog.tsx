@@ -17,6 +17,7 @@ import { PermissionString, UserRole } from "@/lib/types/permissions";
 import { PAGE_PERMISSIONS } from "@/lib/config/pagePermissions";
 import { User, Mail, Phone, Briefcase, Shield, Settings, Save, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { usePermissions } from "@/contexts/PermissionsContext";
 
 interface EmployeeDetailsDialogProps {
   employee: Employee | null;
@@ -44,6 +45,7 @@ export function EmployeeDetailsDialog({
   currentUserRole,
 }: EmployeeDetailsDialogProps) {
   const { toast } = useToast();
+  const { refreshPermissions, user: currentUser } = usePermissions();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<Employee>>({});
@@ -55,9 +57,16 @@ export function EmployeeDetailsDialog({
     return fields.view || fields.edit;
   });
 
-  // Reset form when employee changes
+  // Reset form when employee changes (but NOT during save operation)
   useEffect(() => {
-    if (employee) {
+    if (employee && !isSaving) {
+      console.log("[EmployeeDetailsDialog] Employee prop changed (not saving):", {
+        id: employee.id,
+        name: employee.name,
+        can_view_all_clients: employee.can_view_all_clients,
+        can_manage_all_clients: employee.can_manage_all_clients,
+      });
+      
       setFormData({
         name: employee.name,
         email: employee.email,
@@ -67,12 +76,28 @@ export function EmployeeDetailsDialog({
         status: employee.status,
         is_active: employee.is_active,
       });
+      
+      // Clear permission changes only when not saving
       setPermissionChanges({});
       setIsEditing(false);
     }
-  }, [employee]);
+  }, [employee, isSaving]);
 
   if (!employee) return null;
+  
+  // Log the complete employee object for debugging
+  console.log("[EmployeeDetailsDialog] Current employee object:", {
+    id: employee.id,
+    name: employee.name,
+    role: employee.role,
+    can_view_all_clients: employee.can_view_all_clients,
+    can_manage_all_clients: employee.can_manage_all_clients,
+    can_view_all_payments: employee.can_view_all_payments,
+    can_manage_all_payments: employee.can_manage_all_payments,
+    can_view_all_installments: employee.can_view_all_installments,
+    can_manage_all_installments: employee.can_manage_all_installments,
+    fullEmployee: employee,
+  });
 
   const canEdit = currentUserRole === "super_admin" || 
                   (currentUserRole === "admin" && employee.role !== "super_admin");
@@ -112,38 +137,68 @@ export function EmployeeDetailsDialog({
     try {
       setIsSaving(true);
 
-      // Build permissions array based on current state + changes
-      const fieldToPermission: Record<string, PermissionString> = {
-        can_view_all_clients: "view_all_clients",
-        can_manage_all_clients: "manage_all_clients",
-        can_view_all_payments: "view_all_payments",
-        can_manage_all_payments: "manage_all_payments",
-        can_view_all_installments: "view_all_installments",
-        can_manage_all_installments: "manage_all_installments",
-      };
+      // Build permission fields object for PATCH request
+      const permissionFields: Record<string, boolean> = {};
+      
+      const allPermissionFields = [
+        'can_view_all_clients',
+        'can_manage_all_clients',
+        'can_view_all_payments',
+        'can_manage_all_payments',
+        'can_view_all_installments',
+        'can_manage_all_installments',
+      ];
 
-      const permissions: PermissionString[] = [];
-      Object.keys(fieldToPermission).forEach((field) => {
+      allPermissionFields.forEach((field) => {
         const isEnabled = permissionChanges[field] !== undefined 
           ? permissionChanges[field] 
           : employee[field as keyof Employee];
         
-        if (isEnabled) {
-          permissions.push(fieldToPermission[field]);
-        }
+        console.log(`[PermissionDialog] Field: ${field}, isEnabled: ${isEnabled}`);
+        permissionFields[field] = Boolean(isEnabled);
       });
 
-      await updateEmployeePermissions(employee.id, permissions);
-
-      toast({
-        title: "Success",
-        description: "Permissions updated successfully",
+      console.log("[PermissionDialog] Sending permission update:", {
+        employeeId: employee.id,
+        employeeName: employee.name,
+        permissionFields,
+        permissionChanges,
       });
 
-      onUpdate();
+      // Use PATCH to update employee directly (same as Postman)
+      const result = await updateEmployee(employee.id, permissionFields);
+      
+      console.log("[PermissionDialog] Update result:", result);
+
+      // Clear permission changes immediately after successful save
       setPermissionChanges({});
+
+      // Check if we're updating the currently logged-in user
+      const isUpdatingSelf = currentUser && currentUser.id === employee.id;
+      
+      if (isUpdatingSelf) {
+        console.log("[PermissionDialog] Updated own permissions - refreshing session...");
+        toast({
+          title: "Success",
+          description: "Your permissions have been updated and will take effect immediately.",
+        });
+        
+        // Refresh the current user's permissions immediately
+        await refreshPermissions();
+      } else {
+        toast({
+          title: "Success", 
+          description: "Permissions updated successfully. The user will see changes on their next login.",
+        });
+      }
+
+      // Small delay to ensure backend has committed the changes
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Call onUpdate to refresh the employee list with updated permissions
+      await onUpdate();
     } catch (error) {
-      console.error("Error updating permissions:", error);
+      console.error("[PermissionDialog] Error updating permissions:", error);
       toast({
         title: "Error",
         description: "Failed to update permissions",
@@ -155,9 +210,22 @@ export function EmployeeDetailsDialog({
   };
 
   const getPermissionValue = (field: keyof Employee): boolean => {
-    return permissionChanges[field] !== undefined 
-      ? permissionChanges[field] 
-      : Boolean(employee[field]);
+    // If there's a pending change, use that; otherwise use the employee's current value
+    const hasChange = permissionChanges[field] !== undefined;
+    const changeValue = permissionChanges[field];
+    const employeeValue = employee[field];
+    const finalValue = hasChange ? changeValue : Boolean(employeeValue);
+    
+    console.log(`[getPermissionValue] Field: ${String(field)}`, {
+      hasChange,
+      changeValue,
+      employeeValue,
+      employeeValueType: typeof employeeValue,
+      finalValue,
+      isSaving,
+    });
+    
+    return finalValue;
   };
 
   const hasPermissionChanges = Object.keys(permissionChanges).length > 0;

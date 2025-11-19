@@ -14,6 +14,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { listEmployees } from "@/lib/api/staff";
+import { createClient } from "@/lib/api/clients";
 import { cn } from "@/lib/utils";
 import { COUNTRY_CODES, getPopularCountries, getAllCountries, type Country } from "@/lib/country-codes";
 
@@ -221,21 +222,66 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       // Generate a unique client ID (you can modify this logic as needed)
       const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // Prepare payload with user and client IDs
-      const payload = {
+      // Log the raw form data to debug
+      console.log("[AddClientForm] Raw form data:", {
+        assignedCoach: data.assignedCoach,
+        assignedCoachType: typeof data.assignedCoach,
+      });
+
+      // Parse coach_id - ensure it's a valid number
+      const coachId = data.assignedCoach ? parseInt(data.assignedCoach, 10) : undefined;
+      
+      if (!coachId || isNaN(coachId)) {
+        console.error("[AddClientForm] Invalid coach ID:", data.assignedCoach);
+        toast({
+          title: "Error",
+          description: "Please select a valid coach",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Map form data to backend API format
+      const clientPayload: any = {
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+        phone_number: `${data.countryCode}${data.phone}`,
+        date_of_birth: data.dob || null,
+        country: "USA", // You can add a country field to the form if needed
+        currency: data.currency,
+        status: (data.isFreeTrial ? "pending" : "active") as "active" | "inactive" | "paused" | "pending",
+        coach: coachId, // Backend expects 'coach' not 'coach_id' for creation
+        // Add other fields as needed based on your backend API
+        notes: data.notes || "",
+      };
+
+      // Prepare webhook payload with user and client IDs
+      const webhookPayload = {
         userId,
         accountId,
         clientId,
         ...data,
       };
 
-      // Webhook URL for new client form (from environment variable)
+      console.log("[AddClientForm] Creating client with payload:", {
+        ...clientPayload,
+        coach: clientPayload.coach,
+        coach_type: typeof clientPayload.coach,
+      });
+      console.log("[AddClientForm] Webhook payload:", webhookPayload);
+      
+      // 1. First, create client in database
+      const newClient = await createClient(clientPayload);
+      console.log("[AddClientForm] Client created successfully in database:", {
+        id: newClient.id,
+        coach_id: newClient.coach_id,
+        coach_name: newClient.coach_name,
+        fullResponse: newClient,
+      });
+
+      // 2. Then, send to webhook if configured
       const webhookUrl = process.env.NEXT_PUBLIC_ADD_CLIENT_WEBHOOK_URL;
-      
-      console.log("Form Data:", payload);
-      
-      // If webhook is configured, send data to webhook
-      // Otherwise, this is just a UI-only form (backend integration pending)
       if (webhookUrl) {
         try {
           const response = await fetch(webhookUrl, {
@@ -243,20 +289,20 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(webhookPayload),
           });
           
           if (!response.ok) {
             console.warn("Webhook submission failed:", response.status);
           } else {
-            console.log("Webhook response:", response.status);
+            console.log("Webhook sent successfully:", response.status);
           }
         } catch (webhookError) {
           console.warn("Webhook error:", webhookError);
-          // Don't throw - continue with success message
+          // Don't throw - continue with success message since client was created in DB
         }
       } else {
-        console.log("Webhook not configured - form data logged only");
+        console.log("Webhook not configured - skipping webhook");
       }
 
       toast({
@@ -269,7 +315,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       console.error("Error submitting form:", error);
       toast({
         title: "Error",
-        description: "Failed to add client. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to add client. Please try again.",
         variant: "destructive",
       });
     }
@@ -919,7 +965,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     <SelectItem value="no-coaches" disabled>No coaches available</SelectItem>
                   ) : (
                     coaches.map((coach) => (
-                      <SelectItem key={coach.id} value={coach.name}>
+                      <SelectItem key={coach.id} value={coach.id.toString()}>
                         {coach.name}
                       </SelectItem>
                     ))

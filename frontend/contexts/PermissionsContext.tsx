@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { UserWithPermissions, Permissions, UserRole } from "@/lib/types/permissions";
-import { getStoredUser, getStoredPermissions } from "@/lib/api/auth";
+import { getStoredUser, getStoredPermissions, getCurrentUser } from "@/lib/api/auth";
 import { 
   canViewPage, 
   canEditOnPage, 
@@ -132,8 +132,46 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     return isSuperAdmin();
   };
 
-  const refreshPermissions = () => {
-    loadPermissions();
+  const refreshPermissions = async () => {
+    try {
+      console.log('[PermissionsContext] Refreshing permissions from backend...');
+      
+      // Fetch fresh user data from backend
+      const freshUser = await getCurrentUser();
+      
+      console.log('[PermissionsContext] Fresh user data received:', {
+        id: freshUser.id,
+        role: freshUser.role,
+        can_view_all_clients: (freshUser as any).can_view_all_clients,
+        can_manage_all_clients: (freshUser as any).can_manage_all_clients,
+      });
+      
+      // Update localStorage with fresh data
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user", JSON.stringify(freshUser));
+      }
+      
+      // Update state
+      setUser(freshUser as UserWithPermissions);
+      
+      // Extract permissions from user object
+      const freshPermissions = {
+        can_view_all_clients: (freshUser as any).can_view_all_clients || false,
+        can_manage_all_clients: (freshUser as any).can_manage_all_clients || false,
+        can_view_all_payments: (freshUser as any).can_view_all_payments || false,
+        can_manage_all_payments: (freshUser as any).can_manage_all_payments || false,
+        can_view_all_installments: (freshUser as any).can_view_all_installments || false,
+        can_manage_all_installments: (freshUser as any).can_manage_all_installments || false,
+      };
+      
+      setPermissions(freshPermissions);
+      
+      console.log('[PermissionsContext] Permissions refreshed successfully:', freshPermissions);
+    } catch (error) {
+      console.error('[PermissionsContext] Failed to refresh permissions:', error);
+      // Fall back to loading from localStorage
+      loadPermissions();
+    }
   };
 
   // New page-based permission methods

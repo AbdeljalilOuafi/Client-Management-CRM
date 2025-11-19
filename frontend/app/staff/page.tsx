@@ -62,6 +62,21 @@ const StaffContent = () => {
       setLoading(true);
       const response = await listEmployees();
       setEmployees(response.results || []);
+      
+      // If an employee is currently selected, update it with fresh data
+      if (selectedEmployee) {
+        const updatedEmployee = response.results.find(emp => emp.id === selectedEmployee.id);
+        if (updatedEmployee) {
+          console.log("[Staff Page] Updating selected employee with fresh data:", {
+            id: updatedEmployee.id,
+            name: updatedEmployee.name,
+            can_view_all_clients: updatedEmployee.can_view_all_clients,
+            can_manage_all_clients: updatedEmployee.can_manage_all_clients,
+            fullEmployee: updatedEmployee,
+          });
+          setSelectedEmployee(updatedEmployee);
+        }
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -82,6 +97,13 @@ const StaffContent = () => {
   };
 
   const handleEmployeeClick = (employee: Employee) => {
+    console.log("[Staff Page] Employee clicked:", {
+      id: employee.id,
+      name: employee.name,
+      can_view_all_clients: employee.can_view_all_clients,
+      can_manage_all_clients: employee.can_manage_all_clients,
+      fullEmployee: employee,
+    });
     setSelectedEmployee(employee);
     setShowEmployeeDialog(true);
   };
