@@ -21,7 +21,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // New design: Claude-style sidebar
+  // New design: Collapsed sidebar by default (icons only)
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />

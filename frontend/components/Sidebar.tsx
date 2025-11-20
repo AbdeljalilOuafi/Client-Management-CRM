@@ -27,7 +27,7 @@ import * as LucideIcons from "lucide-react";
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [isExpanded, setIsExpanded] = useState(true); // Default to expanded
+  const [isExpanded, setIsExpanded] = useState(false); // Collapsed by default (icons only)
   const { getNavigationPages, isLoading, user } = usePermissions();
   
   // Get navigation pages dynamically based on permissions
@@ -61,45 +61,54 @@ export function Sidebar() {
   };
 
   return (
-    <aside
-      className={cn(
-        "fixed left-0 top-0 h-screen bg-card border-r border-border z-50 transition-all duration-300 ease-in-out",
-        isExpanded ? "w-64" : "w-16"
+    <>
+      {/* Overlay - Click to close expanded sidebar */}
+      {isExpanded && (
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
+          onClick={toggleSidebar}
+          aria-label="Close sidebar"
+        />
       )}
-      style={{ willChange: "width" }}
-    >
+
+      {/* Sidebar - Always visible, width changes based on expanded state */}
+      <aside
+        className={cn(
+          "fixed left-0 top-0 h-screen bg-card border-r border-border z-50 transition-all duration-300 ease-in-out",
+          isExpanded ? "w-64" : "w-16"
+        )}
+      >
       <div className="flex flex-col h-full">
         {/* Header Section */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="flex-shrink-0">
-              <Dumbbell className="h-6 w-6 text-primary" />
+        <div className="relative h-16 border-b border-border">
+          <div className="flex items-center h-full px-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="flex-shrink-0">
+                <Dumbbell className="h-6 w-6 text-primary" />
+              </div>
+              <span
+                className={cn(
+                  "font-bold text-lg whitespace-nowrap transition-opacity duration-200",
+                  isExpanded ? "opacity-100" : "opacity-0 w-0"
+                )}
+              >
+                FitCoach Manager
+              </span>
             </div>
-            <span
-              className={cn(
-                "font-bold text-lg whitespace-nowrap transition-opacity duration-200",
-                isExpanded ? "opacity-100" : "opacity-0 w-0"
-              )}
-            >
-              FitCoach Manager
-            </span>
           </div>
           
-          {/* Toggle Button */}
+          {/* Floating Toggle Button - On right edge */}
           <Button
-            variant="ghost"
+            variant="outline"
             size="icon"
             onClick={toggleSidebar}
-            className={cn(
-              "flex-shrink-0 h-8 w-8 transition-all",
-              !isExpanded && "ml-0"
-            )}
+            className="absolute top-1/2 -translate-y-1/2 -right-3 h-7 w-7 rounded-full bg-background shadow-md border-border hover:bg-accent transition-all z-10"
             aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
           >
             {isExpanded ? (
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-3.5 w-3.5" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3.5 w-3.5" />
             )}
           </Button>
         </div>
@@ -185,5 +194,6 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

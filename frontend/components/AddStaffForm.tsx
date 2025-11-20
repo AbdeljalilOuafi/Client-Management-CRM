@@ -1,17 +1,46 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployee } from "@/lib/api/staff";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff, CheckCircle2, XCircle, Settings } from "lucide-react";
 
 interface AddStaffFormProps {
   onSuccess: () => void;
   onCancel: () => void;
 }
+
+// Custom roles storage key
+const CUSTOM_ROLES_KEY = "custom_staff_roles";
+
+// GoHighLevel permissions config (easy to modify later)
+const GOHIGHLEVEL_PERMISSIONS = [
+  { id: "view_contacts", label: "View Contacts" },
+  { id: "edit_contacts", label: "Edit Contacts" },
+  { id: "manage_calendars", label: "Manage Calendars" },
+  { id: "view_reports", label: "View Reports" },
+];
+
+// Get custom roles from localStorage
+const getCustomRoles = (): string[] => {
+  if (typeof window === "undefined") return [];
+  const stored = localStorage.getItem(CUSTOM_ROLES_KEY);
+  return stored ? JSON.parse(stored) : [];
+};
+
+// Save custom role to localStorage
+const saveCustomRole = (role: string) => {
+  const customRoles = getCustomRoles();
+  if (!customRoles.includes(role)) {
+    customRoles.push(role);
+    localStorage.setItem(CUSTOM_ROLES_KEY, JSON.stringify(customRoles));
+  }
+};
 
 export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const { toast } = useToast();
@@ -22,42 +51,145 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     email: "",
     phoneNumber: "",
     role: "",
+    customRole: "",
     password: "",
-    confirmPassword: "",
     startDate: new Date().toISOString().split('T')[0],
   });
-  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [customRoles, setCustomRoles] = useState<string[]>([]);
+  
+  // App Access state
+  const [appAccess, setAppAccess] = useState({
+    onsync: false,
+    gohighlevel: false,
+  });
+  const [ghlPermissions, setGhlPermissions] = useState<string[]>([]);
+  const [ghlConfigured, setGhlConfigured] = useState(false);
+  const [showGhlModal, setShowGhlModal] = useState(false);
+  const [tempGhlPermissions, setTempGhlPermissions] = useState<string[]>([]);
+
+  // Load custom roles on mount
+  useEffect(() => {
+    setCustomRoles(getCustomRoles());
+  }, []);
+
+  // Password validation helpers
+  const passwordValidation = {
+    minLength: formData.password.length >= 8,
+    hasUpperCase: /[A-Z]/.test(formData.password),
+    hasLowerCase: /[a-z]/.test(formData.password),
+    hasNumber: /[0-9]/.test(formData.password),
+  };
+
+  const isPasswordValid = Object.values(passwordValidation).every(Boolean);
+
+  // Handle GoHighLevel checkbox change
+  const handleGhlCheckboxChange = (checked: boolean) => {
+    if (checked) {
+      // Open modal to configure permissions
+      setTempGhlPermissions([...ghlPermissions]);
+      setShowGhlModal(true);
+    } else {
+      // Uncheck and clear permissions
+      setAppAccess({ ...appAccess, gohighlevel: false });
+      setGhlPermissions([]);
+      setGhlConfigured(false);
+    }
+  };
+
+  // Handle modal save
+  const handleGhlModalSave = () => {
+    setGhlPermissions([...tempGhlPermissions]);
+    setAppAccess({ ...appAccess, gohighlevel: true });
+    setGhlConfigured(true);
+    setShowGhlModal(false);
+  };
+
+  // Handle modal cancel
+  const handleGhlModalCancel = () => {
+    setShowGhlModal(false);
+    setAppAccess({ ...appAccess, gohighlevel: false });
+    setGhlPermissions([]);
+    setGhlConfigured(false);
+    setTempGhlPermissions([]);
+  };
+
+  // Toggle permission in temp state
+  const toggleTempPermission = (permissionId: string) => {
+    setTempGhlPermissions(prev => 
+      prev.includes(permissionId)
+        ? prev.filter(p => p !== permissionId)
+        : [...prev, permissionId]
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate passwords match
-    if (formData.password !== formData.confirmPassword) {
-      setPasswordError("Passwords do not match");
-      return;
-    }
-    
     // Validate password strength
-    if (formData.password.length < 8) {
-      setPasswordError("Password must be at least 8 characters long");
+    if (!isPasswordValid) {
+      toast({
+        title: "Invalid Password",
+        description: "Please meet all password requirements",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate custom role if "other" is selected
+    if (formData.role === "other" && !formData.customRole.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a custom role",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate GoHighLevel permissions if checkbox is checked
+    if (appAccess.gohighlevel && !ghlConfigured) {
+      toast({
+        title: "Error",
+        description: "Please configure GoHighLevel permissions",
+        variant: "destructive",
+      });
       return;
     }
     
-    setPasswordError("");
     setIsSubmitting(true);
 
     try {
+      // Determine the final role
+      let finalRole = formData.role;
+      if (formData.role === "other") {
+        finalRole = formData.customRole.trim();
+        // Save custom role for future use
+        saveCustomRole(finalRole);
+      }
+
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
-      await createEmployee({
+      
+      // Prepare employee data with app access
+      const employeeData = {
         name: fullName,
         email: formData.email,
         password: formData.password,
-        role: formData.role, // Backend role (admin, employee, coach, closer, setter)
-        job_role: formData.role, // Job role (same as role for now)
+        role: finalRole === "admin" ? "admin" : "employee", // Backend only accepts admin/employee
+        job_role: finalRole, // Store actual role in job_role
         phone_number: formData.phoneNumber || undefined,
         status: "active",
         is_active: true,
-      });
+        app_access: {
+          onsync: appAccess.onsync,
+          gohighlevel: appAccess.gohighlevel,
+        },
+        ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
+      };
+
+      // Log the data for now (webhook will be added later)
+      console.log("Employee data with app access:", employeeData);
+
+      await createEmployee(employeeData);
 
       toast({
         title: "Success",
@@ -115,14 +247,13 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="phoneNumber">Phone *</Label>
+          <Label htmlFor="phoneNumber">Phone</Label>
           <Input
             id="phoneNumber"
             type="tel"
-            required
             value={formData.phoneNumber}
             onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-            placeholder="+1 (555) 000-0000"
+            placeholder="+1 (555) 000-0000 (optional)"
           />
         </div>
         <div className="space-y-2">
@@ -130,7 +261,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
           <Select
             required
             value={formData.role}
-            onValueChange={(value) => setFormData({ ...formData, role: value })}
+            onValueChange={(value) => setFormData({ ...formData, role: value, customRole: "" })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select role" />
@@ -141,6 +272,12 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
               <SelectItem value="coach">Coach</SelectItem>
               <SelectItem value="closer">Closer</SelectItem>
               <SelectItem value="setter">Setter</SelectItem>
+              {customRoles.map((customRole) => (
+                <SelectItem key={customRole} value={customRole}>
+                  {customRole}
+                </SelectItem>
+              ))}
+              <SelectItem value="other">Other (Custom Role)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -156,43 +293,183 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         </div>
       </div>
 
-      {/* Password Fields */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="password">Password *</Label>
+      {/* Custom Role Input - Shows when "Other" is selected */}
+      {formData.role === "other" && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="space-y-2"
+        >
+          <Label htmlFor="customRole">Custom Role Name *</Label>
+          <Input
+            id="customRole"
+            required
+            value={formData.customRole}
+            onChange={(e) => setFormData({ ...formData, customRole: e.target.value })}
+            placeholder="Enter custom role (e.g., Sales Manager, Trainer)"
+          />
+          <p className="text-xs text-muted-foreground">
+            This role will be saved and available in the dropdown for future use
+          </p>
+        </motion.div>
+      )}
+
+      {/* Password Field */}
+      <div className="space-y-3">
+        <Label htmlFor="password">Password *</Label>
+        <div className="relative">
           <Input
             id="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             required
             value={formData.password}
-            onChange={(e) => {
-              setFormData({ ...formData, password: e.target.value });
-              setPasswordError("");
-            }}
-            placeholder="Min. 8 characters"
-            className={passwordError ? "border-red-500" : ""}
+            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+            placeholder="Create a strong password"
+            className="pr-10"
           />
-          <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+            onClick={() => setShowPassword(!showPassword)}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Eye className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="confirmPassword">Confirm Password *</Label>
-          <Input
-            id="confirmPassword"
-            type="password"
-            required
-            value={formData.confirmPassword}
-            onChange={(e) => {
-              setFormData({ ...formData, confirmPassword: e.target.value });
-              setPasswordError("");
-            }}
-            placeholder="Re-enter password"
-            className={passwordError ? "border-red-500" : ""}
-          />
-          {passwordError && (
-            <p className="text-xs text-red-500">{passwordError}</p>
-          )}
+        
+        {/* Password Requirements */}
+        <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+          <p className="text-xs font-medium text-muted-foreground">Password must contain:</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs">
+              {passwordValidation.minLength ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span className={passwordValidation.minLength ? "text-green-600" : "text-muted-foreground"}>
+                At least 8 characters
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              {passwordValidation.hasUpperCase ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span className={passwordValidation.hasUpperCase ? "text-green-600" : "text-muted-foreground"}>
+                One uppercase letter (A-Z)
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              {passwordValidation.hasLowerCase ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span className={passwordValidation.hasLowerCase ? "text-green-600" : "text-muted-foreground"}>
+                One lowercase letter (a-z)
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              {passwordValidation.hasNumber ? (
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+              <span className={passwordValidation.hasNumber ? "text-green-600" : "text-muted-foreground"}>
+                One number (0-9)
+              </span>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* App Access Section */}
+      <div className="space-y-4 pt-4 border-t">
+        <div>
+          <h3 className="text-sm font-medium mb-3">App Access</h3>
+          <div className="space-y-3">
+            {/* OnSync Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="onsync"
+                checked={appAccess.onsync}
+                onCheckedChange={(checked) => 
+                  setAppAccess({ ...appAccess, onsync: checked as boolean })
+                }
+              />
+              <Label htmlFor="onsync" className="text-sm font-normal cursor-pointer">
+                Do they need access to OnSync app?
+              </Label>
+            </div>
+
+            {/* GoHighLevel Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="gohighlevel"
+                checked={appAccess.gohighlevel}
+                onCheckedChange={handleGhlCheckboxChange}
+              />
+              <Label htmlFor="gohighlevel" className="text-sm font-normal cursor-pointer">
+                Do they need access to GoHighLevel app?
+              </Label>
+              {ghlConfigured && (
+                <span className="flex items-center gap-1 text-xs text-green-600 ml-2">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Configured
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* GoHighLevel Permissions Modal */}
+      <Dialog open={showGhlModal} onOpenChange={setShowGhlModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              GoHighLevel Permissions
+            </DialogTitle>
+            <DialogDescription>
+              Select the permissions for this staff member in GoHighLevel
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-4">
+            {GOHIGHLEVEL_PERMISSIONS.map((permission) => (
+              <div key={permission.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={permission.id}
+                  checked={tempGhlPermissions.includes(permission.id)}
+                  onCheckedChange={() => toggleTempPermission(permission.id)}
+                />
+                <Label htmlFor={permission.id} className="text-sm font-normal cursor-pointer">
+                  {permission.label}
+                </Label>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleGhlModalCancel}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleGhlModalSave}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex justify-end gap-2 pt-4 border-t">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel

@@ -104,7 +104,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     id: "staff",
     name: "Staff",
     path: "/staff",
-    icon: "Users",
+    icon: "UserCog",
     description: "Manage team members and permissions",
     showInNav: true,
     navOrder: 5,
