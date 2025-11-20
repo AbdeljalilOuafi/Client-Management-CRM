@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import (
-    Account, Employee, Client, Package, ClientPackage,
+    Account, Employee, EmployeeRole, Client, Package, ClientPackage,
     Payment, Installment, StripeCustomer, StripeApiKey
 )
 
@@ -14,21 +14,57 @@ class AccountSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date_joined', 'created_at', 'updated_at']
 
 
+class EmployeeRoleSerializer(serializers.ModelSerializer):
+    """Serializer for custom employee roles"""
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    employee_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = EmployeeRole
+        fields = [
+            'id', 'account', 'account_name', 'name', 'description',
+            'color', 'is_active', 'employee_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'account', 'account_name', 'employee_count', 'created_at', 'updated_at']
+    
+    def get_employee_count(self, obj):
+        """Return count of active employees with this role"""
+        return obj.employees.filter(status='active').count()
+    
+    def validate_color(self, value):
+        """Validate hex color format"""
+        if not value.startswith('#') or len(value) != 7:
+            raise serializers.ValidationError("Color must be a valid hex code (e.g., #3B82F6)")
+        return value
+    
+    def validate_name(self, value):
+        """Ensure role name is not a reserved system role"""
+        reserved_names = ['super_admin', 'admin', 'employee', 'Super Admin', 'Admin', 'Employee']
+        if value in reserved_names:
+            raise serializers.ValidationError(f"'{value}' is a reserved system role name. Please choose a different name.")
+        return value
+
+
 class EmployeeSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True)
     password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
+    custom_role_name = serializers.CharField(source='custom_role.name', read_only=True)
+    custom_role_color = serializers.CharField(source='custom_role.color', read_only=True)
+    display_role = serializers.CharField(read_only=True)
     
     class Meta:
         model = Employee
         fields = [
             'id', 'account', 'account_name', 'name', 'email', 'job_role',
-            'phone_number', 'role', 'status', 'is_active', 'password', 'last_login',
+            'phone_number', 'role', 'custom_role', 'custom_role_name', 'custom_role_color',
+            'display_role', 'status', 'is_active', 'password', 'last_login',
             'slack_user_id', 'slack_user_name', 'timezone',
             'can_view_all_clients', 'can_manage_all_clients',
             'can_view_all_payments', 'can_manage_all_payments',
             'can_view_all_installments', 'can_manage_all_installments'
         ]
-        read_only_fields = ['id', 'last_login', 'account_name']
+        read_only_fields = ['id', 'last_login', 'account_name', 'custom_role_name', 
+                            'custom_role_color', 'display_role']
         extra_kwargs = {
             'password': {'write_only': True},
             'account': {'required': False}
@@ -76,7 +112,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = [
-            'name', 'email', 'job_role', 'phone_number', 'role',
+            'name', 'email', 'job_role', 'phone_number', 'role', 'custom_role',
             'password', 'permissions', 'is_active', 'status',
             'can_view_all_clients', 'can_manage_all_clients',
             'can_view_all_payments', 'can_manage_all_payments',

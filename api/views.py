@@ -13,11 +13,11 @@ from datetime import datetime
 from django.db import transaction
 
 from .models import (
-    Account, Employee, Client, Package, ClientPackage,
+    Account, Employee, EmployeeRole, Client, Package, ClientPackage,
     Payment, Installment, StripeCustomer, StripeApiKey, EmployeeToken
 )
 from .serializers import (
-    AccountSerializer, EmployeeSerializer, EmployeeCreateSerializer,
+    AccountSerializer, EmployeeSerializer, EmployeeRoleSerializer, EmployeeCreateSerializer,
     EmployeeUpdatePermissionsSerializer, ClientSerializer, PackageSerializer,
     ClientPackageSerializer, PaymentSerializer, InstallmentSerializer,
     StripeCustomerSerializer, ChangePasswordSerializer
@@ -238,6 +238,62 @@ class AccountViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         # Users can only see their own account
         return Account.objects.filter(id=self.request.user.account_id)
+
+
+class EmployeeRoleViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing custom Employee Roles.
+    - Super Admin and Admin can create/update/delete roles
+    - All authenticated users can view roles in their account
+    """
+    serializer_class = EmployeeRoleSerializer
+    permission_classes = [IsAuthenticated, IsAccountMember]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'created_at']
+    ordering = ['name']
+
+    def get_queryset(self):
+        """Filter roles by account"""
+        return EmployeeRole.objects.filter(account_id=self.request.user.account_id)
+
+    def get_permissions(self):
+        """Only admins can create/update/delete roles"""
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsSuperAdminOrAdmin()]
+        return super().get_permissions()
+
+    def perform_create(self, serializer):
+        """Automatically set account when creating a role"""
+        serializer.save(account_id=self.request.user.account_id)
+
+    def destroy(self, request, *args, **kwargs):
+        """Prevent deletion if employees are assigned to this role"""
+        instance = self.get_object()
+        employee_count = instance.employees.count()
+        
+        if employee_count > 0:
+            return Response(
+                {
+                    'error': f'Cannot delete role. {employee_count} employee(s) are assigned to this role.',
+                    'detail': 'Please reassign or remove employees from this role before deleting.'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get'])
+    def employees(self, request, pk=None):
+        """
+        Get list of employees assigned to this role
+        GET /api/employee-roles/{id}/employees/
+        """
+        role = self.get_object()
+        employees = role.employees.filter(account_id=request.user.account_id)
+        serializer = EmployeeSerializer(employees, many=True, context={'request': request})
+        return Response(serializer.data)
 
 
 class EmployeeViewSet(viewsets.ModelViewSet):

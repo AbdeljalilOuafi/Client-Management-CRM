@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 import binascii
 import os
+import uuid
 
 
 class EmployeeToken(models.Model):
@@ -63,6 +64,27 @@ class Account(models.Model):
         return self.name
 
 
+class EmployeeRole(models.Model):
+    """Custom role definitions per account for flexible employee classification"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id', related_name='employee_roles')
+    name = models.CharField(max_length=100)
+    description = models.TextField(null=True, blank=True)
+    color = models.CharField(max_length=7, default='#3B82F6', help_text='Hex color code for UI badge display')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'employee_roles'
+        unique_together = [['account', 'name']]
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.account.name})"
+
+
 class EmployeeManager(BaseUserManager):
     """Custom manager for Employee user model"""
     
@@ -96,9 +118,6 @@ class Employee(AbstractBaseUser, PermissionsMixin):
         ('super_admin', 'Super Admin'),
         ('admin', 'Admin'),
         ('employee', 'Employee'),
-        ('coach', 'Coach'),
-        ('closer', 'Closer'),
-        ('setter', 'Setter'),
     ]
     
     STATUS_CHOICES = [
@@ -121,6 +140,15 @@ class Employee(AbstractBaseUser, PermissionsMixin):
     
     # Custom fields for role-based permissions
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
+    custom_role = models.ForeignKey(
+        EmployeeRole,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_column='custom_role_id',
+        related_name='employees',
+        help_text='Custom role definition (used when role=employee)'
+    )
     
     # Custom permission flags for granular access control
     can_view_all_clients = models.BooleanField(default=False, help_text="Can view all clients in account (not just assigned)")
@@ -163,6 +191,13 @@ class Employee(AbstractBaseUser, PermissionsMixin):
     @property
     def is_admin(self):
         return self.role in ['super_admin', 'admin']
+
+    @property
+    def display_role(self):
+        """Returns the role name to display in UI"""
+        if self.role in ['super_admin', 'admin']:
+            return self.get_role_display()
+        return self.custom_role.name if self.custom_role else self.get_role_display()
 
 
 class Client(models.Model):
