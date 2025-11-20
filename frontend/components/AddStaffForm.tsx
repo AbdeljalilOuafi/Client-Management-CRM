@@ -94,6 +94,18 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
 
   // Handle modal save
   const handleGhlModalSave = () => {
+    // Check if at least one permission is selected
+    const hasSelectedPermissions = Object.values(tempGhlPermissions).some(value => value === true);
+    
+    if (!hasSelectedPermissions) {
+      toast({
+        title: "No Permissions Selected",
+        description: "Please select at least one permission or cancel to disable GoHighLevel access.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setGhlPermissions({ ...tempGhlPermissions });
     setAppAccess({ ...appAccess, gohighlevel: true });
     setGhlConfigured(true);

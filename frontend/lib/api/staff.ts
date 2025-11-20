@@ -24,6 +24,8 @@ export interface Employee {
     gohighlevel: boolean;
   };
   gohighlevel_permissions?: string[];
+  start_date?: string | null;
+  end_date?: string | null;
   created_at?: string;
   updated_at?: string;
 }

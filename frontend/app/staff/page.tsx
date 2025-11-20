@@ -49,6 +49,8 @@ const StaffContent = () => {
     { id: "phone_number", label: "Phone Number", visible: false },
     { id: "role", label: "System Role", visible: true },
     { id: "job_role", label: "Job Title", visible: true },
+    { id: "start_date", label: "Start Date", visible: true },
+    { id: "end_date", label: "End Date", visible: false },
     { id: "status", label: "Status", visible: true },
     { id: "is_active", label: "Active", visible: true },
     { id: "app_access", label: "App Access", visible: true },
@@ -330,6 +332,16 @@ const StaffContent = () => {
                                         <span className="capitalize">{employee.role.replace("_", " ")}</span>
                                       )}
                                       {col.id === "job_role" && (employee.job_role || "-")}
+                                      {col.id === "start_date" && (
+                                        employee.start_date 
+                                          ? new Date(employee.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                          : "-"
+                                      )}
+                                      {col.id === "end_date" && (
+                                        employee.end_date 
+                                          ? new Date(employee.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                          : "-"
+                                      )}
                                       {col.id === "status" && (
                                         <span className="capitalize">{employee.status?.replace("_", " ") || "-"}</span>
                                       )}

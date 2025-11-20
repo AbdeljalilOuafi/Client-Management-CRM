@@ -15,9 +15,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Employee, updateEmployee, updateEmployeePermissions } from "@/lib/api/staff";
 import { PermissionString, UserRole } from "@/lib/types/permissions";
 import { PAGE_PERMISSIONS } from "@/lib/config/pagePermissions";
-import { User, Mail, Phone, Briefcase, Shield, Settings, Save, X } from "lucide-react";
+import { User, Mail, Phone, Briefcase, Shield, Settings, Save, X, Smartphone, Zap } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePermissions } from "@/contexts/PermissionsContext";
+import { saveAppAccess, getAppAccess } from "@/lib/utils/appAccessStorage";
+import { GoHighLevelPermissionsModal } from "@/components/staff/GoHighLevelPermissionsModal";
+import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
 
 interface EmployeeDetailsDialogProps {
   employee: Employee | null;
@@ -50,6 +53,16 @@ export function EmployeeDetailsDialog({
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<Employee>>({});
   const [permissionChanges, setPermissionChanges] = useState<Record<string, boolean>>({});
+  
+  // App Access state
+  const [appAccess, setAppAccess] = useState({
+    onsync: false,
+    gohighlevel: false,
+  });
+  const [ghlPermissions, setGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
+  const [showGhlModal, setShowGhlModal] = useState(false);
+  const [tempGhlPermissions, setTempGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
+  const [hasAppAccessChanges, setHasAppAccessChanges] = useState(false);
 
   // Get manageable pages
   const manageablePages = PAGE_PERMISSIONS.filter(page => {
@@ -75,10 +88,38 @@ export function EmployeeDetailsDialog({
         role: employee.role,
         status: employee.status,
         is_active: employee.is_active,
+        start_date: employee.start_date,
+        end_date: employee.end_date,
       });
+      
+      // Load app access from employee data or localStorage
+      const storedAppAccess = getAppAccess(employee.id);
+      if (employee.app_access || storedAppAccess) {
+        const accessData = employee.app_access || storedAppAccess?.app_access;
+        setAppAccess({
+          onsync: accessData?.onsync || false,
+          gohighlevel: accessData?.gohighlevel || false,
+        });
+        
+        if (accessData?.gohighlevel && (employee.gohighlevel_permissions || storedAppAccess?.gohighlevel_permissions)) {
+          const permissions = employee.gohighlevel_permissions || storedAppAccess?.gohighlevel_permissions;
+          // Handle both array and object formats
+          if (typeof permissions === 'object' && !Array.isArray(permissions)) {
+            setGhlPermissions(permissions as Record<string, boolean>);
+          } else {
+            setGhlPermissions(getInitialPermissionsState());
+          }
+        } else {
+          setGhlPermissions(getInitialPermissionsState());
+        }
+      } else {
+        setAppAccess({ onsync: false, gohighlevel: false });
+        setGhlPermissions(getInitialPermissionsState());
+      }
       
       // Clear permission changes only when not saving
       setPermissionChanges({});
+      setHasAppAccessChanges(false);
       setIsEditing(false);
     }
   }, [employee, isSaving]);
@@ -236,6 +277,90 @@ export function EmployeeDetailsDialog({
 
   const hasPermissionChanges = Object.keys(permissionChanges).length > 0;
 
+  // App Access handlers
+  const handleAppAccessChange = (type: 'onsync' | 'gohighlevel', checked: boolean) => {
+    if (type === 'gohighlevel' && checked) {
+      // Open GHL permissions modal
+      setTempGhlPermissions({ ...ghlPermissions });
+      setShowGhlModal(true);
+    } else if (type === 'gohighlevel' && !checked) {
+      // Clear GHL permissions
+      setAppAccess(prev => ({ ...prev, gohighlevel: false }));
+      setGhlPermissions(getInitialPermissionsState());
+      setHasAppAccessChanges(true);
+    } else {
+      setAppAccess(prev => ({ ...prev, [type]: checked }));
+      setHasAppAccessChanges(true);
+    }
+  };
+
+  const handleGhlModalSave = () => {
+    // Check if at least one permission is selected
+    const hasSelectedPermissions = Object.values(tempGhlPermissions).some(value => value === true);
+    
+    if (!hasSelectedPermissions) {
+      toast({
+        title: "No Permissions Selected",
+        description: "Please select at least one permission or cancel to disable GoHighLevel access.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setGhlPermissions({ ...tempGhlPermissions });
+    setAppAccess(prev => ({ ...prev, gohighlevel: true }));
+    setShowGhlModal(false);
+    setHasAppAccessChanges(true);
+  };
+
+  const handleGhlModalCancel = () => {
+    setShowGhlModal(false);
+    setAppAccess(prev => ({ ...prev, gohighlevel: false }));
+  };
+
+  const toggleTempPermission = (permissionId: string) => {
+    setTempGhlPermissions(prev => ({
+      ...prev,
+      [permissionId]: !prev[permissionId]
+    }));
+  };
+
+  const handleSaveAppAccess = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Save to localStorage (frontend storage)
+      saveAppAccess({
+        employeeId: employee.id,
+        app_access: appAccess,
+        gohighlevel_permissions: (appAccess.gohighlevel ? ghlPermissions : undefined) as any,
+      });
+      
+      console.log("[EmployeeDetailsDialog] App access saved:", {
+        employeeId: employee.id,
+        appAccess,
+        ghlPermissions: appAccess.gohighlevel ? ghlPermissions : undefined,
+      });
+      
+      toast({
+        title: "Success",
+        description: "App access updated successfully",
+      });
+      
+      setHasAppAccessChanges(false);
+      await onUpdate();
+    } catch (error) {
+      console.error("Error saving app access:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update app access",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -252,10 +377,14 @@ export function EmployeeDetailsDialog({
         </DialogHeader>
 
         <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="info">
               <User className="h-4 w-4 mr-2" />
               Information
+            </TabsTrigger>
+            <TabsTrigger value="app-access">
+              <Smartphone className="h-4 w-4 mr-2" />
+              App Access
             </TabsTrigger>
             <TabsTrigger value="permissions">
               <Shield className="h-4 w-4 mr-2" />
@@ -393,6 +522,47 @@ export function EmployeeDetailsDialog({
                     )}
                   </div>
 
+                  {/* Start Date */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      Start Date
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        type="date"
+                        value={formData.start_date || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                      />
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.start_date 
+                          ? new Date(employee.start_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                          : "-"}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* End Date */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">
+                      End Date
+                    </Label>
+                    {isEditing ? (
+                      <Input
+                        type="date"
+                        value={formData.end_date || ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
+                        disabled={formData.status === "active"}
+                      />
+                    ) : (
+                      <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.end_date 
+                          ? new Date(employee.end_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                          : "-"}
+                      </p>
+                    )}
+                  </div>
+
                   {/* Status */}
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">
@@ -401,11 +571,23 @@ export function EmployeeDetailsDialog({
                     {isEditing ? (
                       <Select
                         value={formData.status || employee.status}
-                        onValueChange={(value) => setFormData(prev => ({ 
-                          ...prev, 
-                          status: value,
-                          is_active: value === "active"
-                        }))}
+                        onValueChange={(value) => {
+                          const updates: Partial<Employee> = { 
+                            status: value,
+                            is_active: value === "active"
+                          };
+                          
+                          // Automatically set end_date when switching to inactive
+                          if (value === "inactive" && !formData.end_date) {
+                            updates.end_date = new Date().toISOString().split('T')[0];
+                          }
+                          // Clear end_date when switching back to active
+                          if (value === "active") {
+                            updates.end_date = null;
+                          }
+                          
+                          setFormData(prev => ({ ...prev, ...updates }));
+                        }}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -438,6 +620,8 @@ export function EmployeeDetailsDialog({
                           role: employee.role,
                           status: employee.status,
                           is_active: employee.is_active,
+                          start_date: employee.start_date,
+                          end_date: employee.end_date,
                         });
                       }}
                     >
@@ -454,6 +638,112 @@ export function EmployeeDetailsDialog({
                       )}
                     </Button>
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* App Access Tab */}
+          <TabsContent value="app-access" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Application Access</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Manage which applications this staff member can access
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {!canEdit ? (
+                  <div className="text-center py-8">
+                    <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      You don't have permission to modify this employee's app access.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-4">
+                      {/* OnSync Access */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Smartphone className="h-5 w-5 text-primary" />
+                          <div>
+                            <Label className="text-base font-semibold">OnSync App</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Access to the OnSync management platform
+                            </p>
+                          </div>
+                        </div>
+                        <Checkbox
+                          checked={appAccess.onsync}
+                          onCheckedChange={(checked) => handleAppAccessChange('onsync', checked as boolean)}
+                        />
+                      </div>
+
+                      {/* GoHighLevel Access */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <Zap className="h-5 w-5 text-primary" />
+                          <div>
+                            <Label className="text-base font-semibold">GoHighLevel App</Label>
+                            <p className="text-sm text-muted-foreground">
+                              Access to GoHighLevel CRM with custom permissions
+                            </p>
+                            {appAccess.gohighlevel && (
+                              <Badge variant="outline" className="mt-1">
+                                Permissions Configured
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Checkbox
+                          checked={appAccess.gohighlevel}
+                          onCheckedChange={(checked) => handleAppAccessChange('gohighlevel', checked as boolean)}
+                        />
+                      </div>
+                    </div>
+
+                    <AnimatePresence>
+                      {hasAppAccessChanges && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 20 }}
+                          className="flex justify-end gap-2 pt-4 border-t"
+                        >
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              // Reset to original values
+                              const storedAppAccess = getAppAccess(employee.id);
+                              if (employee.app_access || storedAppAccess) {
+                                const accessData = employee.app_access || storedAppAccess?.app_access;
+                                setAppAccess({
+                                  onsync: accessData?.onsync || false,
+                                  gohighlevel: accessData?.gohighlevel || false,
+                                });
+                              } else {
+                                setAppAccess({ onsync: false, gohighlevel: false });
+                              }
+                              setHasAppAccessChanges(false);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveAppAccess} disabled={isSaving}>
+                            {isSaving ? (
+                              <>Saving...</>
+                            ) : (
+                              <>
+                                <Save className="h-4 w-4 mr-2" />
+                                Save App Access
+                              </>
+                            )}
+                          </Button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -572,6 +862,16 @@ export function EmployeeDetailsDialog({
           </TabsContent>
         </Tabs>
       </DialogContent>
+
+      {/* GoHighLevel Permissions Modal */}
+      <GoHighLevelPermissionsModal
+        open={showGhlModal}
+        onOpenChange={setShowGhlModal}
+        permissions={tempGhlPermissions}
+        onPermissionToggle={toggleTempPermission}
+        onSave={handleGhlModalSave}
+        onCancel={handleGhlModalCancel}
+      />
     </Dialog>
   );
 }
