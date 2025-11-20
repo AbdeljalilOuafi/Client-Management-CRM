@@ -71,6 +71,18 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     editPermissions: ["can_manage_all_clients"],
   },
 
+  // ==================== CLIENT BOARD ====================
+  {
+    id: "client-board",
+    name: "Client Board",
+    path: "/client-board",
+    icon: "Kanban",
+    description: "Kanban board for managing client progress",
+    showInNav: true,
+    navOrder: 3,
+    // All authenticated users can view the board
+  },
+
   // ==================== PAYMENTS ====================
   {
     id: "payments",
@@ -79,7 +91,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     icon: "CreditCard",
     description: "Track and manage payments",
     showInNav: true,
-    navOrder: 3,
+    navOrder: 4,
     // All users can view payments page
     // Edit requires manage permission
     editPermissions: ["can_manage_all_payments"],
@@ -93,7 +105,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     icon: "DollarSign",
     description: "Manage payment installments",
     showInNav: true,
-    navOrder: 4,
+    navOrder: 5,
     // All users can view instalments page
     // Edit requires manage permission
     editPermissions: ["can_manage_all_installments"],
@@ -107,7 +119,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     icon: "UserCog",
     description: "Manage team members and permissions",
     showInNav: true,
-    navOrder: 5,
+    navOrder: 6,
     // Only admin and super_admin can view
     viewRoles: ["admin", "super_admin"],
     // Only admin and super_admin can edit
@@ -122,7 +134,7 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     icon: "FileText",
     description: "Manage client check-in forms",
     showInNav: true,
-    navOrder: 6,
+    navOrder: 7,
     // Only super_admin can view
     viewRoles: ["super_admin"],
     // Only super_admin can edit
