@@ -85,6 +85,22 @@ class EmployeeRole(models.Model):
         return f"{self.name} ({self.account.name})"
 
 
+class EmployeeRoleAssignment(models.Model):
+    """Junction table for many-to-many relationship between employees and custom roles"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee = models.ForeignKey('Employee', on_delete=models.CASCADE, db_column='employee_id')
+    role = models.ForeignKey(EmployeeRole, on_delete=models.CASCADE, db_column='role_id')
+    assigned_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'employee_role_assignments'
+        unique_together = [['employee', 'role']]
+
+    def __str__(self):
+        return f"{self.employee.name} - {self.role.name}"
+
+
 class EmployeeManager(BaseUserManager):
     """Custom manager for Employee user model"""
     
@@ -140,14 +156,12 @@ class Employee(AbstractBaseUser, PermissionsMixin):
     
     # Custom fields for role-based permissions
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
-    custom_role = models.ForeignKey(
+    custom_roles = models.ManyToManyField(
         EmployeeRole,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        db_column='custom_role_id',
+        through='EmployeeRoleAssignment',
         related_name='employees',
-        help_text='Custom role definition (used when role=employee)'
+        blank=True,
+        help_text='Custom role definitions for flexible employee classification'
     )
     
     # Custom permission flags for granular access control
@@ -194,10 +208,19 @@ class Employee(AbstractBaseUser, PermissionsMixin):
 
     @property
     def display_role(self):
-        """Returns the role name to display in UI"""
+        """Returns the role name(s) to display in UI"""
         if self.role in ['super_admin', 'admin']:
             return self.get_role_display()
-        return self.custom_role.name if self.custom_role else self.get_role_display()
+        
+        # Get custom roles - need to check if we're in a query context
+        try:
+            custom_role_names = list(self.custom_roles.filter(is_active=True).values_list('name', flat=True))
+            if custom_role_names:
+                return ', '.join(custom_role_names)
+        except:
+            pass
+        
+        return self.get_role_display()
 
 
 class Client(models.Model):

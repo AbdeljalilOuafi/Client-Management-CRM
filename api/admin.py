@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
-    Account, Employee, Client, Package, ClientPackage,
+    Account, Employee, EmployeeRole, EmployeeRoleAssignment, Client, Package, ClientPackage,
     Payment, Installment, StripeCustomer, StripeApiKey
 )
 

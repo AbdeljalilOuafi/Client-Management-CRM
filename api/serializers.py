@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import (
-    Account, Employee, EmployeeRole, Client, Package, ClientPackage,
+    Account, Employee, EmployeeRole, EmployeeRoleAssignment, Client, Package, ClientPackage,
     Payment, Installment, StripeCustomer, StripeApiKey
 )
 
@@ -48,30 +48,44 @@ class EmployeeRoleSerializer(serializers.ModelSerializer):
 class EmployeeSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True)
     password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
-    custom_role_name = serializers.CharField(source='custom_role.name', read_only=True)
-    custom_role_color = serializers.CharField(source='custom_role.color', read_only=True)
+    custom_roles = serializers.PrimaryKeyRelatedField(
+        many=True, 
+        queryset=EmployeeRole.objects.all(), 
+        required=False
+    )
+    custom_role_names = serializers.SerializerMethodField()
+    custom_role_colors = serializers.SerializerMethodField()
     display_role = serializers.CharField(read_only=True)
     
     class Meta:
         model = Employee
         fields = [
             'id', 'account', 'account_name', 'name', 'email', 'job_role',
-            'phone_number', 'role', 'custom_role', 'custom_role_name', 'custom_role_color',
+            'phone_number', 'role', 'custom_roles', 'custom_role_names', 'custom_role_colors',
             'display_role', 'status', 'is_active', 'password', 'last_login',
             'slack_user_id', 'slack_user_name', 'timezone',
             'can_view_all_clients', 'can_manage_all_clients',
             'can_view_all_payments', 'can_manage_all_payments',
             'can_view_all_installments', 'can_manage_all_installments'
         ]
-        read_only_fields = ['id', 'last_login', 'account_name', 'custom_role_name', 
-                            'custom_role_color', 'display_role']
+        read_only_fields = ['id', 'last_login', 'account_name', 'custom_role_names', 
+                            'custom_role_colors', 'display_role']
         extra_kwargs = {
             'password': {'write_only': True},
             'account': {'required': False}
         }
+    
+    def get_custom_role_names(self, obj):
+        """Return list of custom role names"""
+        return [role.name for role in obj.custom_roles.filter(is_active=True)]
+    
+    def get_custom_role_colors(self, obj):
+        """Return list of custom role colors"""
+        return [role.color for role in obj.custom_roles.filter(is_active=True)]
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
+        custom_roles = validated_data.pop('custom_roles', [])
         
         # Set account from request user if not provided
         if 'account' not in validated_data:
@@ -84,10 +98,16 @@ class EmployeeSerializer(serializers.ModelSerializer):
             employee.set_unusable_password()
         
         employee.save()
+        
+        # Assign custom roles
+        if custom_roles:
+            employee.custom_roles.set(custom_roles)
+        
         return employee
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        custom_roles = validated_data.pop('custom_roles', None)
         
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -96,12 +116,22 @@ class EmployeeSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         
         instance.save()
+        
+        # Update custom roles if provided
+        if custom_roles is not None:
+            instance.custom_roles.set(custom_roles)
+        
         return instance
 
 
 class EmployeeCreateSerializer(serializers.ModelSerializer):
     """Separate serializer for creating employees with permission management"""
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    custom_roles = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=EmployeeRole.objects.all(),
+        required=False
+    )
     permissions = serializers.ListField(
         child=serializers.CharField(),
         required=False,
@@ -112,7 +142,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = [
-            'name', 'email', 'job_role', 'phone_number', 'role', 'custom_role',
+            'name', 'email', 'job_role', 'phone_number', 'role', 'custom_roles',
             'password', 'permissions', 'is_active', 'status',
             'can_view_all_clients', 'can_manage_all_clients',
             'can_view_all_payments', 'can_manage_all_payments',
@@ -122,6 +152,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         permissions_data = validated_data.pop('permissions', None)
         password = validated_data.pop('password')
+        custom_roles = validated_data.pop('custom_roles', [])
         
         # Set account from request user
         validated_data['account'] = self.context['request'].user.account
@@ -129,6 +160,10 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         employee = Employee(**validated_data)
         employee.set_password(password)
         employee.save()
+        
+        # Assign custom roles
+        if custom_roles:
+            employee.custom_roles.set(custom_roles)
         
         # Handle permissions
         if permissions_data is not None:
