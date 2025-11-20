@@ -259,6 +259,11 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         accountId,
         clientId,
         ...data,
+        // Ensure boolean fields are sent as booleans, not strings
+        isFreeClient: Boolean(data.isFreeClient),
+        isFreeTrial: Boolean(data.isFreeTrial),
+        sendPaymentLinkToClient: Boolean(data.sendPaymentLinkToClient),
+        generateContract: Boolean(data.generateContract),
       };
 
       console.log("[AddClientForm] Creating client with payload:", {
