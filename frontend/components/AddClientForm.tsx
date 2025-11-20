@@ -89,7 +89,6 @@ const clientFormSchema = z.object({
   minimumTerm: z.number().min(1, "Minimum term must be at least 1"),
   
   // Start Date & Coaching
-  startingToday: z.enum(["yes", "no", ""]).default("no"),
   startDate: z.string().min(1, "Start date is required"),
   assignedCoach: z.string().min(1, "Assigned coach is required"),
   checkInDay: z.string().min(1, "Check-in day is required"),
@@ -138,7 +137,6 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       pifPaymentType: "full",
       subscriptionInterval: "monthly",
       firstPaymentType: "full",
-      startingToday: "no",
       startDate: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
       minimumTerm: 1,
       checkInDay: "Monday",
@@ -157,7 +155,6 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   const financialAgreement = watch("financialAgreement");
   const pifPaymentType = watch("pifPaymentType");
   const firstPaymentType = watch("firstPaymentType");
-  const startingToday = watch("startingToday");
   const numInstalments = watch("numInstalments");
   const isFreeTrial = watch("isFreeTrial");
   const isFreeClient = watch("isFreeClient");
@@ -914,28 +911,6 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
           ======================================================================== */}
       <div className="space-y-5 p-6 bg-card rounded-xl border border-border/50 shadow-sm">
         <h3 className="text-lg font-semibold text-foreground border-b border-border pb-3">Start Date & Coaching</h3>
-
-        <div className="space-y-2">
-          <Label>Are they starting today? *</Label>
-          <Controller
-            name="startingToday"
-            control={control}
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select option" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="yes">Yes</SelectItem>
-                  <SelectItem value="no">No</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-          {errors.startingToday && (
-            <p className="text-xs text-destructive">{errors.startingToday.message}</p>
-          )}
-        </div>
 
         <div className="space-y-2">
           <Label htmlFor="startDate">Start Date *</Label>

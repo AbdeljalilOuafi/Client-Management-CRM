@@ -4,11 +4,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployee } from "@/lib/api/staff";
 import { motion } from "framer-motion";
-import { Loader2, Eye, EyeOff, CheckCircle2, XCircle, Settings } from "lucide-react";
+import { Loader2, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
+import { saveAppAccess } from "@/lib/utils/appAccessStorage";
+import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
+import { GoHighLevelPermissionsModal } from "@/components/staff/GoHighLevelPermissionsModal";
+import { sendGHLPermissions, buildGHLPayload } from "@/lib/api/gohighlevel";
 
 interface AddStaffFormProps {
   onSuccess: () => void;
@@ -17,14 +20,6 @@ interface AddStaffFormProps {
 
 // Custom roles storage key
 const CUSTOM_ROLES_KEY = "custom_staff_roles";
-
-// GoHighLevel permissions config (easy to modify later)
-const GOHIGHLEVEL_PERMISSIONS = [
-  { id: "view_contacts", label: "View Contacts" },
-  { id: "edit_contacts", label: "Edit Contacts" },
-  { id: "manage_calendars", label: "Manage Calendars" },
-  { id: "view_reports", label: "View Reports" },
-];
 
 // Get custom roles from localStorage
 const getCustomRoles = (): string[] => {
@@ -63,10 +58,10 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     onsync: false,
     gohighlevel: false,
   });
-  const [ghlPermissions, setGhlPermissions] = useState<string[]>([]);
+  const [ghlPermissions, setGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
   const [ghlConfigured, setGhlConfigured] = useState(false);
   const [showGhlModal, setShowGhlModal] = useState(false);
-  const [tempGhlPermissions, setTempGhlPermissions] = useState<string[]>([]);
+  const [tempGhlPermissions, setTempGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
 
   // Load custom roles on mount
   useEffect(() => {
@@ -87,19 +82,19 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const handleGhlCheckboxChange = (checked: boolean) => {
     if (checked) {
       // Open modal to configure permissions
-      setTempGhlPermissions([...ghlPermissions]);
+      setTempGhlPermissions({ ...ghlPermissions });
       setShowGhlModal(true);
     } else {
       // Uncheck and clear permissions
       setAppAccess({ ...appAccess, gohighlevel: false });
-      setGhlPermissions([]);
+      setGhlPermissions(getInitialPermissionsState());
       setGhlConfigured(false);
     }
   };
 
   // Handle modal save
   const handleGhlModalSave = () => {
-    setGhlPermissions([...tempGhlPermissions]);
+    setGhlPermissions({ ...tempGhlPermissions });
     setAppAccess({ ...appAccess, gohighlevel: true });
     setGhlConfigured(true);
     setShowGhlModal(false);
@@ -109,25 +104,24 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const handleGhlModalCancel = () => {
     setShowGhlModal(false);
     setAppAccess({ ...appAccess, gohighlevel: false });
-    setGhlPermissions([]);
+    setGhlPermissions(getInitialPermissionsState());
     setGhlConfigured(false);
-    setTempGhlPermissions([]);
+    setTempGhlPermissions(getInitialPermissionsState());
   };
 
   // Toggle permission in temp state
   const toggleTempPermission = (permissionId: string) => {
-    setTempGhlPermissions(prev => 
-      prev.includes(permissionId)
-        ? prev.filter(p => p !== permissionId)
-        : [...prev, permissionId]
-    );
+    setTempGhlPermissions(prev => ({
+      ...prev,
+      [permissionId]: !prev[permissionId]
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate password strength
-    if (!isPasswordValid) {
+    // Validate password strength only if OnSync access is enabled
+    if (appAccess.onsync && !isPasswordValid) {
       toast({
         title: "Invalid Password",
         description: "Please meet all password requirements",
@@ -170,10 +164,9 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       
       // Prepare employee data with app access
-      const employeeData = {
+      const employeeData: any = {
         name: fullName,
         email: formData.email,
-        password: formData.password,
         role: finalRole === "admin" ? "admin" : "employee", // Backend only accepts admin/employee
         job_role: finalRole, // Store actual role in job_role
         phone_number: formData.phoneNumber || undefined,
@@ -186,10 +179,42 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
       };
 
+      // Only include password if OnSync access is enabled
+      if (appAccess.onsync) {
+        employeeData.password = formData.password;
+      }
+
       // Log the data for now (webhook will be added later)
       console.log("Employee data with app access:", employeeData);
 
-      await createEmployee(employeeData);
+      const newEmployee = await createEmployee(employeeData);
+      console.log("[AddStaffForm] New employee created:", newEmployee);
+
+      // Backend doesn't return ID, so we need to fetch the employee list to get the ID
+      // Wait a moment for the backend to process
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Save app access with email as temporary key (we'll update it after refresh)
+      if (appAccess.onsync || appAccess.gohighlevel) {
+        // Store with email temporarily
+        const tempKey = `temp_${employeeData.email}`;
+        localStorage.setItem(tempKey, JSON.stringify({
+          email: employeeData.email,
+          app_access: {
+            onsync: appAccess.onsync,
+            gohighlevel: appAccess.gohighlevel,
+          },
+          ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
+        }));
+        console.log("[AddStaffForm] Saved temp app access with email:", employeeData.email);
+
+        // Send GHL permissions to webhook if GHL access is enabled
+        if (appAccess.gohighlevel) {
+          const ghlPayload = buildGHLPayload(employeeData.email, ghlPermissions);
+          await sendGHLPermissions(ghlPayload);
+          console.log("[AddStaffForm] GHL permissions sent to webhook");
+        }
+      }
 
       toast({
         title: "Success",
@@ -315,99 +340,108 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         </motion.div>
       )}
 
-      {/* Password Field */}
-      <div className="space-y-3">
-        <Label htmlFor="password">Password *</Label>
-        <div className="relative">
-          <Input
-            id="password"
-            type={showPassword ? "text" : "password"}
-            required
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            placeholder="Create a strong password"
-            className="pr-10"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? (
-              <EyeOff className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <Eye className="h-4 w-4 text-muted-foreground" />
-            )}
-          </Button>
-        </div>
-        
-        {/* Password Requirements */}
-        <div className="space-y-2 p-3 bg-muted/50 rounded-md">
-          <p className="text-xs font-medium text-muted-foreground">Password must contain:</p>
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-xs">
-              {passwordValidation.minLength ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span className={passwordValidation.minLength ? "text-green-600" : "text-muted-foreground"}>
-                At least 8 characters
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              {passwordValidation.hasUpperCase ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span className={passwordValidation.hasUpperCase ? "text-green-600" : "text-muted-foreground"}>
-                One uppercase letter (A-Z)
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              {passwordValidation.hasLowerCase ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span className={passwordValidation.hasLowerCase ? "text-green-600" : "text-muted-foreground"}>
-                One lowercase letter (a-z)
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              {passwordValidation.hasNumber ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span className={passwordValidation.hasNumber ? "text-green-600" : "text-muted-foreground"}>
-                One number (0-9)
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* App Access Section */}
       <div className="space-y-4 pt-4 border-t">
         <div>
           <h3 className="text-sm font-medium mb-3">App Access</h3>
-          <div className="space-y-3">
+          <div className="space-y-4">
             {/* OnSync Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="onsync"
-                checked={appAccess.onsync}
-                onCheckedChange={(checked) => 
-                  setAppAccess({ ...appAccess, onsync: checked as boolean })
-                }
-              />
-              <Label htmlFor="onsync" className="text-sm font-normal cursor-pointer">
-                Do they need access to OnSync app?
-              </Label>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="onsync"
+                  checked={appAccess.onsync}
+                  onCheckedChange={(checked) => 
+                    setAppAccess({ ...appAccess, onsync: checked as boolean })
+                  }
+                />
+                <Label htmlFor="onsync" className="text-sm font-normal cursor-pointer">
+                  Do they need access to OnSync app?
+                </Label>
+              </div>
+
+              {/* Password Field - Shows under OnSync checkbox when checked */}
+              {appAccess.onsync && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="ml-6 space-y-3 pl-4 border-l-2 border-primary/20"
+                >
+                  <Label htmlFor="password">Password *</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder="Create a strong password"
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {/* Password Requirements */}
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-md">
+                    <p className="text-xs font-medium text-muted-foreground">Password must contain:</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-xs">
+                        {passwordValidation.minLength ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <span className={passwordValidation.minLength ? "text-green-600" : "text-muted-foreground"}>
+                          At least 8 characters
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        {passwordValidation.hasUpperCase ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <span className={passwordValidation.hasUpperCase ? "text-green-600" : "text-muted-foreground"}>
+                          One uppercase letter (A-Z)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        {passwordValidation.hasLowerCase ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <span className={passwordValidation.hasLowerCase ? "text-green-600" : "text-muted-foreground"}>
+                          One lowercase letter (a-z)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs">
+                        {passwordValidation.hasNumber ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        <span className={passwordValidation.hasNumber ? "text-green-600" : "text-muted-foreground"}>
+                          One number (0-9)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
             </div>
 
             {/* GoHighLevel Checkbox */}
@@ -432,43 +466,14 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
       </div>
 
       {/* GoHighLevel Permissions Modal */}
-      <Dialog open={showGhlModal} onOpenChange={setShowGhlModal}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              GoHighLevel Permissions
-            </DialogTitle>
-            <DialogDescription>
-              Select the permissions for this staff member in GoHighLevel
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-3 py-4">
-            {GOHIGHLEVEL_PERMISSIONS.map((permission) => (
-              <div key={permission.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={permission.id}
-                  checked={tempGhlPermissions.includes(permission.id)}
-                  onCheckedChange={() => toggleTempPermission(permission.id)}
-                />
-                <Label htmlFor={permission.id} className="text-sm font-normal cursor-pointer">
-                  {permission.label}
-                </Label>
-              </div>
-            ))}
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleGhlModalCancel}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleGhlModalSave}>
-              Save
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <GoHighLevelPermissionsModal
+        open={showGhlModal}
+        onOpenChange={setShowGhlModal}
+        permissions={tempGhlPermissions}
+        onPermissionToggle={toggleTempPermission}
+        onSave={handleGhlModalSave}
+        onCancel={handleGhlModalCancel}
+      />
 
       <div className="flex justify-end gap-2 pt-4 border-t">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>

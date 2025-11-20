@@ -19,6 +19,11 @@ export interface Employee {
   can_manage_all_payments?: boolean;
   can_view_all_installments?: boolean;
   can_manage_all_installments?: boolean;
+  app_access?: {
+    onsync: boolean;
+    gohighlevel: boolean;
+  };
+  gohighlevel_permissions?: string[];
   created_at?: string;
   updated_at?: string;
 }
@@ -89,14 +94,16 @@ export const listEmployees = async (params?: {
 
   const data = await response.json();
   
-  // Log the first employee to check if permissions are included
+  // Log the first employee to check if permissions and app_access are included
   if (data.results && data.results.length > 0) {
     console.log("[API listEmployees] Sample employee data:", {
       id: data.results[0].id,
       name: data.results[0].name,
       can_view_all_clients: data.results[0].can_view_all_clients,
       can_manage_all_clients: data.results[0].can_manage_all_clients,
+      app_access: data.results[0].app_access,
       hasPermissionFields: 'can_view_all_clients' in data.results[0],
+      hasAppAccess: 'app_access' in data.results[0],
     });
   }
   
@@ -118,16 +125,9 @@ export const getEmployee = async (id: number): Promise<Employee> => {
 };
 
 // Create a new employee
-export const createEmployee = async (employeeData: {
-  name: string;
-  email: string;
-  password: string;
-  role: string;
-  job_role?: string;
-  phone_number?: string;
-  status?: string;
-  is_active?: boolean;
-}): Promise<Employee> => {
+export const createEmployee = async (employeeData: any): Promise<Employee> => {
+  console.log("[API createEmployee] Sending data:", employeeData);
+  
   const response = await fetch(`${API_BASE_URL}/employees/`, {
     method: "POST",
     headers: getHeaders(),
@@ -136,10 +136,13 @@ export const createEmployee = async (employeeData: {
 
   if (!response.ok) {
     const errorData = await response.json();
+    console.error("[API createEmployee] Error:", errorData);
     throw new Error(JSON.stringify(errorData));
   }
 
-  return response.json();
+  const result = await response.json();
+  console.log("[API createEmployee] Response:", result);
+  return result;
 };
 
 // Update an employee

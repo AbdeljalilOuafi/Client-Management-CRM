@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { listEmployees, Employee } from "@/lib/api/staff";
-import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2 } from "lucide-react";
+import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2, Smartphone, Zap } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmployeeDetailsDialog } from "@/components/staff/EmployeeDetailsDialog";
 import { usePermissions } from "@/hooks/usePermissions";
+import { mergeAppAccessWithEmployees } from "@/lib/utils/appAccessStorage";
 
 interface ColumnDefinition {
   id: string;
@@ -50,6 +51,7 @@ const StaffContent = () => {
     { id: "job_role", label: "Job Title", visible: true },
     { id: "status", label: "Status", visible: true },
     { id: "is_active", label: "Active", visible: true },
+    { id: "app_access", label: "App Access", visible: true },
   ]);
 
 
@@ -61,17 +63,37 @@ const StaffContent = () => {
     try {
       setLoading(true);
       const response = await listEmployees();
-      setEmployees(response.results || []);
+      
+      console.log("[Staff Page] Raw employees from API:", response.results?.length);
+      
+      // Merge app access data from localStorage (temporary until backend supports it)
+      const employeesWithAppAccess = mergeAppAccessWithEmployees(response.results || []);
+      
+      console.log("[Staff Page] After merging app access:", {
+        total: employeesWithAppAccess.length,
+        sample: employeesWithAppAccess[0],
+        withAppAccess: employeesWithAppAccess.filter(e => e.app_access).length,
+        employeeWithAccess: employeesWithAppAccess.find(e => e.id === 33),
+        allEmployees: employeesWithAppAccess.map(e => ({
+          id: e.id,
+          name: e.name,
+          email: e.email,
+          app_access: e.app_access,
+        })),
+      });
+      
+      setEmployees(employeesWithAppAccess);
       
       // If an employee is currently selected, update it with fresh data
       if (selectedEmployee) {
-        const updatedEmployee = response.results.find(emp => emp.id === selectedEmployee.id);
+        const updatedEmployee = employeesWithAppAccess.find(emp => emp.id === selectedEmployee.id);
         if (updatedEmployee) {
           console.log("[Staff Page] Updating selected employee with fresh data:", {
             id: updatedEmployee.id,
             name: updatedEmployee.name,
             can_view_all_clients: updatedEmployee.can_view_all_clients,
             can_manage_all_clients: updatedEmployee.can_manage_all_clients,
+            app_access: updatedEmployee.app_access,
             fullEmployee: updatedEmployee,
           });
           setSelectedEmployee(updatedEmployee);
@@ -315,6 +337,25 @@ const StaffContent = () => {
                                         <span className={employee.is_active ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                                           {employee.is_active ? "Active" : "Inactive"}
                                         </span>
+                                      )}
+                                      {col.id === "app_access" && (
+                                        <div className="flex items-center gap-2">
+                                          {employee?.app_access?.onsync && (
+                                            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md" title="OnSync Access">
+                                              <Smartphone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">OnSync</span>
+                                            </div>
+                                          )}
+                                          {employee?.app_access?.gohighlevel && (
+                                            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-md" title="GoHighLevel Access">
+                                              <Zap className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                                              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">GHL</span>
+                                            </div>
+                                          )}
+                                          {(!employee?.app_access?.onsync && !employee?.app_access?.gohighlevel) && (
+                                            <span className="text-xs text-muted-foreground">-</span>
+                                          )}
+                                        </div>
                                       )}
                                     </TableCell>
                                   ))}

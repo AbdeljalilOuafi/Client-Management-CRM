@@ -105,7 +105,13 @@ export function EmployeeDetailsDialog({
   const handleSaveInfo = async () => {
     try {
       setIsSaving(true);
-      await updateEmployee(employee.id, formData);
+      console.log("[EmployeeDetailsDialog] Saving employee info:", {
+        employeeId: employee.id,
+        formData,
+      });
+      
+      const result = await updateEmployee(employee.id, formData);
+      console.log("[EmployeeDetailsDialog] Update result:", result);
       
       toast({
         title: "Success",
@@ -395,15 +401,19 @@ export function EmployeeDetailsDialog({
                     {isEditing ? (
                       <Select
                         value={formData.status || employee.status}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                        onValueChange={(value) => setFormData(prev => ({ 
+                          ...prev, 
+                          status: value,
+                          is_active: value === "active"
+                        }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="on_leave">On Leave</SelectItem>
-                          <SelectItem value="terminated">Terminated</SelectItem>
+                          {/* <SelectItem value="on_leave">On Leave</SelectItem> */}
+                          <SelectItem value="inactive">Inactive</SelectItem>
                         </SelectContent>
                       </Select>
                     ) : (
