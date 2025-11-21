@@ -123,7 +123,7 @@ export const ClientCard = ({ client, index, isActionQueue, onCardClick, onMarkRe
               )}
 
               {/* Show home month indicator in action queue */}
-              {isActionQueue && !client.onboarding && (
+              {isActionQueue && (
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 rounded px-2 py-1">
                   <ArrowRight className="h-3 w-3" />
                   <span className="font-medium">Month {client.monthColumn === 13 ? "12+" : client.monthColumn}</span>

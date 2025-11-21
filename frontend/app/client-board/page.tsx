@@ -22,7 +22,7 @@ const INITIAL_CLIENTS: Client[] = [
   { id: "3", name: "Mike T", packageName: "Elite Package", monthColumn: 3, lastCheckinDays: 7, adherence: 92, pendingReview: true },
   { id: "4", name: "Chris P", packageName: "Elite Package", monthColumn: 3, lastCheckinDays: 5, adherence: 88 },
   { id: "5", name: "David S", packageName: "Transform", monthColumn: 13, lastCheckinDays: 3, adherence: 95 },
-  { id: "6", name: "Tom K", packageName: "Weight Loss", monthColumn: 0, lastCheckinDays: 0, adherence: 0, onboarding: true, onboardingSentDays: 3 },
+  { id: "6", name: "Tom K", packageName: "Weight Loss", monthColumn: 1, lastCheckinDays: 0, adherence: 0, onboarding: true, onboardingSentDays: 3 },
   { id: "7", name: "Jessica L", packageName: "Elite Package", monthColumn: 4, lastCheckinDays: 4, adherence: 91 },
   { id: "8", name: "Robert M", packageName: "12-Week Transform", monthColumn: 5, lastCheckinDays: 6, adherence: 67 },
   { id: "9", name: "Emily R", packageName: "Weight Loss", monthColumn: 6, lastCheckinDays: 2, adherence: 82 },
@@ -57,13 +57,14 @@ const ClientBoardContent = () => {
     ));
   };
 
-  const markAsReviewed = (clientId: string, type: "checkin" | "review") => {
+  const markAsReviewed = (clientId: string, type: "checkin" | "review" | "onboarding") => {
     setClients(prev => prev.map(client => {
       if (client.id === clientId) {
         return {
           ...client,
           pendingCheckin: type === "checkin" ? false : client.pendingCheckin,
           pendingReview: type === "review" ? false : client.pendingReview,
+          onboarding: type === "onboarding" ? false : client.onboarding,
         };
       }
       return client;
@@ -225,6 +226,7 @@ const ClientBoardContent = () => {
                   count={onboardingClients.length}
                   isActionQueue
                   onCardClick={setSelectedClient}
+                  onMarkReviewed={(id) => markAsReviewed(id, "onboarding")}
                 />
               </div>
             </div>
