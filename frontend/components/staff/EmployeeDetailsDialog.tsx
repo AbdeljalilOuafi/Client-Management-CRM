@@ -21,6 +21,8 @@ import { usePermissions } from "@/contexts/PermissionsContext";
 import { saveAppAccess, getAppAccess } from "@/lib/utils/appAccessStorage";
 import { GoHighLevelPermissionsModal } from "@/components/staff/GoHighLevelPermissionsModal";
 import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
+import { CustomRolesMultiSelect } from "@/components/staff/CustomRolesMultiSelect";
+import { Tags } from "lucide-react";
 
 interface EmployeeDetailsDialogProps {
   employee: Employee | null;
@@ -90,6 +92,7 @@ export function EmployeeDetailsDialog({
         is_active: employee.is_active,
         start_date: employee.start_date,
         end_date: employee.end_date,
+        custom_roles: employee.custom_roles || [],
       });
       
       // Load app access from employee data or localStorage
@@ -510,15 +513,46 @@ export function EmployeeDetailsDialog({
                           <SelectItem value="super_admin">Super Admin</SelectItem>
                           <SelectItem value="admin">Admin</SelectItem>
                           <SelectItem value="employee">Employee</SelectItem>
-                          <SelectItem value="coach">Coach</SelectItem>
-                          <SelectItem value="closer">Closer</SelectItem>
-                          <SelectItem value="setter">Setter</SelectItem>
                         </SelectContent>
                       </Select>
                     ) : (
                       <p className="font-semibold text-foreground py-2 px-3 bg-muted/50 rounded-md capitalize">
                         {employee.role.replace("_", " ")}
                       </p>
+                    )}
+                  </div>
+
+                  {/* Custom Roles */}
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                      <Tags className="h-4 w-4" />
+                      Custom Roles (Tags)
+                    </Label>
+                    {isEditing ? (
+                      <CustomRolesMultiSelect
+                        value={formData.custom_roles || []}
+                        onChange={(value) => setFormData(prev => ({ ...prev, custom_roles: value }))}
+                      />
+                    ) : (
+                      <div className="py-2 px-3 bg-muted/50 rounded-md">
+                        {employee.custom_role_names && employee.custom_role_names.length > 0 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {employee.custom_role_names.map((name, index) => (
+                              <Badge
+                                key={index}
+                                style={{
+                                  backgroundColor: employee.custom_role_colors?.[index] || "#6B7280",
+                                  color: "white",
+                                }}
+                              >
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">No custom roles assigned</span>
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -622,6 +656,7 @@ export function EmployeeDetailsDialog({
                           is_active: employee.is_active,
                           start_date: employee.start_date,
                           end_date: employee.end_date,
+                          custom_roles: employee.custom_roles || [],
                         });
                       }}
                     >

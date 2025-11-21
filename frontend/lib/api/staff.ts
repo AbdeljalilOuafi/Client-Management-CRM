@@ -2,6 +2,24 @@ import { EmployeeWithPermissions, UserRole, PermissionString } from "@/lib/types
 
 const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 
+export interface EmployeeRole {
+  id: string;
+  name: string;
+  description?: string;
+  color: string;
+  is_active: boolean;
+  employee_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmployeeRolesResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: EmployeeRole[];
+}
+
 export interface Employee {
   id: number;
   name: string;
@@ -26,6 +44,10 @@ export interface Employee {
   gohighlevel_permissions?: string[];
   start_date?: string | null;
   end_date?: string | null;
+  custom_roles?: string[];
+  custom_role_names?: string[];
+  custom_role_colors?: string[];
+  display_role?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -223,6 +245,131 @@ export const changeEmployeePassword = async (id: number, oldPassword: string, ne
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+// ==================== EMPLOYEE ROLES API ====================
+
+// List all employee roles with optional filters
+export const listEmployeeRoles = async (params?: {
+  is_active?: boolean;
+  search?: string;
+  ordering?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<EmployeeRolesResponse> => {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.is_active !== undefined) {
+    queryParams.append("is_active", params.is_active.toString());
+  }
+  if (params?.search) {
+    queryParams.append("search", params.search);
+  }
+  if (params?.ordering) {
+    queryParams.append("ordering", params.ordering);
+  }
+  if (params?.page) {
+    queryParams.append("page", params.page.toString());
+  }
+  if (params?.page_size) {
+    queryParams.append("page_size", params.page_size.toString());
+  }
+
+  const url = `${API_BASE_URL}/employee-roles/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+  
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch employee roles: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Get a single employee role by ID
+export const getEmployeeRole = async (id: string): Promise<EmployeeRole> => {
+  const response = await fetch(`${API_BASE_URL}/employee-roles/${id}/`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch employee role: ${response.statusText}`);
+  }
+
+  return response.json();
+};
+
+// Create a new employee role
+export const createEmployeeRole = async (roleData: {
+  name: string;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}): Promise<EmployeeRole> => {
+  const response = await fetch(`${API_BASE_URL}/employee-roles/`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(roleData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+// Update an employee role (partial update)
+export const updateEmployeeRole = async (id: string, roleData: Partial<{
+  name: string;
+  description: string;
+  color: string;
+  is_active: boolean;
+}>): Promise<EmployeeRole> => {
+  const response = await fetch(`${API_BASE_URL}/employee-roles/${id}/`, {
+    method: "PATCH",
+    headers: getHeaders(),
+    body: JSON.stringify(roleData),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+
+  return response.json();
+};
+
+// Delete an employee role
+export const deleteEmployeeRole = async (id: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/employee-roles/${id}/`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(JSON.stringify(errorData));
+  }
+};
+
+// Get employees with a specific role
+export const getEmployeesWithRole = async (roleId: string): Promise<Employee[]> => {
+  const response = await fetch(`${API_BASE_URL}/employee-roles/${roleId}/employees/`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch employees with role: ${response.statusText}`);
   }
 
   return response.json();

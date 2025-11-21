@@ -12,30 +12,13 @@ import { saveAppAccess } from "@/lib/utils/appAccessStorage";
 import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
 import { GoHighLevelPermissionsModal } from "@/components/staff/GoHighLevelPermissionsModal";
 import { sendGHLPermissions, buildGHLPayload } from "@/lib/api/gohighlevel";
+import { CustomRolesMultiSelect } from "@/components/staff/CustomRolesMultiSelect";
 
 interface AddStaffFormProps {
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-// Custom roles storage key
-const CUSTOM_ROLES_KEY = "custom_staff_roles";
-
-// Get custom roles from localStorage
-const getCustomRoles = (): string[] => {
-  if (typeof window === "undefined") return [];
-  const stored = localStorage.getItem(CUSTOM_ROLES_KEY);
-  return stored ? JSON.parse(stored) : [];
-};
-
-// Save custom role to localStorage
-const saveCustomRole = (role: string) => {
-  const customRoles = getCustomRoles();
-  if (!customRoles.includes(role)) {
-    customRoles.push(role);
-    localStorage.setItem(CUSTOM_ROLES_KEY, JSON.stringify(customRoles));
-  }
-};
 
 export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const { toast } = useToast();
@@ -46,12 +29,11 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     email: "",
     phoneNumber: "",
     role: "",
-    customRole: "",
     password: "",
     startDate: new Date().toISOString().split('T')[0],
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [customRoles, setCustomRoles] = useState<string[]>([]);
+  const [customRoleIds, setCustomRoleIds] = useState<string[]>([]);
   
   // App Access state
   const [appAccess, setAppAccess] = useState({
@@ -63,10 +45,6 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const [showGhlModal, setShowGhlModal] = useState(false);
   const [tempGhlPermissions, setTempGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
 
-  // Load custom roles on mount
-  useEffect(() => {
-    setCustomRoles(getCustomRoles());
-  }, []);
 
   // Password validation helpers
   const passwordValidation = {
@@ -142,16 +120,6 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
       return;
     }
 
-    // Validate custom role if "other" is selected
-    if (formData.role === "other" && !formData.customRole.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a custom role",
-        variant: "destructive",
-      });
-      return;
-    }
-
     // Validate GoHighLevel permissions if checkbox is checked
     if (appAccess.gohighlevel && !ghlConfigured) {
       toast({
@@ -165,25 +133,18 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     setIsSubmitting(true);
 
     try {
-      // Determine the final role
-      let finalRole = formData.role;
-      if (formData.role === "other") {
-        finalRole = formData.customRole.trim();
-        // Save custom role for future use
-        saveCustomRole(finalRole);
-      }
-
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       
       // Prepare employee data with app access
       const employeeData: any = {
         name: fullName,
         email: formData.email,
-        role: finalRole === "admin" ? "admin" : "employee", // Backend only accepts admin/employee
-        job_role: finalRole, // Store actual role in job_role
+        role: formData.role, // System role (super_admin, admin, employee)
         phone_number: formData.phoneNumber || undefined,
         status: "active",
         is_active: true,
+        start_date: formData.startDate,
+        custom_roles: customRoleIds, // Array of custom role UUIDs
         app_access: {
           onsync: appAccess.onsync,
           gohighlevel: appAccess.gohighlevel,
@@ -290,33 +251,28 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
             type="tel"
             value={formData.phoneNumber}
             onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-            placeholder="+1 (555) 000-0000 (optional)"
+            placeholder="+1 (555) 123-4567"
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="role">Role *</Label>
+          <Label htmlFor="role">System Role *</Label>
           <Select
             required
             value={formData.role}
-            onValueChange={(value) => setFormData({ ...formData, role: value, customRole: "" })}
+            onValueChange={(value) => setFormData({ ...formData, role: value })}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select role" />
+              <SelectValue placeholder="Select system role" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="super_admin">Super Admin</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="employee">Manager</SelectItem>
-              <SelectItem value="coach">Coach</SelectItem>
-              <SelectItem value="closer">Closer</SelectItem>
-              <SelectItem value="setter">Setter</SelectItem>
-              {customRoles.map((customRole) => (
-                <SelectItem key={customRole} value={customRole}>
-                  {customRole}
-                </SelectItem>
-              ))}
-              <SelectItem value="other">Other (Custom Role)</SelectItem>
+              <SelectItem value="employee">Employee</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">
+            System role controls permissions. Use custom roles below for labeling.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="startDate">Start Date *</Label>
@@ -330,27 +286,17 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         </div>
       </div>
 
-      {/* Custom Role Input - Shows when "Other" is selected */}
-      {formData.role === "other" && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="space-y-2"
-        >
-          <Label htmlFor="customRole">Custom Role Name *</Label>
-          <Input
-            id="customRole"
-            required
-            value={formData.customRole}
-            onChange={(e) => setFormData({ ...formData, customRole: e.target.value })}
-            placeholder="Enter custom role (e.g., Sales Manager, Trainer)"
-          />
-          <p className="text-xs text-muted-foreground">
-            This role will be saved and available in the dropdown for future use
-          </p>
-        </motion.div>
-      )}
+      {/* Custom Roles Multi-Select */}
+      <div className="space-y-2">
+        <Label htmlFor="customRoles">Custom Roles (Tags)</Label>
+        <CustomRolesMultiSelect
+          value={customRoleIds}
+          onChange={setCustomRoleIds}
+        />
+        <p className="text-xs text-muted-foreground">
+          Optional: Add custom role tags for organization (e.g., Sales Manager, Team Lead)
+        </p>
+      </div>
 
       {/* App Access Section */}
       <div className="space-y-4 pt-4 border-t">

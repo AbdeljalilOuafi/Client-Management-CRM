@@ -12,15 +12,17 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { listEmployees, Employee } from "@/lib/api/staff";
-import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2, Smartphone, Zap } from "lucide-react";
+import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2, Smartphone, Zap, Tags } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { EmployeeDetailsDialog } from "@/components/staff/EmployeeDetailsDialog";
+import { ManageRolesDialog } from "@/components/staff/ManageRolesDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { mergeAppAccessWithEmployees } from "@/lib/utils/appAccessStorage";
+import { Badge } from "@/components/ui/badge";
 
 interface ColumnDefinition {
   id: string;
@@ -41,6 +43,7 @@ const StaffContent = () => {
   const [showEmployeeDialog, setShowEmployeeDialog] = useState(false);
   const [showAddStaff, setShowAddStaff] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [showManageRoles, setShowManageRoles] = useState(false);
   const [loading, setLoading] = useState(true);
   const [columnDefinitions, setColumnDefinitions] = useState<ColumnDefinition[]>([
     { id: "id", label: "Employee ID", visible: true },
@@ -186,10 +189,27 @@ const StaffContent = () => {
               <h1 className="text-4xl font-bold">Staff Management</h1>
               <p className="text-muted-foreground mt-2">Manage your team members and permissions</p>
             </div>
-            <Button onClick={() => setShowAddStaff(true)} className="gap-2 shadow-sm hover:shadow-md transition-all">
-              <Plus className="h-4 w-4" />
-              Add Staff Member
-            </Button>
+            <div className="flex gap-3">
+              {(user?.role === "super_admin" || user?.role === "admin") && (
+                <Button 
+                  onClick={() => setShowManageRoles(true)} 
+                  variant="outline" 
+                  size="lg"
+                  className="gap-2 shadow-sm hover:shadow-lg transition-all hover:border-primary hover:bg-primary/5"
+                >
+                  <Tags className="h-4 w-4" />
+                  Manage Roles
+                </Button>
+              )}
+              <Button 
+                onClick={() => setShowAddStaff(true)} 
+                size="lg"
+                className="gap-2 shadow-sm hover:shadow-lg transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Add Staff Member
+              </Button>
+            </div>
           </motion.div>
 
           {/* Filters */}
@@ -198,11 +218,14 @@ const StaffContent = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle>Filters & Search</CardTitle>
+            <Card className="shadow-md hover:shadow-lg transition-shadow border-2">
+              <CardHeader className="bg-gradient-to-r from-muted/50 to-muted/30">
+                <CardTitle className="flex items-center gap-2">
+                  <Settings2 className="h-5 w-5 text-primary" />
+                  Filters & Search
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="relative">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -329,7 +352,27 @@ const StaffContent = () => {
                                       {col.id === "email" && (employee.email || "-")}
                                       {col.id === "phone_number" && (employee.phone_number || "-")}
                                       {col.id === "role" && (
-                                        <span className="capitalize">{employee.role.replace("_", " ")}</span>
+                                        <div className="flex gap-1 flex-wrap">
+                                          {employee.role === "super_admin" ? (
+                                            <Badge variant="destructive">Super Admin</Badge>
+                                          ) : employee.role === "admin" ? (
+                                            <Badge className="bg-orange-500 hover:bg-orange-600">Admin</Badge>
+                                          ) : employee.custom_role_names && employee.custom_role_names.length > 0 ? (
+                                            employee.custom_role_names.map((name, index) => (
+                                              <Badge
+                                                key={index}
+                                                style={{
+                                                  backgroundColor: employee.custom_role_colors?.[index] || "#6B7280",
+                                                  color: "white",
+                                                }}
+                                              >
+                                                {name}
+                                              </Badge>
+                                            ))
+                                          ) : (
+                                            <Badge variant="secondary">Employee</Badge>
+                                          )}
+                                        </div>
                                       )}
                                       {col.id === "job_role" && (employee.job_role || "-")}
                                       {col.id === "start_date" && (
@@ -432,6 +475,13 @@ const StaffContent = () => {
         onOpenChange={setShowEmployeeDialog}
         onUpdate={fetchEmployees}
         currentUserRole={user?.role || ""}
+      />
+
+      {/* Manage Roles Dialog */}
+      <ManageRolesDialog
+        open={showManageRoles}
+        onOpenChange={setShowManageRoles}
+        onRolesUpdated={fetchEmployees}
       />
     </div>
   );
