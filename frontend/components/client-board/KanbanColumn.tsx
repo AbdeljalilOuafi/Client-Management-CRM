@@ -3,6 +3,7 @@ import { Droppable } from "@hello-pangea/dnd";
 import { Badge } from "@/components/ui/badge";
 import { ClientCard, Client } from "./ClientCard";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 interface KanbanColumnProps {
   id: string;
@@ -24,11 +25,30 @@ export const KanbanColumn = ({
   onMarkReviewed 
 }: KanbanColumnProps) => {
   return (
-    <div className={cn("flex-shrink-0 w-[174px]", isActionQueue && "bg-card/30 rounded-lg p-2")}>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className={cn(
+        "flex-shrink-0 w-[194px]",
+        isActionQueue && "bg-gradient-to-b from-card/50 to-card/30 rounded-xl p-3 border border-border/50 shadow-sm"
+      )}
+    >
       <div className="mb-3">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-semibold text-sm">{title}</h3>
-          <Badge variant="secondary" className="text-xs">
+          <h3 className={cn(
+            "font-semibold text-sm",
+            isActionQueue ? "text-primary" : "text-foreground"
+          )}>
+            {title}
+          </h3>
+          <Badge
+            variant={count > 0 ? "default" : "secondary"}
+            className={cn(
+              "text-xs font-bold min-w-[24px] justify-center",
+              count > 0 && isActionQueue && "bg-orange-500 hover:bg-orange-600"
+            )}
+          >
             {count}
           </Badge>
         </div>
@@ -40,15 +60,30 @@ export const KanbanColumn = ({
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={cn(
-              "min-h-[200px] space-y-3 rounded-lg p-2 transition-colors",
-              snapshot.isDraggingOver && !isActionQueue && "bg-primary/10",
-              isActionQueue && "bg-transparent"
+              "min-h-[300px] space-y-3 rounded-xl p-3 transition-all duration-200 flex flex-col items-center",
+              snapshot.isDraggingOver && !isActionQueue && "bg-primary/10 ring-2 ring-primary/30 scale-[1.02]",
+              isActionQueue && "bg-transparent",
+              !isActionQueue && "bg-muted/20"
             )}
           >
             {clients.length === 0 && (
-              <div className="text-center py-8 text-sm text-muted-foreground">
-                {isActionQueue ? "No pending items ✓" : "No clients"}
-              </div>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-12 text-sm text-muted-foreground"
+              >
+                {isActionQueue ? (
+                  <div className="space-y-2">
+                    <div className="text-2xl">✓</div>
+                    <div>No pending items</div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="text-2xl">📭</div>
+                    <div>No clients</div>
+                  </div>
+                )}
+              </motion.div>
             )}
             {clients.map((client, index) => (
               <ClientCard
@@ -64,6 +99,6 @@ export const KanbanColumn = ({
           </div>
         )}
       </Droppable>
-    </div>
+    </motion.div>
   );
 };

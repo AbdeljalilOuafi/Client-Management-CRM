@@ -3,7 +3,7 @@ import { Draggable } from "@hello-pangea/dnd";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Client {
@@ -52,49 +52,71 @@ export const ClientCard = ({ client, index, isActionQueue, onCardClick, onMarkRe
         >
           <Card
             className={cn(
-              "w-[150px] p-3 cursor-pointer hover:shadow-lg transition-all border-l-4",
+              "w-[170px] p-3 cursor-pointer transition-all duration-200 border-l-4 group relative overflow-hidden",
               getStatusColor(client.adherence),
-              hasPendingAction && !isActionQueue && "ring-2 ring-primary/50",
-              isActionQueue && "animate-pulse shadow-md"
+              hasPendingAction && !isActionQueue && "ring-2 ring-primary/50 shadow-lg",
+              isActionQueue && "animate-pulse shadow-md bg-gradient-to-br from-card to-primary/5",
+              snapshot.isDragging && "shadow-2xl ring-2 ring-primary rotate-2 scale-105",
+              !snapshot.isDragging && "hover:shadow-xl hover:-translate-y-1"
             )}
             onClick={() => onCardClick(client)}
           >
+            {/* Drag indicator */}
+            {!isActionQueue && (
+              <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <GripVertical className="h-4 w-4 text-muted-foreground" />
+              </div>
+            )}
+
             <div className="space-y-2">
               <div>
-                <p className="font-bold text-sm leading-tight">{client.name}</p>
-                <p className="text-xs text-muted-foreground">{client.packageName}</p>
+                <p className="font-bold text-sm leading-tight pr-6">{client.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{client.packageName}</p>
               </div>
 
               {!client.onboarding && (
                 <>
-                  <p className="text-xs text-muted-foreground">
-                    Last check-in: {client.lastCheckinDays}d ago
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <p className={cn("text-xs font-semibold", getAdherenceColor(client.adherence))}>
-                      Adh: {client.adherence}%
-                    </p>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                    <span>Last check-in: {client.lastCheckinDays}d ago</span>
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-muted-foreground">Adherence</span>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "text-xs font-bold px-2 py-0.5",
+                        getAdherenceColor(client.adherence)
+                      )}
+                    >
+                      {client.adherence}%
+                    </Badge>
                   </div>
                 </>
               )}
 
               {client.onboarding && (
-                <p className="text-xs text-muted-foreground">
-                  Sent {client.onboardingSentDays}d ago
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-xs">
+                    Onboarding
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {client.onboardingSentDays}d ago
+                  </span>
+                </div>
               )}
 
               {/* Badges for pending actions */}
               {(client.pendingCheckin || client.pendingReview) && (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1 pt-1">
                   {client.pendingCheckin && (
-                    <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                      Check-in
+                    <Badge className="text-[10px] px-2 py-1 bg-orange-500 hover:bg-orange-600">
+                      ⚡ Check-in
                     </Badge>
                   )}
                   {client.pendingReview && (
-                    <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                      Review
+                    <Badge className="text-[10px] px-2 py-1 bg-blue-500 hover:bg-blue-600">
+                      📋 Review
                     </Badge>
                   )}
                 </div>
@@ -102,9 +124,9 @@ export const ClientCard = ({ client, index, isActionQueue, onCardClick, onMarkRe
 
               {/* Show home month indicator in action queue */}
               {isActionQueue && !client.onboarding && (
-                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 rounded px-2 py-1">
                   <ArrowRight className="h-3 w-3" />
-                  <span>Month {client.monthColumn === 13 ? "12+" : client.monthColumn}</span>
+                  <span className="font-medium">Month {client.monthColumn === 13 ? "12+" : client.monthColumn}</span>
                 </div>
               )}
 
@@ -112,8 +134,7 @@ export const ClientCard = ({ client, index, isActionQueue, onCardClick, onMarkRe
               {isActionQueue && onMarkReviewed && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="w-full h-7 text-xs"
+                  className="w-full h-7 text-xs bg-green-600 hover:bg-green-700 text-white shadow-sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     onMarkReviewed(client.id);
