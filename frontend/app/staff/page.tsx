@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { listEmployees, Employee } from "@/lib/api/staff";
+import { listEmployees, getEmployeeStatistics, Employee, EmployeeStatistics } from "@/lib/api/staff";
 import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2, Smartphone, Zap, Tags } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
@@ -45,6 +45,8 @@ const StaffContent = () => {
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [showManageRoles, setShowManageRoles] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [statistics, setStatistics] = useState<EmployeeStatistics | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [columnDefinitions, setColumnDefinitions] = useState<ColumnDefinition[]>([
     { id: "id", label: "Employee ID", visible: true },
     { id: "name", label: "Full Name", visible: true },
@@ -62,6 +64,7 @@ const StaffContent = () => {
 
   useEffect(() => {
     fetchEmployees();
+    fetchStatistics();
   }, []);
 
   const fetchEmployees = async () => {
@@ -112,6 +115,19 @@ const StaffContent = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStatistics = async () => {
+    try {
+      setStatsLoading(true);
+      const stats = await getEmployeeStatistics();
+      setStatistics(stats);
+    } catch (error) {
+      console.error("Error fetching employee statistics:", error);
+      // Don't show error toast for statistics, it's not critical
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -263,6 +279,33 @@ const StaffContent = () => {
                     <Settings2 className="h-4 w-4 mr-2" />
                     Columns
                   </Button>
+                </div>
+
+                {/* Employee Statistics Summary */}
+                <div className="flex gap-4 items-center text-sm border-t pt-4 mt-4">
+                  {statsLoading ? (
+                    <div className="flex gap-4">
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-5 w-32" />
+                      <Skeleton className="h-5 w-32" />
+                    </div>
+                  ) : statistics ? (
+                    <>
+                      <span className="font-semibold text-foreground">
+                        Total: <span className="text-primary">{statistics.total_employees || 0}</span>
+                      </span>
+                      <span className="text-muted-foreground">|</span>
+                      <span className="font-medium">
+                        Active: <span className="text-green-600">{statistics.active_employees || 0}</span>
+                      </span>
+                      <span className="text-muted-foreground">|</span>
+                      <span className="font-medium">
+                        Inactive: <span className="text-gray-600">{statistics.inactive_employees || 0}</span>
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">No statistics available</span>
+                  )}
                 </div>
               </CardContent>
             </Card>

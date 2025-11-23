@@ -62,6 +62,12 @@ export interface EmployeesResponse {
   results: Employee[];
 }
 
+export interface EmployeeStatistics {
+  total_employees: number;
+  active_employees: number;
+  inactive_employees: number;
+}
+
 // Get auth token from localStorage
 const getAuthToken = (): string | null => {
   if (typeof window !== "undefined") {
@@ -132,6 +138,20 @@ export const listEmployees = async (params?: {
   }
   
   return data;
+};
+
+// Get employee statistics
+export const getEmployeeStatistics = async (): Promise<EmployeeStatistics> => {
+  const response = await fetch(`${API_BASE_URL}/employees/statistics/`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch employee statistics: ${response.statusText}`);
+  }
+
+  return response.json();
 };
 
 // Get a single employee by ID
