@@ -1,47 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
   DialogDescription,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { PlayCircle, SkipForward, CheckCircle2, Sparkles, Video } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Video, CheckCircle2, Sparkles, PlayCircle } from "lucide-react";
 
 interface TutorialVideoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onContinue: (dontShowAgain: boolean) => void;
-  videoSrc: string;
-  title?: string;
+  title: string;
+  youtubeVideoId: string; // e.g., "dQw4w9WgXcQ" from https://youtube.com/watch?v=dQw4w9WgXcQ
   storageKey: string;
+  onContinue: () => void;
 }
 
 export function TutorialVideoDialog({
   open,
   onOpenChange,
-  onContinue,
-  videoSrc,
-  title = "CSV Import Tutorial",
+  title,
+  youtubeVideoId,
   storageKey,
+  onContinue,
 }: TutorialVideoDialogProps) {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
 
-  const handleContinue = () => {
-    onContinue(dontShowAgain);
-  };
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setDontShowAgain(false);
+      setIsVideoLoaded(false);
+    }
+  }, [open]);
 
   const handleSkip = () => {
-    onContinue(dontShowAgain);
+    if (dontShowAgain && typeof window !== "undefined") {
+      localStorage.setItem(storageKey, "true");
+    }
+    onOpenChange(false);
+  };
+
+  const handleContinue = () => {
+    if (dontShowAgain && typeof window !== "undefined") {
+      localStorage.setItem(storageKey, "true");
+    }
+    onOpenChange(false);
+    onContinue();
   };
 
   const handleClose = (open: boolean) => {
@@ -88,11 +101,11 @@ export function TutorialVideoDialog({
             transition={{ delay: 0.1 }}
             className="relative"
           >
-            {/* Video Container with Enhanced Styling */}
+            {/* YouTube Embed Container */}
             <div className="relative w-full aspect-video bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl overflow-hidden shadow-2xl border-2 border-gray-700/50 ring-4 ring-primary/10">
               {/* Loading State */}
               {!isVideoLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 z-10">
                   <div className="text-center space-y-4">
                     <div className="relative">
                       <PlayCircle className="h-16 w-16 text-primary/50 animate-pulse" />
@@ -105,18 +118,16 @@ export function TutorialVideoDialog({
                 </div>
               )}
               
-              {/* Video Player */}
-              <video
-                controls
+              {/* YouTube iFrame */}
+              <iframe
                 className="w-full h-full"
-                preload="none"
-                controlsList="nodownload"
-                onLoadedData={() => setIsVideoLoaded(true)}
-                onCanPlay={() => setIsVideoLoaded(true)}
-              >
-                <source src={videoSrc} type="video/mp4" />
-                Your browser doesn&apos;t support video playback.
-              </video>
+                src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}?rel=0&modestbranding=1&playsinline=1&iv_load_policy=3&color=white&autohide=1`}
+                title={title}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                onLoad={() => setIsVideoLoaded(true)}
+              />
             </div>
 
             {/* Video Info Badge */}
@@ -164,26 +175,23 @@ export function TutorialVideoDialog({
           </motion.div>
         </div>
 
-        {/* Footer with Enhanced Buttons */}
-        <DialogFooter className="px-6 pb-6 pt-2 gap-3 sm:gap-3">
+        {/* Footer with Action Buttons */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 bg-muted/30 border-t">
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={handleSkip}
-            className="gap-2 hover:bg-muted"
-            size="lg"
+            className="gap-2"
           >
-            <SkipForward className="h-4 w-4" />
             Skip Tutorial
           </Button>
           <Button
             onClick={handleContinue}
-            className="gap-2 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all"
-            size="lg"
+            className="gap-2 bg-primary hover:bg-primary/90"
           >
             <CheckCircle2 className="h-4 w-4" />
             Continue to Import
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -27,7 +27,7 @@ import {
   ImportResult 
 } from "@/lib/api/importExport";
 import { usePermissions } from "@/hooks/usePermissions";
-import { TutorialVideoDialog } from "@/components/TutorialVideoDialog";
+import { TutorialVideoDialog } from "@/components/TutorialVideoDialog_YouTube";
 
 interface ImportExportButtonsProps {
   entityType: "clients" | "payments";
@@ -52,10 +52,10 @@ export function ImportExportButtons({
     return entityType === "clients" ? "hideClientImportTutorial" : "hidePaymentImportTutorial";
   };
 
-  const getVideoSrc = () => {
+  const getYouTubeVideoId = () => {
     return entityType === "clients" 
-      ? "/videos/client_import_tutorial.mp4" 
-      : "/videos/payment_import_tutorial.mp4";
+      ? "vcJ-mQcjQZk" 
+      : "YPwKR7g7-Js";
   };
 
   const handleImportClick = () => {
@@ -73,12 +73,7 @@ export function ImportExportButtons({
     }
   };
 
-  const handleTutorialContinue = (dontShowAgain: boolean) => {
-    // Save preference if checkbox is checked
-    if (dontShowAgain && typeof window !== "undefined") {
-      localStorage.setItem(getStorageKey(), "true");
-    }
-    
+  const handleTutorialContinue = () => {
     // Close tutorial, open import dialog
     setTutorialDialogOpen(false);
     setImportDialogOpen(true);
@@ -416,7 +411,7 @@ export function ImportExportButtons({
         open={tutorialDialogOpen}
         onOpenChange={setTutorialDialogOpen}
         onContinue={handleTutorialContinue}
-        videoSrc={getVideoSrc()}
+        youtubeVideoId={getYouTubeVideoId()}
         title={`How to Format Your ${entityType === "clients" ? "Client" : "Payment"} CSV`}
         storageKey={getStorageKey()}
       />
