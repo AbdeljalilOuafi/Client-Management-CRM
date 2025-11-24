@@ -7,12 +7,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployee } from "@/lib/api/staff";
 import { motion } from "framer-motion";
-import { Loader2, Eye, EyeOff, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { saveAppAccess } from "@/lib/utils/appAccessStorage";
 import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
 import { GoHighLevelPermissionsModal } from "@/components/staff/GoHighLevelPermissionsModal";
 import { sendGHLPermissions, buildGHLPayload } from "@/lib/api/gohighlevel";
 import { CustomRolesMultiSelect } from "@/components/staff/CustomRolesMultiSelect";
+import { OnSyncPermissionsDialog, OnSyncPermissions } from "@/components/staff/OnSyncPermissionsDialog";
 
 interface AddStaffFormProps {
   onSuccess: () => void;
@@ -29,10 +30,8 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     email: "",
     phoneNumber: "",
     role: "",
-    password: "",
     startDate: new Date().toISOString().split('T')[0],
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [customRoleIds, setCustomRoleIds] = useState<string[]>([]);
   
   // App Access state
@@ -44,17 +43,43 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const [ghlConfigured, setGhlConfigured] = useState(false);
   const [showGhlModal, setShowGhlModal] = useState(false);
   const [tempGhlPermissions, setTempGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
+  
+  // OnSync Permissions state
+  const [onSyncPermissions, setOnSyncPermissions] = useState<OnSyncPermissions | null>(null);
+  const [onSyncConfigured, setOnSyncConfigured] = useState(false);
+  const [showOnSyncModal, setShowOnSyncModal] = useState(false);
 
 
-  // Password validation helpers
-  const passwordValidation = {
-    minLength: formData.password.length >= 8,
-    hasUpperCase: /[A-Z]/.test(formData.password),
-    hasLowerCase: /[a-z]/.test(formData.password),
-    hasNumber: /[0-9]/.test(formData.password),
+  // Handle OnSync checkbox change
+  const handleOnSyncCheckboxChange = (checked: boolean) => {
+    if (checked) {
+      // Open modal to configure permissions
+      setShowOnSyncModal(true);
+    } else {
+      // Uncheck and clear permissions
+      setAppAccess({ ...appAccess, onsync: false });
+      setOnSyncPermissions(null);
+      setOnSyncConfigured(false);
+    }
   };
 
-  const isPasswordValid = Object.values(passwordValidation).every(Boolean);
+  // Handle OnSync modal save
+  const handleOnSyncModalSave = (permissions: OnSyncPermissions) => {
+    setOnSyncPermissions(permissions);
+    setAppAccess({ ...appAccess, onsync: true });
+    setOnSyncConfigured(true);
+    setShowOnSyncModal(false);
+  };
+
+  // Handle OnSync modal cancel
+  const handleOnSyncModalCancel = () => {
+    setShowOnSyncModal(false);
+    // Only clear permissions if they weren't configured yet
+    if (!onSyncConfigured) {
+      setAppAccess({ ...appAccess, onsync: false });
+      setOnSyncPermissions(null);
+    }
+  };
 
   // Handle GoHighLevel checkbox change
   const handleGhlCheckboxChange = (checked: boolean) => {
@@ -93,10 +118,15 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   // Handle modal cancel
   const handleGhlModalCancel = () => {
     setShowGhlModal(false);
-    setAppAccess({ ...appAccess, gohighlevel: false });
-    setGhlPermissions(getInitialPermissionsState());
-    setGhlConfigured(false);
-    setTempGhlPermissions(getInitialPermissionsState());
+    // Only clear permissions if they weren't configured yet
+    if (!ghlConfigured) {
+      setAppAccess({ ...appAccess, gohighlevel: false });
+      setGhlPermissions(getInitialPermissionsState());
+      setTempGhlPermissions(getInitialPermissionsState());
+    } else {
+      // Reset temp permissions to the saved ones
+      setTempGhlPermissions({ ...ghlPermissions });
+    }
   };
 
   // Toggle permission in temp state
@@ -110,11 +140,11 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate password strength only if OnSync access is enabled
-    if (appAccess.onsync && !isPasswordValid) {
+    // Validate OnSync permissions if checkbox is checked
+    if (appAccess.onsync && !onSyncConfigured) {
       toast({
-        title: "Invalid Password",
-        description: "Please meet all password requirements",
+        title: "Error",
+        description: "Please configure OnSync permissions",
         variant: "destructive",
       });
       return;
@@ -135,7 +165,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       
-      // Prepare employee data with app access
+      // Prepare employee data with app access and permissions
       const employeeData: any = {
         name: fullName,
         email: formData.email,
@@ -149,12 +179,13 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
           onsync: appAccess.onsync,
           gohighlevel: appAccess.gohighlevel,
         },
+        ...(appAccess.onsync && onSyncPermissions && { onsync_permissions: onSyncPermissions }),
         ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
       };
 
       // Only include password if OnSync access is enabled
-      if (appAccess.onsync) {
-        employeeData.password = formData.password;
+      if (appAccess.onsync && onSyncPermissions) {
+        employeeData.password = onSyncPermissions.password;
       }
 
       // Log the data for now (webhook will be added later)
@@ -177,6 +208,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
             onsync: appAccess.onsync,
             gohighlevel: appAccess.gohighlevel,
           },
+          ...(appAccess.onsync && onSyncPermissions && { onsync_permissions: onSyncPermissions }),
           ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
         }));
         console.log("[AddStaffForm] Saved temp app access with email:", employeeData.email);
@@ -304,101 +336,31 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
           <h3 className="text-sm font-medium mb-3">App Access</h3>
           <div className="space-y-4">
             {/* OnSync Checkbox */}
-            <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="onsync"
-                  checked={appAccess.onsync}
-                  onCheckedChange={(checked) => 
-                    setAppAccess({ ...appAccess, onsync: checked as boolean })
-                  }
-                />
-                <Label htmlFor="onsync" className="text-sm font-normal cursor-pointer">
-                  Do they need access to OnSync app?
-                </Label>
-              </div>
-
-              {/* Password Field - Shows under OnSync checkbox when checked */}
-              {appAccess.onsync && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="ml-6 space-y-3 pl-4 border-l-2 border-primary/20"
-                >
-                  <Label htmlFor="password">Password *</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      required
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="Create a strong password"
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  
-                  {/* Password Requirements */}
-                  <div className="space-y-2 p-3 bg-muted/50 rounded-md">
-                    <p className="text-xs font-medium text-muted-foreground">Password must contain:</p>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs">
-                        {passwordValidation.minLength ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                        )}
-                        <span className={passwordValidation.minLength ? "text-green-600" : "text-muted-foreground"}>
-                          At least 8 characters
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        {passwordValidation.hasUpperCase ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                        )}
-                        <span className={passwordValidation.hasUpperCase ? "text-green-600" : "text-muted-foreground"}>
-                          One uppercase letter (A-Z)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        {passwordValidation.hasLowerCase ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                        )}
-                        <span className={passwordValidation.hasLowerCase ? "text-green-600" : "text-muted-foreground"}>
-                          One lowercase letter (a-z)
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs">
-                        {passwordValidation.hasNumber ? (
-                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                        )}
-                        <span className={passwordValidation.hasNumber ? "text-green-600" : "text-muted-foreground"}>
-                          One number (0-9)
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="onsync"
+                checked={appAccess.onsync}
+                onCheckedChange={handleOnSyncCheckboxChange}
+              />
+              <Label htmlFor="onsync" className="text-sm font-normal cursor-pointer">
+                Do they need access to OnSync app?
+              </Label>
+              {onSyncConfigured && (
+                <>
+                  <span className="flex items-center gap-1 text-xs text-green-600 ml-2">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Configured
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowOnSyncModal(true)}
+                    className="h-7 text-xs ml-2"
+                  >
+                    Edit
+                  </Button>
+                </>
               )}
             </div>
 
@@ -413,15 +375,38 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
                 Do they need access to GoHighLevel app?
               </Label>
               {ghlConfigured && (
-                <span className="flex items-center gap-1 text-xs text-green-600 ml-2">
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Configured
-                </span>
+                <>
+                  <span className="flex items-center gap-1 text-xs text-green-600 ml-2">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Configured
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTempGhlPermissions({ ...ghlPermissions });
+                      setShowGhlModal(true);
+                    }}
+                    className="h-7 text-xs ml-2"
+                  >
+                    Edit
+                  </Button>
+                </>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* OnSync Permissions Dialog */}
+      <OnSyncPermissionsDialog
+        open={showOnSyncModal}
+        onOpenChange={setShowOnSyncModal}
+        onSave={handleOnSyncModalSave}
+        onCancel={handleOnSyncModalCancel}
+        initialPermissions={onSyncPermissions}
+      />
 
       {/* GoHighLevel Permissions Modal */}
       <GoHighLevelPermissionsModal

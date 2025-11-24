@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,7 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Check, ChevronsUpDown } from "lucide-react";
-import { listEmployees } from "@/lib/api/staff";
+import { listEmployees, Employee } from "@/lib/api/staff";
+import { usePermissions } from "@/hooks/usePermissions";
 import { createClient } from "@/lib/api/clients";
 import { cn } from "@/lib/utils";
 import { COUNTRY_CODES, getPopularCountries, getAllCountries, type Country } from "@/lib/country-codes";
@@ -95,6 +96,9 @@ const clientFormSchema = z.object({
   
   // Notes
   notes: z.string().optional(),
+  
+  // Closer
+  closerId: z.string().min(1, "Closer is required"),
 });
 
 type ClientFormData = z.infer<typeof clientFormSchema>;
@@ -113,6 +117,7 @@ interface AddClientFormProps {
 
 export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   const { toast } = useToast();
+  const { user } = usePermissions();
   const [countryCodeOpen, setCountryCodeOpen] = useState(false);
 
   // React Hook Form setup
@@ -142,6 +147,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       checkInDay: "Monday",
       numInstalments: 1,
       instalments: [],
+      closerId: "",
     },
   });
 
@@ -187,6 +193,70 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   });
   
   const coaches = coachesData || [];
+
+  // Fetch closers using React Query
+  const { data: closersData, isLoading: closersLoading } = useQuery({
+    queryKey: ["closers"],
+    queryFn: async () => {
+      const response = await listEmployees({ role: "closer", status: "active" });
+      return response.results;
+    },
+  });
+
+  // Fetch all active employees to find CEO and ensure logged-in user is included
+  const { data: allEmployeesData } = useQuery({
+    queryKey: ["allActiveEmployees"],
+    queryFn: async () => {
+      const response = await listEmployees({ status: "active" });
+      return response.results;
+    },
+  });
+
+  // Build the closers list with logic:
+  // 1. Include all closers
+  // 2. Always include logged-in user even if not a closer
+  const closers = React.useMemo(() => {
+    const closersList: Employee[] = closersData || [];
+    const allEmployees = allEmployeesData || [];
+    
+    // Add logged-in user if not already in the list
+    if (user && !closersList.find(c => c.id === user.id)) {
+      const loggedInEmployee = allEmployees.find(e => e.id === user.id);
+      if (loggedInEmployee) {
+        closersList.push(loggedInEmployee);
+      }
+    }
+    
+    return closersList;
+  }, [closersData, allEmployeesData, user]);
+
+  // Determine default closer
+  const defaultCloserId = React.useMemo(() => {
+    if (!user || closers.length === 0) return undefined;
+    
+    // If logged-in user is a closer, default to them
+    const userIsCloser = closers.find(c => c.id === user.id && c.role === "closer");
+    if (userIsCloser) {
+      return user.id.toString();
+    }
+    
+    // Otherwise, find super_admin (CEO equivalent)
+    const allEmployees = allEmployeesData || [];
+    const superAdmin = allEmployees.find(e => e.role === "super_admin");
+    if (superAdmin) {
+      return superAdmin.id.toString();
+    }
+    
+    // Fallback to first closer
+    return closers[0]?.id.toString();
+  }, [user, closers, allEmployeesData]);
+
+  // Set default closer when data is loaded
+  React.useEffect(() => {
+    if (defaultCloserId && !watch("closerId")) {
+      setValue("closerId", defaultCloserId);
+    }
+  }, [defaultCloserId, setValue, watch]);
 
   // Update instalments array when number changes
   useEffect(() => {
@@ -264,6 +334,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         isFreeTrial: Boolean(data.isFreeTrial),
         sendPaymentLinkToClient: Boolean(data.sendPaymentLinkToClient),
         generateContract: Boolean(data.generateContract),
+        // Include closer ID
+        closerId: data.closerId,
       };
 
       console.log("[AddClientForm] Creating client with payload:", {
@@ -983,6 +1055,38 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
           />
           {errors.checkInDay && (
             <p className="text-xs text-destructive">{errors.checkInDay.message}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="closerId">Closer *</Label>
+          <Controller
+            name="closerId"
+            control={control}
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange} disabled={closersLoading}>
+                <SelectTrigger>
+                  <SelectValue placeholder={closersLoading ? "Loading closers..." : "Select closer"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {closers.length === 0 && !closersLoading ? (
+                    <SelectItem value="no-closers" disabled>No closers available</SelectItem>
+                  ) : (
+                    closers.map((closer) => (
+                      <SelectItem key={closer.id} value={closer.id.toString()}>
+                        {closer.name}
+                        {closer.id === user?.id && closer.role !== "closer" && (
+                          <span className="text-xs text-muted-foreground ml-2">(You)</span>
+                        )}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors.closerId && (
+            <p className="text-xs text-destructive">{errors.closerId.message}</p>
           )}
         </div>
       </div>

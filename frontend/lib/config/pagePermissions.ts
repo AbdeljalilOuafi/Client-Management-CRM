@@ -83,6 +83,23 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     // All authenticated users can view the board
   },
 
+  // ==================== FINANCE (Parent Menu) ====================
+  {
+    id: "finance",
+    name: "Finance",
+    path: "/finance", // Not a real page, just a parent menu
+    icon: "Wallet",
+    description: "Financial management and tracking",
+    showInNav: true,
+    navOrder: 4,
+    // Finance permission check - will be used to show/hide entire dropdown
+    customViewCheck: (user, permissions) => {
+      // For now, allow all authenticated users to see Finance
+      // Later, you can add: return permissions?.can_view_finance === true;
+      return true;
+    },
+  },
+
   // ==================== PAYMENTS ====================
   {
     id: "payments",
@@ -91,10 +108,15 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     icon: "CreditCard",
     description: "Track and manage payments",
     showInNav: true,
-    navOrder: 4,
+    navOrder: 4.1,
+    parentId: "finance", // Nested under Finance
     // All users can view payments page
     // Edit requires manage permission
     editPermissions: ["can_manage_all_payments"],
+    customViewCheck: (user, permissions) => {
+      // Same permission as parent Finance menu
+      return true; // Later: return permissions?.can_view_finance === true;
+    },
   },
 
   // ==================== INSTALLMENTS ====================
@@ -105,10 +127,15 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     icon: "DollarSign",
     description: "Manage payment installments",
     showInNav: true,
-    navOrder: 5,
+    navOrder: 4.2,
+    parentId: "finance", // Nested under Finance
     // All users can view instalments page
     // Edit requires manage permission
     editPermissions: ["can_manage_all_installments"],
+    customViewCheck: (user, permissions) => {
+      // Same permission as parent Finance menu
+      return true; // Later: return permissions?.can_view_finance === true;
+    },
   },
 
   // ==================== STAFF MANAGEMENT ====================

@@ -12,6 +12,7 @@ import {
   Dumbbell,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -28,6 +29,7 @@ export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const [isExpanded, setIsExpanded] = useState(false); // Collapsed by default (icons only)
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({}); // Track which parent menus are expanded
   const { getNavigationPages, isLoading, user } = usePermissions();
   
   // Get navigation pages dynamically based on permissions
@@ -47,17 +49,36 @@ export function Sidebar() {
     return IconComponent || LucideIcons.Circle; // Fallback to Circle if icon not found
   };
 
-  // Convert page permissions to nav items
-  const navItems = navPages.map(page => ({
-    label: page.name,
-    icon: getIconComponent(page.icon),
-    path: page.path,
-  }));
+  // Separate parent pages from child pages
+  const parentPages = navPages.filter(page => !page.parentId);
+  const childPages = navPages.filter(page => page.parentId);
+
+  // Group children by parent
+  const childrenByParent = childPages.reduce((acc, page) => {
+    if (!acc[page.parentId!]) {
+      acc[page.parentId!] = [];
+    }
+    acc[page.parentId!].push(page);
+    return acc;
+  }, {} as Record<string, typeof navPages>);
 
   const isActive = (path: string) => pathname === path;
 
+  // Check if any child of a parent is active
+  const isParentActive = (parentId: string) => {
+    const children = childrenByParent[parentId] || [];
+    return children.some(child => isActive(child.path));
+  };
+
   const toggleSidebar = () => {
     setIsExpanded(!isExpanded);
+  };
+
+  const toggleMenu = (menuId: string) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuId]: !prev[menuId]
+    }));
   };
 
   return (
@@ -116,50 +137,105 @@ export function Sidebar() {
         {/* Navigation Items */}
         <nav className="flex-1 py-4 overflow-y-auto scrollbar-hide">
           <div className="space-y-1 px-2">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isActive(item.path);
+            {parentPages.map((page) => {
+              const Icon = getIconComponent(page.icon);
+              const hasChildren = childrenByParent[page.id]?.length > 0;
+              const active = isActive(page.path);
+              const childActive = isParentActive(page.id);
+              const isMenuExpanded = expandedMenus[page.id];
 
+              // Parent menu item (with or without children)
               const navButton = (
                 <Button
                   variant="ghost"
                   className={cn(
                     "w-full justify-start gap-3 transition-all duration-200",
-                    active
+                    (active || childActive)
                       ? "bg-accent text-accent-foreground font-medium"
                       : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                     !isExpanded && "justify-center px-2"
                   )}
-                  onClick={() => router.push(item.path)}
-                  aria-label={item.label}
+                  onClick={() => {
+                    if (hasChildren) {
+                      toggleMenu(page.id);
+                      // Auto-expand sidebar if clicking parent menu while collapsed
+                      if (!isExpanded) {
+                        setIsExpanded(true);
+                      }
+                    } else {
+                      router.push(page.path);
+                    }
+                  }}
+                  aria-label={page.name}
                 >
                   <Icon className="h-5 w-5 flex-shrink-0" />
                   <span
                     className={cn(
-                      "transition-opacity duration-200 whitespace-nowrap",
+                      "flex-1 text-left transition-opacity duration-200 whitespace-nowrap",
                       isExpanded ? "opacity-100" : "opacity-0 w-0"
                     )}
                   >
-                    {item.label}
+                    {page.name}
                   </span>
-                  {active && !isExpanded && (
+                  {hasChildren && isExpanded && (
+                    <ChevronDown
+                      className={cn(
+                        "h-4 w-4 transition-transform duration-200",
+                        isMenuExpanded && "rotate-180"
+                      )}
+                    />
+                  )}
+                  {(active || childActive) && !isExpanded && (
                     <div className="absolute left-0 w-1 h-8 bg-primary rounded-r" />
                   )}
                 </Button>
               );
 
-              if (!isExpanded) {
-                return (
-                  <Tooltip key={item.path} delayDuration={0}>
-                    <TooltipTrigger asChild>{navButton}</TooltipTrigger>
-                    <TooltipContent side="right" className="ml-2">
-                      {item.label}
-                    </TooltipContent>
-                  </Tooltip>
-                );
-              }
+              const parentItem = !isExpanded ? (
+                <Tooltip key={page.id} delayDuration={0}>
+                  <TooltipTrigger asChild>{navButton}</TooltipTrigger>
+                  <TooltipContent side="right" className="ml-2">
+                    {page.name}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <div key={page.id}>{navButton}</div>
+              );
 
-              return <div key={item.path}>{navButton}</div>;
+              // Render children if parent is expanded
+              const childItems = hasChildren && isExpanded && isMenuExpanded ? (
+                <div className="ml-4 space-y-1 mt-1">
+                  {childrenByParent[page.id].map((child) => {
+                    const ChildIcon = getIconComponent(child.icon);
+                    const childIsActive = isActive(child.path);
+
+                    return (
+                      <Button
+                        key={child.id}
+                        variant="ghost"
+                        className={cn(
+                          "w-full justify-start gap-3 transition-all duration-200 text-sm",
+                          childIsActive
+                            ? "bg-accent text-accent-foreground font-medium"
+                            : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                        )}
+                        onClick={() => router.push(child.path)}
+                        aria-label={child.name}
+                      >
+                        <ChildIcon className="h-4 w-4 flex-shrink-0" />
+                        <span className="whitespace-nowrap">{child.name}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              ) : null;
+
+              return (
+                <div key={page.id}>
+                  {parentItem}
+                  {childItems}
+                </div>
+              );
             })}
           </div>
         </nav>

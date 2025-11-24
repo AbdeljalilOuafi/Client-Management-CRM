@@ -8,6 +8,7 @@ import { ChevronRight, Search, Loader2, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { listPayments, getPaymentStatistics, Payment, PaymentStatistics } from "@/lib/api/payments";
 import { AuthGuard } from "@/components/AuthGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -290,9 +291,11 @@ const PaymentsContent = () => {
 const Payments = () => {
   return (
     <AuthGuard>
-      <AppLayout>
-        <PaymentsContent />
-      </AppLayout>
+      <PermissionGuard pageId="payments" fallbackPath="/dashboard">
+        <AppLayout>
+          <PaymentsContent />
+        </AppLayout>
+      </PermissionGuard>
     </AuthGuard>
   );
 };

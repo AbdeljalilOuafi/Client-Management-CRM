@@ -18,6 +18,7 @@ import { getToastErrorMessage } from "@/lib/utils/errorHandler";
 import { toast } from "sonner";
 import { listInstalments, Instalment as ApiInstalment } from "@/lib/api/instalments";
 import { AuthGuard } from "@/components/AuthGuard";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -831,9 +832,11 @@ const InstalmentsContent = () => {
 const Instalments = () => {
   return (
     <AuthGuard>
-      <AppLayout>
-        <InstalmentsContent />
-      </AppLayout>
+      <PermissionGuard pageId="instalments" fallbackPath="/dashboard">
+        <AppLayout>
+          <InstalmentsContent />
+        </AppLayout>
+      </PermissionGuard>
     </AuthGuard>
   );
 };
