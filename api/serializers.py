@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import (
     Account, Employee, EmployeeRole, EmployeeRoleAssignment, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer, StripeApiKey
+    Payment, Installment, StripeCustomer, StripeApiKey, CheckInForm, CheckInSchedule, CheckInSubmission
 )
 
 
@@ -218,9 +218,9 @@ class ClientSerializer(serializers.ModelSerializer):
             'trz_id', 'client_start_date', 'client_end_date', 'dob', 'country',
             'state', 'currency', 'gender', 'lead_origin', 'notice_given',
             'no_more_payments', 'timezone', 'coach', 'coach_name', 'closer',
-            'closer_name', 'setter', 'setter_name'
+            'closer_name', 'setter', 'setter_name', 'checkin_link'
         ]
-        read_only_fields = ['id', 'account_name', 'coach_name', 'closer_name', 'setter_name']
+        read_only_fields = ['id', 'account_name', 'coach_name', 'closer_name', 'setter_name', 'checkin_link']
         extra_kwargs = {
             'account': {'required': False}
         }
@@ -375,3 +375,174 @@ class ChangePasswordSerializer(serializers.Serializer):
         instance.set_password(validated_data['new_password'])
         instance.save()
         return instance
+
+
+# Check-In Forms Serializers
+
+class CheckInScheduleSerializer(serializers.ModelSerializer):
+    """Serializer for check-in schedules"""
+    
+    class Meta:
+        model = CheckInSchedule
+        fields = [
+            'id', 'form', 'account', 'schedule_type', 'day_of_week',
+            'time', 'timezone', 'webhook_job_ids', 'is_active',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'form', 'account', 'webhook_job_ids', 'created_at', 'updated_at']
+    
+    def validate(self, data):
+        """Validate schedule configuration"""
+        schedule_type = data.get('schedule_type')
+        day_of_week = data.get('day_of_week')
+        
+        if schedule_type == 'SAME_DAY' and not day_of_week:
+            raise serializers.ValidationError({
+                'day_of_week': 'This field is required for SAME_DAY schedule type.'
+            })
+        
+        if schedule_type == 'INDIVIDUAL_DAYS' and day_of_week:
+            raise serializers.ValidationError({
+                'day_of_week': 'This field should be null for INDIVIDUAL_DAYS schedule type.'
+            })
+        
+        return data
+
+
+class CheckInFormSerializer(serializers.ModelSerializer):
+    """Serializer for check-in forms"""
+    package_name = serializers.CharField(source='package.package_name', read_only=True)
+    account_name = serializers.CharField(source='account.name', read_only=True)
+    schedule = CheckInScheduleSerializer(read_only=True)
+    submission_count = serializers.SerializerMethodField()
+    
+    # Nested write for schedule creation
+    schedule_data = CheckInScheduleSerializer(write_only=True, required=False)
+    
+    class Meta:
+        model = CheckInForm
+        fields = [
+            'id', 'account', 'account_name', 'package', 'package_name',
+            'title', 'description', 'form_schema', 'is_active',
+            'schedule', 'schedule_data', 'submission_count',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'account', 'account_name', 'package_name', 
+                           'schedule', 'submission_count', 'created_at', 'updated_at']
+    
+    def get_submission_count(self, obj):
+        """Return total number of submissions for this form"""
+        return obj.submissions.count()
+    
+    def validate_package(self, value):
+        """Ensure package belongs to user's account and doesn't have existing form"""
+        request = self.context.get('request')
+        if not request:
+            return value
+        
+        # Check package belongs to same account
+        if value.account_id != request.user.account_id:
+            raise serializers.ValidationError("Package must belong to your account.")
+        
+        # Check if form already exists for this package (for create only)
+        if not self.instance and hasattr(value, 'checkin_form'):
+            raise serializers.ValidationError(
+                f"A check-in form already exists for package '{value.package_name}'. "
+                "Each package can only have one form."
+            )
+        
+        return value
+    
+    def validate_form_schema(self, value):
+        """Validate form schema is valid JSON and has required structure"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Form schema must be a JSON object.")
+        
+        # Basic validation - can be extended based on FormBuilder requirements
+        if not value:
+            raise serializers.ValidationError("Form schema cannot be empty.")
+        
+        return value
+    
+    def create(self, validated_data):
+        """Create form and optionally create schedule"""
+        schedule_data = validated_data.pop('schedule_data', None)
+        
+        # Set account from request user
+        validated_data['account'] = self.context['request'].user.account
+        
+        # Create form
+        form = super().create(validated_data)
+        
+        # Create schedule if provided
+        if schedule_data:
+            schedule_data['form'] = form
+            schedule_data['account'] = form.account
+            CheckInSchedule.objects.create(**schedule_data)
+            
+            # Webhook creation will be handled in the ViewSet after schedule is saved
+        
+        return form
+    
+    def update(self, instance, validated_data):
+        """Update form (schedule updates handled separately)"""
+        validated_data.pop('schedule_data', None)  # Ignore schedule updates here
+        return super().update(instance, validated_data)
+
+
+class CheckInSubmissionSerializer(serializers.ModelSerializer):
+    """Serializer for check-in submissions"""
+    form_title = serializers.CharField(source='form.title', read_only=True)
+    client_name = serializers.SerializerMethodField()
+    client_email = serializers.EmailField(source='client.email', read_only=True)
+    
+    class Meta:
+        model = CheckInSubmission
+        fields = [
+            'id', 'form', 'form_title', 'client', 'client_name', 'client_email',
+            'account', 'submission_data', 'submitted_at'
+        ]
+        read_only_fields = ['id', 'form_title', 'client_name', 'client_email', 
+                           'account', 'submitted_at']
+    
+    def get_client_name(self, obj):
+        return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()
+    
+    def validate(self, data):
+        """Ensure client and form belong to same account"""
+        form = data.get('form')
+        client = data.get('client')
+        
+        if form and client:
+            if form.account_id != client.account_id:
+                raise serializers.ValidationError(
+                    "Form and client must belong to the same account."
+                )
+        
+        return data
+    
+    def create(self, validated_data):
+        """Create submission with auto-assigned account"""
+        # Auto-assign account from form
+        form = validated_data['form']
+        validated_data['account'] = form.account
+        
+        return super().create(validated_data)
+
+
+class CheckInSubmissionCreateSerializer(serializers.ModelSerializer):
+    """Simplified serializer for public submission creation via checkin link"""
+    
+    class Meta:
+        model = CheckInSubmission
+        fields = ['submission_data']
+    
+    def validate_submission_data(self, value):
+        """Validate submission data structure"""
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Submission data must be a JSON object.")
+        
+        if not value:
+            raise serializers.ValidationError("Submission data cannot be empty.")
+        
+        return value

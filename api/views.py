@@ -1,26 +1,31 @@
 from rest_framework import viewsets, status, filters
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import authenticate
-from django.db.models import Q, Sum, Min, Max
+from django.db.models import Q, Sum, Min, Max, Count
 from django.http import HttpResponse
 from dateutil.relativedelta import relativedelta
 import csv
 import io
 from datetime import datetime
 from django.db import transaction
+from django.conf import settings
+import requests
+import logging
 
 from .models import (
     Account, Employee, EmployeeRole, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer, StripeApiKey, EmployeeToken
+    Payment, Installment, StripeCustomer, StripeApiKey, EmployeeToken,
+    CheckInForm, CheckInSchedule, CheckInSubmission
 )
 from .serializers import (
     AccountSerializer, EmployeeSerializer, EmployeeRoleSerializer, EmployeeCreateSerializer,
     EmployeeUpdatePermissionsSerializer, ClientSerializer, PackageSerializer,
     ClientPackageSerializer, PaymentSerializer, InstallmentSerializer,
-    StripeCustomerSerializer, ChangePasswordSerializer
+    StripeCustomerSerializer, ChangePasswordSerializer,
+    CheckInFormSerializer, CheckInScheduleSerializer, CheckInSubmissionSerializer
 )
 from .permissions import (
     IsAccountMember, IsSuperAdminOrAdmin, IsSuperAdmin,
@@ -869,6 +874,22 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
             client__account_id=self.request.user.account_id
         ).select_related('client', 'package')
 
+    def perform_create(self, serializer):
+        """
+        When creating a new client package, automatically set all previous
+        active packages for the same client to inactive (only 1 active package per client).
+        """
+        client = serializer.validated_data.get('client')
+        
+        # Set all existing active packages for this client to inactive
+        ClientPackage.objects.filter(
+            client=client,
+            status='active'
+        ).update(status='inactive')
+        
+        # Create the new package (defaults to active status)
+        serializer.save()
+
     # Removed get_permissions - all authenticated account members can CRUD client packages
 
 
@@ -1222,3 +1243,517 @@ class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):
         return StripeCustomer.objects.filter(
             account_id=self.request.user.account_id
         ).select_related('client', 'account', 'stripe_account')
+
+
+class CheckInFormViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Check-In Forms.
+    All authenticated account members can CRUD check-in forms.
+    """
+    queryset = CheckInForm.objects.all()
+    serializer_class = CheckInFormSerializer
+    permission_classes = [IsAuthenticated, IsAccountMember]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['package', 'is_active']
+    search_fields = ['title', 'description', 'package__package_name']
+    ordering_fields = ['created_at', 'title']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """Filter forms to user's account"""
+        return CheckInForm.objects.filter(
+            account_id=self.request.user.account_id
+        ).select_related('account', 'package', 'schedule')
+
+    def perform_create(self, serializer):
+        """Auto-set account and create webhook schedules"""
+        from .utils.webhook_scheduler import create_schedule_webhooks
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Save the form with account
+        form = serializer.save(account_id=self.request.user.account_id)
+        
+        # Create webhook schedules if schedule was provided
+        if hasattr(form, 'schedule') and form.schedule:
+            try:
+                create_schedule_webhooks(form.schedule)
+                logger.info(f"Created webhooks for CheckInForm {form.id}")
+            except Exception as e:
+                logger.error(f"Failed to create webhooks for CheckInForm {form.id}: {str(e)}")
+                # Don't fail the form creation, just log the error
+                # Admin can manually recreate webhooks later
+
+    def perform_destroy(self, instance):
+        """Delete webhook schedules before deleting form"""
+        from .utils.webhook_scheduler import delete_schedule_webhooks
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Delete webhooks if schedule exists
+        if hasattr(instance, 'schedule') and instance.schedule:
+            try:
+                delete_schedule_webhooks(instance.schedule)
+                logger.info(f"Deleted webhooks for CheckInForm {instance.id}")
+            except Exception as e:
+                logger.error(f"Failed to delete webhooks for CheckInForm {instance.id}: {str(e)}")
+        
+        # Delete the form
+        instance.delete()
+
+    @action(detail=True, methods=['get'])
+    def submissions(self, request, pk=None):
+        """Get all submissions for this form"""
+        form = self.get_object()
+        submissions = CheckInSubmission.objects.filter(
+            form=form,
+            account_id=request.user.account_id
+        ).select_related('client', 'form').order_by('-submitted_at')
+        
+        from .serializers import CheckInSubmissionSerializer
+        serializer = CheckInSubmissionSerializer(submissions, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def recreate_webhooks(self, request, pk=None):
+        """Manually recreate webhooks for a form's schedule"""
+        from .utils.webhook_scheduler import update_schedule_webhooks
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        form = self.get_object()
+        
+        if not hasattr(form, 'schedule') or not form.schedule:
+            return Response(
+                {'error': 'Form has no schedule'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            update_schedule_webhooks(form.schedule)
+            logger.info(f"Recreated webhooks for CheckInForm {form.id}")
+            return Response({'status': 'Webhooks recreated successfully'})
+        except Exception as e:
+            logger.error(f"Failed to recreate webhooks: {str(e)}")
+            return Response(
+                {'error': f'Failed to recreate webhooks: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class CheckInScheduleViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Check-In Schedules.
+    All authenticated account members can CRUD schedules.
+    """
+    queryset = CheckInSchedule.objects.all()
+    serializer_class = CheckInScheduleSerializer
+    permission_classes = [IsAuthenticated, IsAccountMember]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['form', 'schedule_type', 'is_active']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """Filter schedules to user's account"""
+        return CheckInSchedule.objects.filter(
+            account_id=self.request.user.account_id
+        ).select_related('form', 'account')
+
+    def perform_update(self, serializer):
+        """Update webhooks when schedule is modified"""
+        from .utils.webhook_scheduler import update_schedule_webhooks
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        schedule = serializer.save()
+        
+        try:
+            update_schedule_webhooks(schedule)
+            logger.info(f"Updated webhooks for CheckInSchedule {schedule.id}")
+        except Exception as e:
+            logger.error(f"Failed to update webhooks for CheckInSchedule {schedule.id}: {str(e)}")
+            # Don't fail the update, just log the error
+
+    def perform_destroy(self, instance):
+        """Delete webhooks before deleting schedule"""
+        from .utils.webhook_scheduler import delete_schedule_webhooks
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        try:
+            delete_schedule_webhooks(instance)
+            logger.info(f"Deleted webhooks for CheckInSchedule {instance.id}")
+        except Exception as e:
+            logger.error(f"Failed to delete webhooks for CheckInSchedule {instance.id}: {str(e)}")
+        
+        instance.delete()
+
+
+class CheckInSubmissionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Check-In Submissions.
+    Permissions controlled by can_view_all_clients flag.
+    """
+    queryset = CheckInSubmission.objects.all()
+    serializer_class = CheckInSubmissionSerializer
+    permission_classes = [IsAuthenticated, IsAccountMember]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['form', 'client']
+    search_fields = ['client__first_name', 'client__last_name', 'form__title']
+    ordering_fields = ['submitted_at']
+    ordering = ['-submitted_at']
+
+    def get_queryset(self):
+        """
+        Filter submissions based on permissions:
+        - Super admin: sees all submissions in account
+        - Has 'can_view_all_clients': sees all submissions in account
+        - Otherwise: sees only submissions for assigned clients
+        """
+        user = self.request.user
+        queryset = CheckInSubmission.objects.filter(account_id=user.account_id)
+        
+        # Super admin sees everything
+        if user.is_super_admin:
+            return queryset.select_related('client', 'form', 'account')
+        
+        # Check if user can view all clients
+        if user.can_view_all_clients:
+            return queryset.select_related('client', 'form', 'account')
+        
+        # Otherwise, filter to only submissions for assigned clients
+        queryset = queryset.filter(
+            Q(client__coach=user) |
+            Q(client__closer=user) |
+            Q(client__setter=user)
+        ).distinct()
+        
+        return queryset.select_related('client', 'form', 'account')
+
+    @action(detail=False, methods=['get'])
+    def statistics(self, request):
+        """Get submission statistics by form"""
+        queryset = self.get_queryset()
+        
+        # Group by form and count
+        stats = queryset.values('form__id', 'form__title').annotate(
+            submission_count=Count('id')
+        ).order_by('-submission_count')
+        
+        return Response(stats)
+
+
+# ===================== Internal Webhook Trigger Endpoint =====================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def checkin_trigger_webhook(request):
+    """
+    Internal webhook endpoint that receives triggers from external scheduler.
+    Validates X-Webhook-Secret header, queries clients based on schedule_id and day_filter,
+    and pushes client batch to n8n for email sending.
+    
+    POST /api/internal/checkin-trigger/
+    Headers:
+        X-Webhook-Secret: <webhook_secret>
+    Body:
+        {
+            "schedule_id": "uuid",
+            "day_filter": "monday" | null
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Validate webhook secret (check header first, then payload as fallback)
+    webhook_secret = request.headers.get('X-Webhook-Secret') or request.data.get('webhook_secret')
+    if webhook_secret != settings.WEBHOOK_SECRET:
+        logger.warning(f"Invalid webhook secret received from {request.META.get('REMOTE_ADDR')}")
+        return Response(
+            {'error': 'Invalid webhook secret'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    # Extract schedule_id and day_filter
+    schedule_id = request.data.get('schedule_id')
+    day_filter = request.data.get('day_filter')  # Can be None for SAME_DAY schedules
+    
+    if not schedule_id:
+        return Response(
+            {'error': 'schedule_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Get the schedule
+        schedule = CheckInSchedule.objects.select_related('form', 'form__package', 'account').get(id=schedule_id)
+        
+        # Verify schedule is active
+        if not schedule.is_active or not schedule.form.is_active:
+            logger.info(f"Skipping inactive schedule {schedule_id}")
+            return Response({'status': 'Schedule is inactive, no emails sent'})
+        
+        # Query clients with active packages matching the form's package
+        client_packages = ClientPackage.objects.filter(
+            package=schedule.form.package,
+            status='active',
+            client__account_id=schedule.account_id
+        ).select_related('client')
+        
+        # Filter by checkin_day if day_filter provided (INDIVIDUAL_DAYS mode)
+        if day_filter:
+            client_packages = client_packages.filter(checkin_day=day_filter)
+        
+        # Build client list for n8n
+        clients_data = []
+        for cp in client_packages:
+            client = cp.client
+            clients_data.append({
+                'email': client.email,
+                'first_name': client.first_name,
+                'last_name': client.last_name,
+                'checkin_link': f"{settings.BACKEND_URL}/api/public/checkin/{client.checkin_link}/",
+                'form_title': schedule.form.title,
+                'form_description': schedule.form.description or ''
+            })
+        
+        if not clients_data:
+            logger.info(f"No clients found for schedule {schedule_id} with day_filter={day_filter}")
+            return Response({
+                'status': 'No clients found',
+                'schedule_id': str(schedule_id),
+                'day_filter': day_filter,
+                'clients_count': 0
+            })
+        
+        # Push to n8n webhook
+        n8n_url = settings.N8N_CHECKIN_WEBHOOK_URL
+        if not n8n_url:
+            logger.error("N8N_CHECKIN_WEBHOOK_URL not configured")
+            return Response(
+                {'error': 'n8n webhook URL not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        n8n_headers = {
+            'Content-Type': 'application/json',
+            'X-N8N-Secret': settings.N8N_WEBHOOK_SECRET
+        }
+        
+        n8n_payload = {
+            'clients': clients_data,
+            'schedule_id': str(schedule_id),
+            'day_filter': day_filter,
+            'triggered_at': datetime.utcnow().isoformat()
+        }
+        
+        try:
+            n8n_response = requests.post(n8n_url, json=n8n_payload, headers=n8n_headers, timeout=10)
+            n8n_response.raise_for_status()
+            
+            logger.info(f"Successfully pushed {len(clients_data)} clients to n8n for schedule {schedule_id}")
+            
+            return Response({
+                'status': 'success',
+                'schedule_id': str(schedule_id),
+                'day_filter': day_filter,
+                'clients_count': len(clients_data),
+                'n8n_status': n8n_response.status_code
+            })
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to push to n8n: {str(e)}")
+            return Response(
+                {'error': f'Failed to push to n8n: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    except CheckInSchedule.DoesNotExist:
+        logger.error(f"Schedule {schedule_id} not found")
+        return Response(
+            {'error': 'Schedule not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in checkin_trigger_webhook: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ===================== Public Check-In Endpoints =====================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_checkin_form(request, checkin_uuid):
+    """
+    Public endpoint to retrieve check-in form by client's checkin_link UUID.
+    
+    GET /api/public/checkin/{uuid}/
+    
+    Returns:
+        {
+            "client": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john@example.com"
+            },
+            "form": {
+                "id": "uuid",
+                "title": "Weekly Check-In",
+                "description": "...",
+                "form_schema": {...}
+            },
+            "package": {
+                "package_name": "Premium Package"
+            }
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Look up client by checkin_link
+        client = Client.objects.get(checkin_link=checkin_uuid)
+        
+        # Get active package for client
+        try:
+            client_package = ClientPackage.objects.select_related('package').get(
+                client=client,
+                status='active'
+            )
+        except ClientPackage.DoesNotExist:
+            return Response(
+                {'error': 'No active package found for this client'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get form for this package
+        try:
+            form = CheckInForm.objects.get(
+                package=client_package.package,
+                is_active=True
+            )
+        except CheckInForm.DoesNotExist:
+            return Response(
+                {'error': 'No check-in form available for your package'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Return form data
+        return Response({
+            'client': {
+                'first_name': client.first_name,
+                'last_name': client.last_name,
+                'email': client.email
+            },
+            'form': {
+                'id': str(form.id),
+                'title': form.title,
+                'description': form.description or '',
+                'form_schema': form.form_schema
+            },
+            'package': {
+                'package_name': client_package.package.package_name
+            }
+        })
+    
+    except Client.DoesNotExist:
+        logger.warning(f"Invalid checkin_link: {checkin_uuid}")
+        return Response(
+            {'error': 'Invalid check-in link'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_checkin_form: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def submit_checkin_form(request, checkin_uuid):
+    """
+    Public endpoint to submit check-in form response.
+    
+    POST /api/public/checkin/{uuid}/submit/
+    Body:
+        {
+            "submission_data": {...}  # JSON matching form_schema structure
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Look up client by checkin_link
+        client = Client.objects.get(checkin_link=checkin_uuid)
+        
+        # Get active package for client
+        try:
+            client_package = ClientPackage.objects.select_related('package').get(
+                client=client,
+                status='active'
+            )
+        except ClientPackage.DoesNotExist:
+            return Response(
+                {'error': 'No active package found for this client'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get form for this package
+        try:
+            form = CheckInForm.objects.get(
+                package=client_package.package,
+                is_active=True
+            )
+        except CheckInForm.DoesNotExist:
+            return Response(
+                {'error': 'No check-in form available for your package'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate submission_data
+        submission_data = request.data.get('submission_data')
+        if not submission_data or not isinstance(submission_data, dict):
+            return Response(
+                {'error': 'submission_data must be a non-empty JSON object'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create submission
+        submission = CheckInSubmission.objects.create(
+            form=form,
+            client=client,
+            account_id=client.account_id,
+            submission_data=submission_data,
+            submitted_at=datetime.utcnow()
+        )
+        
+        logger.info(f"Client {client.id} submitted check-in form {form.id}")
+        
+        return Response({
+            'status': 'success',
+            'submission_id': str(submission.id),
+            'submitted_at': submission.submitted_at.isoformat()
+        }, status=status.HTTP_201_CREATED)
+    
+    except Client.DoesNotExist:
+        logger.warning(f"Invalid checkin_link: {checkin_uuid}")
+        return Response(
+            {'error': 'Invalid check-in link'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in submit_checkin_form: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

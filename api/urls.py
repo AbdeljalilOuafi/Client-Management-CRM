@@ -3,7 +3,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     AuthViewSet, AccountViewSet, EmployeeViewSet, EmployeeRoleViewSet, ClientViewSet,
     PackageViewSet, ClientPackageViewSet, PaymentViewSet,
-    InstallmentViewSet, StripeCustomerViewSet
+    InstallmentViewSet, StripeCustomerViewSet,
+    CheckInFormViewSet, CheckInScheduleViewSet, CheckInSubmissionViewSet,
+    checkin_trigger_webhook, get_checkin_form, submit_checkin_form
 )
 
 router = DefaultRouter()
@@ -17,7 +19,15 @@ router.register(r'client-packages', ClientPackageViewSet, basename='client-packa
 router.register(r'payments', PaymentViewSet, basename='payment')
 router.register(r'installments', InstallmentViewSet, basename='installment')
 router.register(r'stripe-customers', StripeCustomerViewSet, basename='stripe-customer')
+router.register(r'checkin-forms', CheckInFormViewSet, basename='checkin-form')
+router.register(r'checkin-schedules', CheckInScheduleViewSet, basename='checkin-schedule')
+router.register(r'checkin-submissions', CheckInSubmissionViewSet, basename='checkin-submission')
 
 urlpatterns = [
     path('', include(router.urls)),
+    # Internal webhook trigger endpoint
+    path('internal/checkin-trigger/', checkin_trigger_webhook, name='checkin-trigger'),
+    # Public check-in endpoints
+    path('public/checkin/<uuid:checkin_uuid>/', get_checkin_form, name='public-checkin-form'),
+    path('public/checkin/<uuid:checkin_uuid>/submit/', submit_checkin_form, name='public-checkin-submit'),
 ]

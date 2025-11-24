@@ -257,6 +257,12 @@ class Client(models.Model):
     notice_given = models.BooleanField(default=False)
     no_more_payments = models.BooleanField(default=False)
     timezone = models.TextField(null=True, blank=True)
+    checkin_link = models.UUIDField(
+        default=uuid.uuid4, 
+        unique=True, 
+        editable=False,
+        help_text='Permanent UUID link for check-in form access'
+    )
     
     # Employee Relationships
     coach = models.ForeignKey(
@@ -462,3 +468,111 @@ class Installment(models.Model):
 
     def __str__(self):
         return f"Installment #{self.instalment_number} - {self.client}"
+
+
+class CheckInForm(models.Model):
+    """Check-in form template assigned to packages (1:1 relationship)"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
+    package = models.OneToOneField(
+        Package, 
+        on_delete=models.CASCADE, 
+        db_column='package_id',
+        related_name='checkin_form'
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    form_schema = models.JSONField(default=dict, help_text='FormBuilder JSON structure')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'check_in_forms'
+        unique_together = [['account', 'package']]
+
+    def __str__(self):
+        return f"{self.title} ({self.package.package_name})"
+
+
+class CheckInSchedule(models.Model):
+    """Scheduling configuration for check-in forms"""
+    
+    SCHEDULE_TYPE_CHOICES = [
+        ('SAME_DAY', 'Send to everybody at the same time each week'),
+        ('INDIVIDUAL_DAYS', 'Each client has a designated checkin day'),
+    ]
+    
+    DAY_CHOICES = [
+        ('monday', 'Monday'),
+        ('tuesday', 'Tuesday'),
+        ('wednesday', 'Wednesday'),
+        ('thursday', 'Thursday'),
+        ('friday', 'Friday'),
+        ('saturday', 'Saturday'),
+        ('sunday', 'Sunday'),
+    ]
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    form = models.OneToOneField(
+        CheckInForm, 
+        on_delete=models.CASCADE, 
+        db_column='form_id',
+        related_name='schedule'
+    )
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
+    schedule_type = models.CharField(max_length=20, choices=SCHEDULE_TYPE_CHOICES)
+    day_of_week = models.CharField(
+        max_length=10, 
+        choices=DAY_CHOICES, 
+        null=True, 
+        blank=True,
+        help_text='Required for SAME_DAY mode, null for INDIVIDUAL_DAYS'
+    )
+    time = models.TimeField(help_text='Time to send check-in emails (e.g., 09:00)')
+    timezone = models.CharField(max_length=50, default='UTC')
+    webhook_job_ids = models.JSONField(
+        default=list, 
+        help_text='Array of webhook IDs from external scheduler'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = False
+        db_table = 'check_in_schedules'
+
+    def __str__(self):
+        return f"Schedule: {self.form.title} ({self.get_schedule_type_display()})"
+
+
+class CheckInSubmission(models.Model):
+    """Client responses to check-in forms"""
+    
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    form = models.ForeignKey(
+        CheckInForm, 
+        on_delete=models.CASCADE, 
+        db_column='form_id',
+        related_name='submissions'
+    )
+    client = models.ForeignKey(
+        Client, 
+        on_delete=models.CASCADE, 
+        db_column='client_id',
+        related_name='checkin_submissions'
+    )
+    account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
+    submission_data = models.JSONField(default=dict, help_text='Client form responses as JSON')
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'check_in_submissions'
+        ordering = ['-submitted_at']
+
+    def __str__(self):
+        return f"{self.client.first_name} - {self.form.title} ({self.submitted_at.strftime('%Y-%m-%d')})"
