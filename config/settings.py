@@ -228,3 +228,15 @@ LOGGING = {
 # Test Runner - Use custom runner that doesn't create test database
 # Since models are managed=False, we use the actual database for testing
 TEST_RUNNER = 'api.test_runner.NoDbTestRunner'
+
+# Webhook Scheduler Configuration
+WEBHOOK_SCHEDULER_URL = env.str('WEBHOOK_SCHEDULER_URL', default='https://schedules.onsync.ai')
+WEBHOOK_SCHEDULER_TOKEN = env.str('WEBHOOK_SCHEDULER_TOKEN', default='')
+WEBHOOK_SECRET = env.str('WEBHOOK_SECRET', default='change-this-secret-in-production')
+
+# n8n Integration
+N8N_CHECKIN_WEBHOOK_URL = env.str('N8N_CHECKIN_WEBHOOK_URL', default='')
+N8N_WEBHOOK_SECRET = env.str('N8N_WEBHOOK_SECRET', default='change-this-secret-in-production')
+
+# Backend URL for webhook callbacks
+BACKEND_URL = env.str('BACKEND_URL', default='http://127.0.0.1:8000')
