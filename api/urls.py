@@ -5,9 +5,7 @@ from .views import (
     PackageViewSet, ClientPackageViewSet, PaymentViewSet,
     InstallmentViewSet, StripeCustomerViewSet,
     CheckInFormViewSet, CheckInScheduleViewSet, CheckInSubmissionViewSet,
-    checkin_trigger_webhook, get_checkin_form, submit_checkin_form
-)
-from .views.domain_views import (
+    checkin_trigger_webhook, get_checkin_form, submit_checkin_form,
     configure_custom_domain, regenerate_client_links, get_domain_config,
     update_domain_config, delete_domain_config
 )
