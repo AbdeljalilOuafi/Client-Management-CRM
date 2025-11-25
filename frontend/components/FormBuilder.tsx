@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, GripVertical, Trash2, Settings } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Trash2, Settings, X, ChevronLeft } from "lucide-react";
 import QuestionEditor from "@/components/QuestionEditor";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +88,22 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
   const [formDescription, setFormDescription] = useState("Standard weekly progress check-in");
   const [questions, setQuestions] = useState<Question[]>(INITIAL_MOCK_QUESTIONS);
   const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
+  
+  // Initialize sidebar state from localStorage
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('formBuilderSidebarOpen');
+      return saved ? JSON.parse(saved) : false;
+    }
+    return false;
+  });
+
+  // Persist sidebar state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('formBuilderSidebarOpen', JSON.stringify(sidebarOpen));
+    }
+  }, [sidebarOpen]);
 
   const handleUpdateForm = () => {
     toast({
@@ -224,7 +240,13 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                                 </div>
                                 <div 
                                   className="flex-1 cursor-pointer" 
-                                  onClick={() => setSelectedQuestion(question.id)}
+                                  onClick={() => {
+                                    setSelectedQuestion(question.id);
+                                    // Only open sidebar if it's not already open
+                                    if (!sidebarOpen) {
+                                      setSidebarOpen(true);
+                                    }
+                                  }}
                                 >
                                   <div className="font-medium mb-1">{question.question_text}</div>
                                   <div className="flex gap-2 items-center">
@@ -316,25 +338,42 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
             </Card>
           </div>
 
-          {/* Right Column - Question Editor */}
-          <div className="lg:col-span-1">
-            {selectedQuestion ? (
-              <QuestionEditor
-                question={questions.find(q => q.id === selectedQuestion)!}
-                questions={questions}
-                onUpdate={handleUpdateQuestion}
-              />
-            ) : (
-              <Card className="sticky top-6">
-                <CardContent className="p-12 text-center">
-                  <Settings className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">
-                    Select a question to edit its settings
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {/* Sidebar Toggle Button (when closed) */}
+          {!sidebarOpen && selectedQuestion && (
+            <Button
+              onClick={() => setSidebarOpen(true)}
+              className="fixed right-0 top-1/2 -translate-y-1/2 rounded-l-lg rounded-r-none shadow-lg z-40 h-16 w-12 p-0"
+              variant="default"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </Button>
+          )}
+
+          {/* Right Sidebar - Question Editor */}
+          {selectedQuestion && (
+            <div className={`fixed right-0 top-0 h-screen w-full lg:w-96 bg-background border-l shadow-2xl z-50 overflow-y-auto transition-transform duration-300 ${
+              sidebarOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}>
+              <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between z-10">
+                <h3 className="font-semibold text-lg">Question Settings</h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSidebarOpen(false)}
+                  className="hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              <div className="p-4">
+                <QuestionEditor
+                  question={questions.find(q => q.id === selectedQuestion)!}
+                  questions={questions}
+                  onUpdate={handleUpdateQuestion}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

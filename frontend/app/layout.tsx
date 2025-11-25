@@ -11,8 +11,21 @@ import { PermissionsProvider } from "@/contexts/PermissionsContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FitHQ",
-  description: "Payment and instalment management system",
+  title: "FitHQ - Client Management & Payment System",
+  description: "Comprehensive client management, payment tracking, and instalment system for fitness professionals",
+  metadataBase: new URL("https://app.fithq.ai"),
+  openGraph: {
+    title: "FitHQ",
+    description: "Client Management & Payment System for Fitness Professionals",
+    url: "https://app.fithq.ai",
+    siteName: "FitHQ",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FitHQ",
+    description: "Client Management & Payment System for Fitness Professionals",
+  },
 };
 
 export default function RootLayout({

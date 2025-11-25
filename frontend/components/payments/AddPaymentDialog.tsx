@@ -75,7 +75,7 @@ export const AddPaymentDialog = () => {
     amount: '',
     currency: '',
     payment_method: '',
-    payment_date: '',
+    payment_date: new Date().toISOString().split('T')[0],
     notes: '',
     autoCharge: false,
   });

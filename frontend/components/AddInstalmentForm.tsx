@@ -40,13 +40,30 @@ interface Client {
   email: string;
 }
 
+// Get current datetime in format required for datetime-local input
+const getCurrentDatetime = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+// Get user's timezone
+const getUserTimezone = () => {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+};
+
 export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
   const [formData, setFormData] = useState({
     clientName: "",
     clientId: "",
     instalmentAmount: "",
     currency: "USD",
-    instalmentDatetime: "",
+    instalmentDatetime: getCurrentDatetime(),
+    timezone: getUserTimezone(),
     instalmentNumber: "",
     invoiceId: "",
     stripeAccount: "",
@@ -282,6 +299,40 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
           onChange={(e) => setFormData(prev => ({ ...prev, instalmentDatetime: e.target.value }))}
           required
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="timezone">Timezone *</Label>
+        <Select value={formData.timezone} onValueChange={(value) => setFormData(prev => ({ ...prev, timezone: value }))}>
+          <SelectTrigger id="timezone" className="bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-background z-50 max-h-[300px]">
+            <SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
+            <SelectItem value="America/New_York">America/New York (EST/EDT)</SelectItem>
+            <SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
+            <SelectItem value="America/Denver">America/Denver (MST/MDT)</SelectItem>
+            <SelectItem value="America/Los_Angeles">America/Los Angeles (PST/PDT)</SelectItem>
+            <SelectItem value="America/Phoenix">America/Phoenix (MST)</SelectItem>
+            <SelectItem value="America/Toronto">America/Toronto (EST/EDT)</SelectItem>
+            <SelectItem value="America/Vancouver">America/Vancouver (PST/PDT)</SelectItem>
+            <SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
+            <SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
+            <SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST)</SelectItem>
+            <SelectItem value="Europe/Madrid">Europe/Madrid (CET/CEST)</SelectItem>
+            <SelectItem value="Europe/Rome">Europe/Rome (CET/CEST)</SelectItem>
+            <SelectItem value="Europe/Amsterdam">Europe/Amsterdam (CET/CEST)</SelectItem>
+            <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
+            <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+            <SelectItem value="Asia/Shanghai">Asia/Shanghai (CST)</SelectItem>
+            <SelectItem value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</SelectItem>
+            <SelectItem value="Asia/Singapore">Asia/Singapore (SGT)</SelectItem>
+            <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
+            <SelectItem value="Australia/Sydney">Australia/Sydney (AEDT/AEST)</SelectItem>
+            <SelectItem value="Australia/Melbourne">Australia/Melbourne (AEDT/AEST)</SelectItem>
+            <SelectItem value="Pacific/Auckland">Pacific/Auckland (NZDT/NZST)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* <div className="space-y-2">

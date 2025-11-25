@@ -174,6 +174,7 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
       subscriptionInterval: "monthly",
       firstPaymentType: "full",
       startDate: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+      remainderDate: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
       minimumTerm: 1,
       checkInDay: "Monday",
       numInstalments: 1,
@@ -196,11 +197,13 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   const isFreeTrial = watch("isFreeTrial");
   const isFreeClient = watch("isFreeClient");
 
-  // Uncheck generatePaymentLink when isFreeClient is checked
+  // Toggle generatePaymentLink based on isFreeClient
   useEffect(() => {
     if (isFreeClient) {
       setValue("generatePaymentLink", false);
       setValue("sendPaymentLinkToClient", false);
+    } else {
+      setValue("generatePaymentLink", true);
     }
   }, [isFreeClient, setValue]);
 
@@ -222,23 +225,37 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
     },
   });
 
-  // Fetch coaches using React Query
+  // Fetch all active employees and filter for coaches (including roles like "Head Coach", "Assistant Coach", etc.)
   const { data: coachesData, isLoading: coachesLoading } = useQuery({
     queryKey: ["coaches"],
     queryFn: async () => {
-      const response = await listEmployees({ role: "coach" });
-      return response.results;
+      const response = await listEmployees({ status: "active" });
+      // Filter employees whose role or custom_role_names contains "coach" (case-insensitive)
+      return response.results.filter(emp => {
+        const roleMatch = emp.role?.toLowerCase().includes("coach");
+        const customRoleMatch = emp.custom_role_names?.some(role => 
+          role.toLowerCase().includes("coach")
+        );
+        return roleMatch || customRoleMatch;
+      });
     },
   });
   
   const coaches = coachesData || [];
 
-  // Fetch closers using React Query
+  // Fetch all active employees and filter for closers (including roles like "Head Closer", "Sales Closer", etc.)
   const { data: closersData, isLoading: closersLoading } = useQuery({
     queryKey: ["closers"],
     queryFn: async () => {
-      const response = await listEmployees({ role: "closer", status: "active" });
-      return response.results;
+      const response = await listEmployees({ status: "active" });
+      // Filter employees whose role or custom_role_names contains "closer" (case-insensitive)
+      return response.results.filter(emp => {
+        const roleMatch = emp.role?.toLowerCase().includes("closer");
+        const customRoleMatch = emp.custom_role_names?.some(role => 
+          role.toLowerCase().includes("closer")
+        );
+        return roleMatch || customRoleMatch;
+      });
     },
   });
 
@@ -273,8 +290,21 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   const defaultCloserId = React.useMemo(() => {
     if (!user || closers.length === 0) return undefined;
     
-    // If logged-in user is a closer, default to them
-    const userIsCloser = closers.find(c => c.id === user.id && c.role === "closer");
+    // If logged-in user has "closer" in their role or custom roles, default to them
+    const userIsCloser = closers.find(c => {
+      if (c.id !== user.id) return false;
+      
+      // Check if role contains "closer"
+      const roleMatch = c.role?.toLowerCase().includes("closer");
+      
+      // Check if any custom role contains "closer"
+      const customRoleMatch = c.custom_role_names?.some(role => 
+        role.toLowerCase().includes("closer")
+      );
+      
+      return roleMatch || customRoleMatch;
+    });
+    
     if (userIsCloser) {
       return user.id.toString();
     }
@@ -300,8 +330,9 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   // Update instalments array when number changes
   useEffect(() => {
     if (pifPaymentType === "instalments" && numInstalments) {
+      const today = new Date().toISOString().split('T')[0];
       const newInstalments = Array.from({ length: numInstalments }, (_, i) => 
-        fields[i] || { date: "", amount: "" }
+        fields[i] || { date: today, amount: "" }
       );
       replace(newInstalments);
     }

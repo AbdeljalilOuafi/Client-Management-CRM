@@ -111,11 +111,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, on
   );
 
   return (
-    <Card className="sticky top-6">
-      <CardHeader>
-        <CardTitle>Question Settings</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-4">
         <div>
           <Label htmlFor="question_text">Question Text</Label>
           <Input
@@ -242,8 +238,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, on
             Format: Numbers with up to 2 decimal places
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 };
 

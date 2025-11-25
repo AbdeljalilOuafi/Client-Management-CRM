@@ -20,35 +20,36 @@ export function StatusChangeDialog({ open, onOpenChange, type, clientId }: Statu
   const [loading, setLoading] = useState(false);
   
   // Form state for Stop Client
-  const [finalPaymentDate, setFinalPaymentDate] = useState("");
-  const [finalCoachingDate, setFinalCoachingDate] = useState("");
+  const [finalPaymentDate, setFinalPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [finalCoachingDate, setFinalCoachingDate] = useState(new Date().toISOString().split('T')[0]);
   const [stopReason, setStopReason] = useState("");
   
   // Form state for Pause Client
-  const [pauseStartDate, setPauseStartDate] = useState("");
-  const [pauseEndDate, setPauseEndDate] = useState("");
+  const [pauseStartDate, setPauseStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [pauseEndDate, setPauseEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [pausePaymentHandling, setPausePaymentHandling] = useState("");
   const [pauseReason, setPauseReason] = useState("");
   
   // Form state for Package Change
   const [newPackage, setNewPackage] = useState("");
-  const [packageChangeDate, setPackageChangeDate] = useState("");
+  const [packageChangeDate, setPackageChangeDate] = useState(new Date().toISOString().split('T')[0]);
   const [newPaymentAmount, setNewPaymentAmount] = useState("");
-  const [newPaymentDate, setNewPaymentDate] = useState("");
+  const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [packageChangeReason, setPackageChangeReason] = useState("");
 
   const resetForm = () => {
-    setFinalPaymentDate("");
-    setFinalCoachingDate("");
+    const today = new Date().toISOString().split('T')[0];
+    setFinalPaymentDate(today);
+    setFinalCoachingDate(today);
     setStopReason("");
-    setPauseStartDate("");
-    setPauseEndDate("");
+    setPauseStartDate(today);
+    setPauseEndDate(today);
     setPausePaymentHandling("");
     setPauseReason("");
     setNewPackage("");
-    setPackageChangeDate("");
+    setPackageChangeDate(today);
     setNewPaymentAmount("");
-    setNewPaymentDate("");
+    setNewPaymentDate(today);
     setPackageChangeReason("");
   };
 

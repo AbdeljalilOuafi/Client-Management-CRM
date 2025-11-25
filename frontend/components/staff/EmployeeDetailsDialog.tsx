@@ -24,6 +24,23 @@ import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
 import { CustomRolesMultiSelect } from "@/components/staff/CustomRolesMultiSelect";
 import { Tags } from "lucide-react";
 
+// Helper function to determine if text should be dark or light based on background color
+const getContrastColor = (hexColor: string): string => {
+  // Remove # if present
+  const hex = hexColor.replace('#', '');
+  
+  // Convert to RGB
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // Calculate luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // Return dark text for light backgrounds, light text for dark backgrounds
+  return luminance > 0.5 ? '#000000' : '#FFFFFF';
+};
+
 interface EmployeeDetailsDialogProps {
   employee: Employee | null;
   open: boolean;
@@ -536,18 +553,24 @@ export function EmployeeDetailsDialog({
                     ) : (
                       <div className="py-2 px-3 bg-muted/50 rounded-md">
                         {employee.custom_role_names && employee.custom_role_names.length > 0 ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {employee.custom_role_names.map((name, index) => (
-                              <Badge
-                                key={index}
-                                style={{
-                                  backgroundColor: employee.custom_role_colors?.[index] || "#6B7280",
-                                  color: "white",
-                                }}
-                              >
-                                {name}
-                              </Badge>
-                            ))}
+                          <div className="flex gap-1.5 flex-wrap">
+                            {employee.custom_role_names.map((name, index) => {
+                              const bgColor = employee.custom_role_colors?.[index] || "#6B7280";
+                              const textColor = getContrastColor(bgColor);
+                              return (
+                                <Badge
+                                  key={index}
+                                  style={{
+                                    backgroundColor: bgColor,
+                                    color: textColor,
+                                    borderColor: textColor === '#000000' ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)',
+                                  }}
+                                  className="font-semibold px-3 py-1.5 text-xs shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 border"
+                                >
+                                  {name}
+                                </Badge>
+                              );
+                            })}
                           </div>
                         ) : (
                           <span className="text-muted-foreground">No custom roles assigned</span>
