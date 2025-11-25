@@ -9,9 +9,26 @@ API Documentation: See url-shortener-docs/API_REFERENCE.md
 
 import requests
 import logging
+import random
+import string
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+def generate_short_code(length=6):
+    """
+    Generate a random short code for URL shortening.
+    
+    Args:
+        length (int): Length of the code (4-6 characters)
+    
+    Returns:
+        str: Random alphanumeric code (e.g., 'aB3xK9')
+    """
+    # Mix of lowercase, uppercase letters and digits
+    characters = string.ascii_letters + string.digits
+    return ''.join(random.choices(characters, k=length))
 
 
 def shorten_checkin_url(original_url, domain, title=None):
@@ -37,17 +54,19 @@ def shorten_checkin_url(original_url, domain, title=None):
         # Construct API URL
         api_url = f"{settings.URL_SHORTENER_API_URL}/api/shorten/"
         
-        # Prepare payload
+        # Generate random short code (4-6 characters, alphanumeric)
+        short_code = generate_short_code(length=random.randint(4, 6))
+        
+        # Prepare payload - must match exact URL shortener API requirements
         payload = {
             'original_url': original_url,
+            'title': title or "Check-in link",
             'domain': domain,
+            'short_code': short_code,
         }
         
-        if title:
-            payload['title'] = title
-        
         # Make API request with 10s timeout
-        logger.info(f"Shortening URL: {original_url} with domain: {domain}")
+        logger.info(f"Shortening URL: {original_url} with domain: {domain}, code: {short_code}")
         response = requests.post(
             api_url,
             json=payload,
