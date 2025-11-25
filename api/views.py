@@ -1515,7 +1515,7 @@ def checkin_trigger_webhook(request):
                 'email': client.email,
                 'first_name': client.first_name,
                 'last_name': client.last_name,
-                'checkin_link': f"{settings.BACKEND_URL}/api/public/checkin/{client.checkin_link}/",
+                'checkin_link': f"{settings.FRONTEND_URL}/check-in/{client.checkin_link}/",
                 'form_title': schedule.form.title,
                 'form_description': schedule.form.description or ''
             })

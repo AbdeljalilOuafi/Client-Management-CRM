@@ -240,3 +240,6 @@ N8N_WEBHOOK_SECRET = env.str('N8N_WEBHOOK_SECRET', default='change-this-secret-i
 
 # Backend URL for webhook callbacks
 BACKEND_URL = env.str('BACKEND_URL', default='http://127.0.0.1:8000')
+
+# Frontend URL for client-facing check-in links
+FRONTEND_URL = env.str('FRONTEND_URL', default='http://localhost:3000')
