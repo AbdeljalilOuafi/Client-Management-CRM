@@ -1508,14 +1508,20 @@ def checkin_trigger_webhook(request):
             client_packages = client_packages.filter(checkin_day=day_filter)
         
         # Build client list for n8n
+        from .utils.client_link_service import get_or_generate_short_link
+        
         clients_data = []
         for cp in client_packages:
             client = cp.client
+            
+            # Get or generate shortened check-in link with custom domain support
+            checkin_url = get_or_generate_short_link(client)
+            
             clients_data.append({
                 'email': client.email,
                 'first_name': client.first_name,
                 'last_name': client.last_name,
-                'checkin_link': f"{settings.FRONTEND_URL}/check-in/{client.checkin_link}/",
+                'checkin_link': checkin_url,
                 'form_title': schedule.form.title,
                 'form_description': schedule.form.description or ''
             })

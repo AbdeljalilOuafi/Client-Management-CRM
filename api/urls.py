@@ -7,6 +7,10 @@ from .views import (
     CheckInFormViewSet, CheckInScheduleViewSet, CheckInSubmissionViewSet,
     checkin_trigger_webhook, get_checkin_form, submit_checkin_form
 )
+from .views.domain_views import (
+    configure_custom_domain, regenerate_client_links, get_domain_config,
+    update_domain_config, delete_domain_config
+)
 
 router = DefaultRouter()
 router.register(r'auth', AuthViewSet, basename='auth')
@@ -30,4 +34,10 @@ urlpatterns = [
     # Public check-in endpoints
     path('public/checkin/<uuid:checkin_uuid>/', get_checkin_form, name='public-checkin-form'),
     path('public/checkin/<uuid:checkin_uuid>/submit/', submit_checkin_form, name='public-checkin-submit'),
+    # Custom domain management endpoints
+    path('domains/configure/', configure_custom_domain, name='configure-domain'),
+    path('domains/regenerate-links/', regenerate_client_links, name='regenerate-links'),
+    path('domains/', get_domain_config, name='get-domain'),
+    path('domains/update/', update_domain_config, name='update-domain'),
+    path('domains/delete/', delete_domain_config, name='delete-domain'),
 ]

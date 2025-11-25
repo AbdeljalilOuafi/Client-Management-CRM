@@ -53,8 +53,18 @@ class Account(models.Model):
     trz_group_id = models.IntegerField(null=True, blank=True, unique=True)
     trz_admin_user_id = models.IntegerField(null=True, blank=True, unique=True)
     ghl_location_id = models.TextField(null=True, blank=True, unique=True)
-    short_url_domain = models.TextField(null=True, blank=True)
+    short_url_domain = models.TextField(null=True, blank=True)  # DEPRECATED: Use forms_domain instead
     timezone = models.TextField(null=True, blank=True)
+    
+    # Custom Forms Domain Fields
+    forms_domain = models.CharField(max_length=255, null=True, blank=True, unique=True, 
+                                    help_text='Custom subdomain for client check-in links (e.g., check.gymname.com)')
+    forms_domain_verified = models.BooleanField(default=False, 
+                                                help_text='Whether DNS has been verified')
+    forms_domain_configured = models.BooleanField(default=False, 
+                                                  help_text='Whether domain is fully configured')
+    forms_domain_added_at = models.DateTimeField(null=True, blank=True, 
+                                                 help_text='When custom domain was configured')
 
     class Meta:
         managed = False
@@ -262,6 +272,11 @@ class Client(models.Model):
         unique=True, 
         editable=False,
         help_text='Permanent UUID link for check-in form access'
+    )
+    short_checkin_link = models.TextField(
+        null=True, 
+        blank=True,
+        help_text='Shortened URL for check-in form (permanent, generated once by URL shortener)'
     )
     
     # Employee Relationships

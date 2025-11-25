@@ -243,3 +243,9 @@ BACKEND_URL = env.str('BACKEND_URL', default='http://127.0.0.1:8000')
 
 # Frontend URL for client-facing check-in links
 FRONTEND_URL = env.str('FRONTEND_URL', default='http://localhost:3000')
+
+# URL Shortener Integration
+URL_SHORTENER_API_URL = env.str('URL_SHORTENER_API_URL', default='http://localhost:8001')
+
+# Default forms domain (fallback when account has no custom domain)
+DEFAULT_FORMS_DOMAIN = env.str('DEFAULT_FORMS_DOMAIN', default='form.fithq.ai')

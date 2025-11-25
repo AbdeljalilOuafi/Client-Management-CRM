@@ -10,8 +10,32 @@ class AccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Account
         fields = ['id', 'name', 'email', 'ceo_name', 'niche', 'location', 'website_url',
-                  'date_joined', 'created_at', 'updated_at', 'timezone']
-        read_only_fields = ['id', 'date_joined', 'created_at', 'updated_at']
+                  'date_joined', 'created_at', 'updated_at', 'timezone', 'forms_domain',
+                  'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at']
+        read_only_fields = ['id', 'date_joined', 'created_at', 'updated_at', 
+                           'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at']
+    
+    def validate_forms_domain(self, value):
+        """Validate custom forms domain format"""
+        if not value:
+            return value
+        
+        # Basic domain format validation (subdomain.domain.tld)
+        import re
+        domain_pattern = r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$'
+        
+        if not re.match(domain_pattern, value):
+            raise serializers.ValidationError(
+                "Invalid domain format. Expected format: subdomain.domain.com (e.g., check.gymname.com)"
+            )
+        
+        # Ensure no protocol prefix
+        if value.startswith('http://') or value.startswith('https://'):
+            raise serializers.ValidationError(
+                "Domain should not include protocol (http:// or https://). Use format: check.gymname.com"
+            )
+        
+        return value.lower()  # Normalize to lowercase
 
 
 class EmployeeRoleSerializer(serializers.ModelSerializer):
@@ -218,9 +242,10 @@ class ClientSerializer(serializers.ModelSerializer):
             'trz_id', 'client_start_date', 'client_end_date', 'dob', 'country',
             'state', 'currency', 'gender', 'lead_origin', 'notice_given',
             'no_more_payments', 'timezone', 'coach', 'coach_name', 'closer',
-            'closer_name', 'setter', 'setter_name', 'checkin_link'
+            'closer_name', 'setter', 'setter_name', 'checkin_link', 'short_checkin_link'
         ]
-        read_only_fields = ['id', 'account_name', 'coach_name', 'closer_name', 'setter_name', 'checkin_link']
+        read_only_fields = ['id', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
+                           'checkin_link', 'short_checkin_link']
         extra_kwargs = {
             'account': {'required': False}
         }
