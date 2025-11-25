@@ -320,7 +320,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
 
       {/* Custom Roles Multi-Select */}
       <div className="space-y-2">
-        <Label htmlFor="customRoles">Custom Roles (Tags)</Label>
+        <Label htmlFor="customRoles">Employee Roles (Tags)</Label>
         <CustomRolesMultiSelect
           value={customRoleIds}
           onChange={setCustomRoleIds}

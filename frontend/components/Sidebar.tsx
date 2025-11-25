@@ -125,6 +125,11 @@ export function Sidebar() {
 
         {/* Navigation Items */}
         <nav className="flex-1 py-4 overflow-y-auto scrollbar-hide">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-muted-foreground text-sm">Loading...</div>
+            </div>
+          ) : (
           <div className="space-y-1 px-2">
             {parentPages.map((page) => {
               const Icon = getIconComponent(page.icon);
@@ -227,6 +232,7 @@ export function Sidebar() {
               );
             })}
           </div>
+          )}
         </nav>
 
         {/* Footer Section */}

@@ -51,37 +51,82 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const [user, setUser] = useState<UserWithPermissions | null>(null);
   const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  const loadPermissions = () => {
-    const storedUser = getStoredUser();
-    const storedPermissions = getStoredPermissions();
-    
-    console.log('[PermissionsContext] Loading permissions:', {
-      storedUser,
-      storedPermissions,
-      userRole: storedUser?.role,
-    });
-    
-    if (storedUser) {
-      setUser(storedUser as UserWithPermissions);
-      // Use stored permissions or extract from user object
-      const perms = storedPermissions || (storedUser as any).permissions;
-      setPermissions(perms || null);
-      
-      console.log('[PermissionsContext] Permissions loaded:', {
-        role: storedUser.role,
-        permissions: perms,
-      });
-    } else {
-      setUser(null);
-      setPermissions(null);
-    }
-    setIsLoading(false);
-  };
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
+    // Prevent multiple fetches
+    if (hasFetched) return;
+    
+    const loadPermissions = async () => {
+      // First, load from localStorage for immediate display
+      const storedUser = getStoredUser();
+      const storedPermissions = getStoredPermissions();
+      
+      console.log('[PermissionsContext] Loading permissions from localStorage:', {
+        storedUser,
+        storedPermissions,
+        userRole: storedUser?.role,
+      });
+      
+      if (storedUser) {
+        setUser(storedUser as UserWithPermissions);
+        // Use stored permissions or extract from user object
+        const perms = storedPermissions || (storedUser as any).permissions;
+        setPermissions(perms || null);
+        
+        console.log('[PermissionsContext] Permissions loaded from localStorage:', {
+          role: storedUser.role,
+          permissions: perms,
+        });
+      }
+      
+      // Then fetch fresh data from backend to ensure accuracy
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+        
+        if (token) {
+          console.log('[PermissionsContext] Fetching fresh user data from backend...');
+          const freshUser = await getCurrentUser();
+          
+          console.log('[PermissionsContext] Fresh user data received:', {
+            id: freshUser.id,
+            role: freshUser.role,
+            permissions: (freshUser as any).permissions,
+          });
+          
+          // Update localStorage with fresh data
+          if (typeof window !== "undefined") {
+            localStorage.setItem("user", JSON.stringify(freshUser));
+          }
+          
+          // Update state with fresh data
+          setUser(freshUser as UserWithPermissions);
+          
+          // Extract permissions from user object
+          const freshPermissions = {
+            can_view_all_clients: (freshUser as any).can_view_all_clients || false,
+            can_manage_all_clients: (freshUser as any).can_manage_all_clients || false,
+            can_view_all_payments: (freshUser as any).can_view_all_payments || false,
+            can_manage_all_payments: (freshUser as any).can_manage_all_payments || false,
+            can_view_all_installments: (freshUser as any).can_view_all_installments || false,
+            can_manage_all_installments: (freshUser as any).can_manage_all_installments || false,
+          };
+          
+          setPermissions(freshPermissions);
+          
+          console.log('[PermissionsContext] State updated with fresh data');
+        }
+      } catch (error) {
+        console.error('[PermissionsContext] Failed to fetch fresh user data:', error);
+        // Continue with localStorage data if backend fetch fails
+      } finally {
+        setIsLoading(false);
+        setHasFetched(true);
+      }
+    };
+
     loadPermissions();
-  }, []);
+  }, [hasFetched]);
 
   // Role checks
   const isSuperAdmin = (): boolean => {
@@ -170,7 +215,13 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     } catch (error) {
       console.error('[PermissionsContext] Failed to refresh permissions:', error);
       // Fall back to loading from localStorage
-      loadPermissions();
+      const storedUser = getStoredUser();
+      const storedPermissions = getStoredPermissions();
+      if (storedUser) {
+        setUser(storedUser as UserWithPermissions);
+        const perms = storedPermissions || (storedUser as any).permissions;
+        setPermissions(perms || null);
+      }
     }
   };
 
