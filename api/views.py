@@ -1795,6 +1795,7 @@ def configure_custom_domain(request):
     }
     """
     from api.services.domain_service import DomainService
+    logger = logging.getLogger(__name__)
     
     try:
         forms_domain = request.data.get('forms_domain')
@@ -1898,6 +1899,7 @@ def regenerate_client_links(request):
     }
     """
     from api.utils.client_link_service import regenerate_all_client_links
+    logger = logging.getLogger(__name__)
     
     try:
         account = request.user.account
@@ -1943,6 +1945,8 @@ def get_domain_config(request):
         "forms_domain_added_at": "2025-11-25T10:30:00Z"
     }
     """
+    logger = logging.getLogger(__name__)
+    
     try:
         account = request.user.account
         
@@ -1980,6 +1984,8 @@ def update_domain_config(request):
         "domain": "newdomain.gym.com"
     }
     """
+    logger = logging.getLogger(__name__)
+    
     try:
         account = request.user.account
         forms_domain = request.data.get('forms_domain')
@@ -2034,6 +2040,7 @@ def delete_domain_config(request):
     }
     """
     from api.services.domain_service import DomainService
+    logger = logging.getLogger(__name__)
     
     try:
         account = request.user.account
