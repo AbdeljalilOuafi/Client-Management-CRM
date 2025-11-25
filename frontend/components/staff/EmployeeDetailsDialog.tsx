@@ -58,7 +58,7 @@ export function EmployeeDetailsDialog({
   
   // App Access state
   const [appAccess, setAppAccess] = useState({
-    onsync: false,
+    fithq: false,
     gohighlevel: false,
   });
   const [ghlPermissions, setGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
@@ -100,7 +100,7 @@ export function EmployeeDetailsDialog({
       if (employee.app_access || storedAppAccess) {
         const accessData = employee.app_access || storedAppAccess?.app_access;
         setAppAccess({
-          onsync: accessData?.onsync || false,
+          fithq: accessData?.fithq || false,
           gohighlevel: accessData?.gohighlevel || false,
         });
         
@@ -116,7 +116,7 @@ export function EmployeeDetailsDialog({
           setGhlPermissions(getInitialPermissionsState());
         }
       } else {
-        setAppAccess({ onsync: false, gohighlevel: false });
+        setAppAccess({ fithq: false, gohighlevel: false });
         setGhlPermissions(getInitialPermissionsState());
       }
       
@@ -281,7 +281,7 @@ export function EmployeeDetailsDialog({
   const hasPermissionChanges = Object.keys(permissionChanges).length > 0;
 
   // App Access handlers
-  const handleAppAccessChange = (type: 'onsync' | 'gohighlevel', checked: boolean) => {
+  const handleAppAccessChange = (type: 'fithq' | 'gohighlevel', checked: boolean) => {
     if (type === 'gohighlevel' && checked) {
       // Open GHL permissions modal
       setTempGhlPermissions({ ...ghlPermissions });
@@ -698,20 +698,20 @@ export function EmployeeDetailsDialog({
                 ) : (
                   <>
                     <div className="space-y-4">
-                      {/* OnSync Access */}
+                      {/* FitHQ Access */}
                       <div className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-3">
                           <Smartphone className="h-5 w-5 text-primary" />
                           <div>
-                            <Label className="text-base font-semibold">OnSync App</Label>
+                            <Label className="text-base font-semibold">FitHQ App</Label>
                             <p className="text-sm text-muted-foreground">
-                              Access to the OnSync management platform
+                              Access to the FitHQ management platform
                             </p>
                           </div>
                         </div>
                         <Checkbox
-                          checked={appAccess.onsync}
-                          onCheckedChange={(checked) => handleAppAccessChange('onsync', checked as boolean)}
+                          checked={appAccess.fithq}
+                          onCheckedChange={(checked) => handleAppAccessChange('fithq', checked as boolean)}
                         />
                       </div>
 
@@ -754,11 +754,11 @@ export function EmployeeDetailsDialog({
                               if (employee.app_access || storedAppAccess) {
                                 const accessData = employee.app_access || storedAppAccess?.app_access;
                                 setAppAccess({
-                                  onsync: accessData?.onsync || false,
+                                  fithq: accessData?.fithq || false,
                                   gohighlevel: accessData?.gohighlevel || false,
                                 });
                               } else {
-                                setAppAccess({ onsync: false, gohighlevel: false });
+                                setAppAccess({ fithq: false, gohighlevel: false });
                               }
                               setHasAppAccessChanges(false);
                             }}

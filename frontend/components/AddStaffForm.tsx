@@ -13,7 +13,7 @@ import { getInitialPermissionsState } from "@/lib/data/gohighlevel-permissions";
 import { GoHighLevelPermissionsModal } from "@/components/staff/GoHighLevelPermissionsModal";
 import { sendGHLPermissions, buildGHLPayload } from "@/lib/api/gohighlevel";
 import { CustomRolesMultiSelect } from "@/components/staff/CustomRolesMultiSelect";
-import { OnSyncPermissionsDialog, OnSyncPermissions } from "@/components/staff/OnSyncPermissionsDialog";
+import { FitHQPermissionsDialog, FitHQPermissions } from "@/components/staff/FitHQPermissionsDialog";
 
 interface AddStaffFormProps {
   onSuccess: () => void;
@@ -36,7 +36,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   
   // App Access state
   const [appAccess, setAppAccess] = useState({
-    onsync: false,
+    fithq: false,
     gohighlevel: false,
   });
   const [ghlPermissions, setGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
@@ -44,40 +44,40 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const [showGhlModal, setShowGhlModal] = useState(false);
   const [tempGhlPermissions, setTempGhlPermissions] = useState<Record<string, boolean>>(getInitialPermissionsState());
   
-  // OnSync Permissions state
-  const [onSyncPermissions, setOnSyncPermissions] = useState<OnSyncPermissions | null>(null);
-  const [onSyncConfigured, setOnSyncConfigured] = useState(false);
-  const [showOnSyncModal, setShowOnSyncModal] = useState(false);
+  // FitHQ Permissions state
+  const [onSyncPermissions, setFitHQPermissions] = useState<FitHQPermissions | null>(null);
+  const [onSyncConfigured, setFitHQConfigured] = useState(false);
+  const [showFitHQModal, setShowFitHQModal] = useState(false);
 
 
-  // Handle OnSync checkbox change
-  const handleOnSyncCheckboxChange = (checked: boolean) => {
+  // Handle FitHQ checkbox change
+  const handleFitHQCheckboxChange = (checked: boolean) => {
     if (checked) {
       // Open modal to configure permissions
-      setShowOnSyncModal(true);
+      setShowFitHQModal(true);
     } else {
       // Uncheck and clear permissions
-      setAppAccess({ ...appAccess, onsync: false });
-      setOnSyncPermissions(null);
-      setOnSyncConfigured(false);
+      setAppAccess({ ...appAccess, fithq: false });
+      setFitHQPermissions(null);
+      setFitHQConfigured(false);
     }
   };
 
-  // Handle OnSync modal save
-  const handleOnSyncModalSave = (permissions: OnSyncPermissions) => {
-    setOnSyncPermissions(permissions);
-    setAppAccess({ ...appAccess, onsync: true });
-    setOnSyncConfigured(true);
-    setShowOnSyncModal(false);
+  // Handle FitHQ modal save
+  const handleFitHQModalSave = (permissions: FitHQPermissions) => {
+    setFitHQPermissions(permissions);
+    setAppAccess({ ...appAccess, fithq: true });
+    setFitHQConfigured(true);
+    setShowFitHQModal(false);
   };
 
-  // Handle OnSync modal cancel
-  const handleOnSyncModalCancel = () => {
-    setShowOnSyncModal(false);
+  // Handle FitHQ modal cancel
+  const handleFitHQModalCancel = () => {
+    setShowFitHQModal(false);
     // Only clear permissions if they weren't configured yet
     if (!onSyncConfigured) {
-      setAppAccess({ ...appAccess, onsync: false });
-      setOnSyncPermissions(null);
+      setAppAccess({ ...appAccess, fithq: false });
+      setFitHQPermissions(null);
     }
   };
 
@@ -140,11 +140,11 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate OnSync permissions if checkbox is checked
-    if (appAccess.onsync && !onSyncConfigured) {
+    // Validate FitHQ permissions if checkbox is checked
+    if (appAccess.fithq && !onSyncConfigured) {
       toast({
         title: "Error",
-        description: "Please configure OnSync permissions",
+        description: "Please configure FitHQ permissions",
         variant: "destructive",
       });
       return;
@@ -176,15 +176,15 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         start_date: formData.startDate,
         custom_roles: customRoleIds, // Array of custom role UUIDs
         app_access: {
-          onsync: appAccess.onsync,
+          fithq: appAccess.fithq,
           gohighlevel: appAccess.gohighlevel,
         },
-        ...(appAccess.onsync && onSyncPermissions && { onsync_permissions: onSyncPermissions }),
+        ...(appAccess.fithq && onSyncPermissions && { fithq_permissions: onSyncPermissions }),
         ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
       };
 
-      // Only include password if OnSync access is enabled
-      if (appAccess.onsync && onSyncPermissions) {
+      // Only include password if FitHQ access is enabled
+      if (appAccess.fithq && onSyncPermissions) {
         employeeData.password = onSyncPermissions.password;
       }
 
@@ -199,16 +199,16 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
       await new Promise(resolve => setTimeout(resolve, 500));
 
       // Save app access with email as temporary key (we'll update it after refresh)
-      if (appAccess.onsync || appAccess.gohighlevel) {
+      if (appAccess.fithq || appAccess.gohighlevel) {
         // Store with email temporarily
         const tempKey = `temp_${employeeData.email}`;
         localStorage.setItem(tempKey, JSON.stringify({
           email: employeeData.email,
           app_access: {
-            onsync: appAccess.onsync,
+            fithq: appAccess.fithq,
             gohighlevel: appAccess.gohighlevel,
           },
-          ...(appAccess.onsync && onSyncPermissions && { onsync_permissions: onSyncPermissions }),
+          ...(appAccess.fithq && onSyncPermissions && { fithq_permissions: onSyncPermissions }),
           ...(appAccess.gohighlevel && { gohighlevel_permissions: ghlPermissions }),
         }));
         console.log("[AddStaffForm] Saved temp app access with email:", employeeData.email);
@@ -335,15 +335,15 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         <div>
           <h3 className="text-sm font-medium mb-3">App Access</h3>
           <div className="space-y-4">
-            {/* OnSync Checkbox */}
+            {/* FitHQ Checkbox */}
             <div className="flex items-center space-x-2">
               <Checkbox
-                id="onsync"
-                checked={appAccess.onsync}
-                onCheckedChange={handleOnSyncCheckboxChange}
+                id="fithq"
+                checked={appAccess.fithq}
+                onCheckedChange={handleFitHQCheckboxChange}
               />
-              <Label htmlFor="onsync" className="text-sm font-normal cursor-pointer">
-                Do they need access to OnSync app?
+              <Label htmlFor="fithq" className="text-sm font-normal cursor-pointer">
+                Do they need access to FitHQ app?
               </Label>
               {onSyncConfigured && (
                 <>
@@ -355,7 +355,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowOnSyncModal(true)}
+                    onClick={() => setShowFitHQModal(true)}
                     className="h-7 text-xs ml-2"
                   >
                     Edit
@@ -399,12 +399,12 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         </div>
       </div>
 
-      {/* OnSync Permissions Dialog */}
-      <OnSyncPermissionsDialog
-        open={showOnSyncModal}
-        onOpenChange={setShowOnSyncModal}
-        onSave={handleOnSyncModalSave}
-        onCancel={handleOnSyncModalCancel}
+      {/* FitHQ Permissions Dialog */}
+      <FitHQPermissionsDialog
+        open={showFitHQModal}
+        onOpenChange={setShowFitHQModal}
+        onSave={handleFitHQModalSave}
+        onCancel={handleFitHQModalCancel}
         initialPermissions={onSyncPermissions}
       />
 

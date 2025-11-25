@@ -50,7 +50,7 @@ export function Navbar() {
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <h1 className="text-2xl font-bold">FitCoach Manager</h1>
+            <h1 className="text-2xl font-bold">FitHQ</h1>
             <div className="flex gap-6">
               {navItems.map((item) => {
                 const Icon = item.icon;

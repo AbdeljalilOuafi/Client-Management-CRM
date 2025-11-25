@@ -38,7 +38,7 @@ export interface Employee {
   can_view_all_installments?: boolean;
   can_manage_all_installments?: boolean;
   app_access?: {
-    onsync: boolean;
+    fithq: boolean;
     gohighlevel: boolean;
   };
   gohighlevel_permissions?: string[];

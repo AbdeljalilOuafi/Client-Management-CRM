@@ -11,7 +11,7 @@ import { PermissionsProvider } from "@/contexts/PermissionsContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "OnSync",
+  title: "FitHQ",
   description: "Payment and instalment management system",
 };
 

@@ -8,7 +8,7 @@ const APP_ACCESS_STORAGE_KEY = 'staff_app_access';
 export interface AppAccessData {
   employeeId: number;
   app_access: {
-    onsync: boolean;
+    fithq: boolean;
     gohighlevel: boolean;
   };
   gohighlevel_permissions?: string[];

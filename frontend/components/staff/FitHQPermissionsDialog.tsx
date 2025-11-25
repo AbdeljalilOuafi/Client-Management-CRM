@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Eye, EyeOff, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface OnSyncPermissions {
+export interface FitHQPermissions {
   restrictToAssignedData: boolean;
   clients: {
     view: boolean;
@@ -36,15 +36,15 @@ export interface OnSyncPermissions {
   password: string;
 }
 
-interface OnSyncPermissionsDialogProps {
+interface FitHQPermissionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (permissions: OnSyncPermissions) => void;
+  onSave: (permissions: FitHQPermissions) => void;
   onCancel: () => void;
-  initialPermissions?: OnSyncPermissions | null;
+  initialPermissions?: FitHQPermissions | null;
 }
 
-const defaultPermissions: OnSyncPermissions = {
+const defaultPermissions: FitHQPermissions = {
   restrictToAssignedData: true, // Default checked
   clients: {
     view: false,
@@ -70,14 +70,14 @@ const defaultPermissions: OnSyncPermissions = {
   password: "",
 };
 
-export function OnSyncPermissionsDialog({
+export function FitHQPermissionsDialog({
   open,
   onOpenChange,
   onSave,
   onCancel,
   initialPermissions,
-}: OnSyncPermissionsDialogProps) {
-  const [permissions, setPermissions] = useState<OnSyncPermissions>(
+}: FitHQPermissionsDialogProps) {
+  const [permissions, setPermissions] = useState<FitHQPermissions>(
     initialPermissions || defaultPermissions
   );
   const [showPassword, setShowPassword] = useState(false);
@@ -129,9 +129,9 @@ export function OnSyncPermissionsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">OnSync App Permissions</DialogTitle>
+          <DialogTitle className="text-2xl font-bold">FitHQ App Permissions</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Configure what this employee can access in OnSync
+            Configure what this employee can access in FitHQ
           </p>
         </DialogHeader>
 

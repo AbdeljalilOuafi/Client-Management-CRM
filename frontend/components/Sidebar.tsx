@@ -113,7 +113,7 @@ export function Sidebar() {
                   isExpanded ? "opacity-100" : "opacity-0 w-0"
                 )}
               >
-                FitCoach Manager
+                FitHQ
               </span>
             </div>
           </div>

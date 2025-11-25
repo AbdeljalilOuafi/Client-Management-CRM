@@ -438,10 +438,10 @@ const StaffContent = () => {
                                       )}
                                       {col.id === "app_access" && (
                                         <div className="flex items-center gap-2">
-                                          {employee?.app_access?.onsync && (
-                                            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md" title="OnSync Access">
+                                          {employee?.app_access?.fithq && (
+                                            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md" title="FitHQ Access">
                                               <Smartphone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">OnSync</span>
+                                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">FitHQ</span>
                                             </div>
                                           )}
                                           {employee?.app_access?.gohighlevel && (
@@ -450,7 +450,7 @@ const StaffContent = () => {
                                               <span className="text-xs font-medium text-purple-700 dark:text-purple-300">GHL</span>
                                             </div>
                                           )}
-                                          {(!employee?.app_access?.onsync && !employee?.app_access?.gohighlevel) && (
+                                          {(!employee?.app_access?.fithq && !employee?.app_access?.gohighlevel) && (
                                             <span className="text-xs text-muted-foreground">-</span>
                                           )}
                                         </div>
