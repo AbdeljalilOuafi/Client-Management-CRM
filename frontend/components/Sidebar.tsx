@@ -25,10 +25,12 @@ import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 import * as LucideIcons from "lucide-react";
 
+import { useSidebar } from "@/contexts/SidebarContext";
+
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [isExpanded, setIsExpanded] = useState(false); // Collapsed by default (icons only)
+  const { isExpanded, toggleSidebar } = useSidebar();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({}); // Track which parent menus are expanded
   const { getNavigationPages, isLoading, user } = usePermissions();
   
@@ -70,10 +72,6 @@ export function Sidebar() {
     return children.some(child => isActive(child.path));
   };
 
-  const toggleSidebar = () => {
-    setIsExpanded(!isExpanded);
-  };
-
   const toggleMenu = (menuId: string) => {
     setExpandedMenus(prev => ({
       ...prev,
@@ -83,15 +81,6 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Overlay - Click to close expanded sidebar */}
-      {isExpanded && (
-        <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-300"
-          onClick={toggleSidebar}
-          aria-label="Close sidebar"
-        />
-      )}
-
       {/* Sidebar - Always visible, width changes based on expanded state */}
       <aside
         className={cn(
@@ -160,7 +149,7 @@ export function Sidebar() {
                       toggleMenu(page.id);
                       // Auto-expand sidebar if clicking parent menu while collapsed
                       if (!isExpanded) {
-                        setIsExpanded(true);
+                        toggleSidebar();
                       }
                     } else {
                       router.push(page.path);
