@@ -37,7 +37,7 @@ export function Navbar() {
       path: "/staff",
     },
     {
-      label: "Check-in Forms",
+      label: "Forms",
       icon: FileText,
       path: "/check-in-forms",
     },

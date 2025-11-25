@@ -153,13 +153,13 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     editRoles: ["admin", "super_admin"],
   },
 
-  // ==================== CHECK-IN FORMS ====================
+  // ==================== FORMS ====================
   {
     id: "check-in-forms",
-    name: "Check-in Forms",
+    name: "Forms",
     path: "/check-in-forms",
     icon: "FileText",
-    description: "Manage client check-in forms",
+    description: "Manage client forms",
     showInNav: true,
     navOrder: 7,
     // Only super_admin can view

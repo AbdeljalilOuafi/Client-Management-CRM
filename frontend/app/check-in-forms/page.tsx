@@ -224,8 +224,8 @@ function CheckinFormsContent() {
           {/* Header */}
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-4xl font-bold">Check-in Forms</h1>
-              <p className="text-muted-foreground mt-2">Create and manage client check-in forms</p>
+              <h1 className="text-4xl font-bold">Forms</h1>
+              <p className="text-muted-foreground mt-2">Create and manage client forms</p>
             </div>
             <Button onClick={() => setShowCreateDialog(true)} size="lg">
               <Plus className="h-4 w-4 mr-2" />
