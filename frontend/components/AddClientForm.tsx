@@ -20,6 +20,37 @@ import { cn } from "@/lib/utils";
 import { COUNTRY_CODES, getPopularCountries, getAllCountries, type Country } from "@/lib/country-codes";
 
 // ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// Format input to 2 decimal places on blur
+const formatToTwoDecimals = (e: React.FocusEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  if (value && !isNaN(parseFloat(value))) {
+    e.target.value = parseFloat(value).toFixed(2);
+  }
+};
+
+// Restrict input to max 2 decimal places while typing
+const handleDecimalInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  // Allow empty value
+  if (value === '') return;
+  
+  // Check if value has more than 2 decimal places
+  const parts = value.split('.');
+  if (parts.length === 2 && parts[1].length > 2) {
+    // Truncate to 2 decimal places
+    e.target.value = `${parts[0]}.${parts[1].slice(0, 2)}`;
+  }
+};
+
+// Format phone number input (digits only)
+const formatPhoneNumber = (value: string): string => {
+  return value.replace(/\D/g, '');
+};
+
+// ============================================================================
 // ZOD VALIDATION SCHEMA
 // ============================================================================
 
@@ -164,6 +195,14 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   const numInstalments = watch("numInstalments");
   const isFreeTrial = watch("isFreeTrial");
   const isFreeClient = watch("isFreeClient");
+
+  // Uncheck generatePaymentLink when isFreeClient is checked
+  useEffect(() => {
+    if (isFreeClient) {
+      setValue("generatePaymentLink", false);
+      setValue("sendPaymentLinkToClient", false);
+    }
+  }, [isFreeClient, setValue]);
 
   // Fetch package types using React Query
   const { data: packageTypes } = useQuery({
@@ -396,46 +435,51 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 max-h-[75vh] overflow-y-auto pr-2 pb-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 pb-4">
       {/* ========================================================================
           OPTIONS
           ======================================================================== */}
       <div className="space-y-4 p-6 bg-muted/30 rounded-xl border border-border/50 shadow-sm">
-        <div className="flex items-center space-x-2">
-          <Controller
-            name="generatePaymentLink"
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                id="generatePaymentLink"
-                checked={field.value}
-                onCheckedChange={field.onChange}
+        {/* Hide generatePaymentLink when Free Client is selected */}
+        {!isFreeClient && (
+          <>
+            <div className="flex items-center space-x-2">
+              <Controller
+                name="generatePaymentLink"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="generatePaymentLink"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                )}
               />
-            )}
-          />
-          <Label htmlFor="generatePaymentLink" className="text-sm font-medium cursor-pointer">
-            Generate payment link
-          </Label>
-        </div>
+              <Label htmlFor="generatePaymentLink" className="text-sm font-medium cursor-pointer">
+                Generate payment link
+              </Label>
+            </div>
 
-        {/* Nested checkbox - only shows when generatePaymentLink is checked */}
-        {watch("generatePaymentLink") && (
-          <div className="flex items-center space-x-2 ml-6 pl-4 border-l-2 border-primary/30">
-            <Controller
-              name="sendPaymentLinkToClient"
-              control={control}
-              render={({ field }) => (
-                <Checkbox
-                  id="sendPaymentLinkToClient"
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
+            {/* Nested checkbox - only shows when generatePaymentLink is checked */}
+            {watch("generatePaymentLink") && (
+              <div className="flex items-center space-x-2 ml-6 pl-4 border-l-2 border-primary/30">
+                <Controller
+                  name="sendPaymentLinkToClient"
+                  control={control}
+                  render={({ field }) => (
+                    <Checkbox
+                      id="sendPaymentLinkToClient"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
                 />
-              )}
-            />
-            <Label htmlFor="sendPaymentLinkToClient" className="text-sm font-medium cursor-pointer">
-              Send payment link to client
-            </Label>
-          </div>
+                <Label htmlFor="sendPaymentLinkToClient" className="text-sm font-medium cursor-pointer">
+                  Send payment link to client
+                </Label>
+              </div>
+            )}
+          </>
         )}
 
         <div className="flex items-center space-x-2">
@@ -532,10 +576,10 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[320px] p-0" align="start">
+                    <PopoverContent className="w-[320px] p-0 max-h-[400px] overflow-hidden" align="start" side="bottom" sideOffset={4}>
                       <Command>
                         <CommandInput placeholder="Search country or code..." />
-                        <CommandList>
+                        <CommandList className="max-h-[320px] overflow-y-scroll" onWheel={(e) => e.stopPropagation()}>
                           <CommandEmpty>No country found.</CommandEmpty>
                           
                           {/* Popular Countries */}
@@ -593,8 +637,12 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
               }}
             />
             <Input
-              {...register("phone")}
-              placeholder="555-0123"
+              {...register("phone", {
+                onChange: (e) => {
+                  e.target.value = formatPhoneNumber(e.target.value);
+                }
+              })}
+              placeholder="5550123"
               className={errors.phone ? "border-destructive" : ""}
             />
           </div>
@@ -715,10 +763,12 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent position="popper" sideOffset={5}>
                     <SelectItem value="USD">USD</SelectItem>
                     <SelectItem value="GBP">GBP</SelectItem>
                     <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="AED">AED</SelectItem>
+                    <SelectItem value="AUD">AUD</SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -782,6 +832,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     step="0.01"
                     min="1"
                     {...register("pifFullAmount")}
+                    onInput={handleDecimalInput}
+                    onBlur={formatToTwoDecimals}
                     onWheel={(e) => e.currentTarget.blur()}
                     className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.pifFullAmount ? "border-destructive" : ""}`}
                   />
@@ -808,6 +860,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     step="0.01"
                     min="1"
                     {...register("monthlyRollingAmount")}
+                    onInput={handleDecimalInput}
+                    onBlur={formatToTwoDecimals}
                     onWheel={(e) => e.currentTarget.blur()}
                     className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.monthlyRollingAmount ? "border-destructive" : ""}`}
                   />
@@ -855,6 +909,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                           step="0.01"
                           min="1"
                           {...register(`instalments.${index}.amount`)}
+                          onInput={handleDecimalInput}
+                          onBlur={formatToTwoDecimals}
                           onWheel={(e) => e.currentTarget.blur()}
                           className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.instalments?.[index]?.amount ? "border-destructive" : ""}`}
                         />
@@ -903,6 +959,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                 min="1"
                 placeholder="Enter subscription amount"
                 {...register("subscriptionAmount")}
+                onInput={handleDecimalInput}
+                onBlur={formatToTwoDecimals}
                 onWheel={(e) => e.currentTarget.blur()}
                 className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.subscriptionAmount ? "border-destructive" : ""}`}
               />
@@ -940,6 +998,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                     step="0.01"
                     min="1"
                     {...register("depositAmount")}
+                    onInput={handleDecimalInput}
+                    onBlur={formatToTwoDecimals}
                     onWheel={(e) => e.currentTarget.blur()}
                     className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${errors.depositAmount ? "border-destructive" : ""}`}
                   />

@@ -11,6 +11,24 @@ import { toast } from "sonner";
 import { listClients, Client as ApiClient } from "@/lib/api/clients";
 import { createInstalment } from "@/lib/api/instalments";
 
+// Format input to 2 decimal places on blur
+const formatToTwoDecimals = (e: React.FocusEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  if (value && !isNaN(parseFloat(value))) {
+    e.target.value = parseFloat(value).toFixed(2);
+  }
+};
+
+// Restrict input to max 2 decimal places while typing
+const handleDecimalInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  if (value === '') return;
+  const parts = value.split('.');
+  if (parts.length === 2 && parts[1].length > 2) {
+    e.target.value = `${parts[0]}.${parts[1].slice(0, 2)}`;
+  }
+};
+
 interface AddInstalmentFormProps {
   onSuccess: () => void;
 }
@@ -232,6 +250,8 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
           step="0.01"
           value={formData.instalmentAmount}
           onChange={(e) => setFormData(prev => ({ ...prev, instalmentAmount: e.target.value }))}
+          onInput={handleDecimalInput}
+          onBlur={formatToTwoDecimals}
           required
           placeholder="0.00"
         />
@@ -247,6 +267,8 @@ export const AddInstalmentForm = ({ onSuccess }: AddInstalmentFormProps) => {
             <SelectItem value="USD">USD</SelectItem>
             <SelectItem value="GBP">GBP</SelectItem>
             <SelectItem value="EUR">EUR</SelectItem>
+            <SelectItem value="AED">AED</SelectItem>
+            <SelectItem value="AUD">AUD</SelectItem>
           </SelectContent>
         </Select>
       </div>

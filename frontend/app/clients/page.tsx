@@ -193,7 +193,7 @@ export default function Index() {
                       Add New Client
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle className="text-2xl">Add New Client</DialogTitle>
                     </DialogHeader>

@@ -16,6 +16,24 @@ import { useToast } from "@/hooks/use-toast";
 import { listClients } from "@/lib/api/clients";
 import { cn } from "@/lib/utils";
 
+// Format input to 2 decimal places on blur
+const formatToTwoDecimals = (e: React.FocusEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  if (value && !isNaN(parseFloat(value))) {
+    e.target.value = parseFloat(value).toFixed(2);
+  }
+};
+
+// Restrict input to max 2 decimal places while typing
+const handleDecimalInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  if (value === '') return;
+  const parts = value.split('.');
+  if (parts.length === 2 && parts[1].length > 2) {
+    e.target.value = `${parts[0]}.${parts[1].slice(0, 2)}`;
+  }
+};
+
 interface PaymentFormData {
   clientName: string;
   clientId: string;
@@ -311,6 +329,8 @@ export const AddPaymentDialog = () => {
                   placeholder="0.00"
                   value={formData.amount}
                   onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                  onInput={handleDecimalInput}
+                  onBlur={formatToTwoDecimals}
                   className={errors.amount ? "border-red-500" : ""}
                 />
                 {errors.amount && (
@@ -340,6 +360,8 @@ export const AddPaymentDialog = () => {
                     <SelectItem value="USD">USD - US Dollar</SelectItem>
                     <SelectItem value="GBP">GBP - British Pound</SelectItem>
                     <SelectItem value="EUR">EUR - Euro</SelectItem>
+                    <SelectItem value="AED">AED - UAE Dirham</SelectItem>
+                    <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.currency && (

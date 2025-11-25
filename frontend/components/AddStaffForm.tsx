@@ -4,6 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { getPopularCountries, getAllCountries, type Country } from "@/lib/country-codes";
 import { useToast } from "@/hooks/use-toast";
 import { createEmployee } from "@/lib/api/staff";
 import { motion } from "framer-motion";
@@ -20,6 +25,10 @@ interface AddStaffFormProps {
   onCancel: () => void;
 }
 
+// Format phone number input (digits only)
+const formatPhoneNumber = (value: string): string => {
+  return value.replace(/\D/g, '');
+};
 
 export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
   const { toast } = useToast();
@@ -28,10 +37,15 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
     firstName: "",
     lastName: "",
     email: "",
+    countryCode: "+1",
     phoneNumber: "",
     role: "",
     startDate: new Date().toISOString().split('T')[0],
   });
+  const [countryCodeOpen, setCountryCodeOpen] = useState(false);
+  
+  const popularCountries = getPopularCountries();
+  const allCountries = getAllCountries();
   const [customRoleIds, setCustomRoleIds] = useState<string[]>([]);
   
   // App Access state
@@ -170,7 +184,7 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         name: fullName,
         email: formData.email,
         role: formData.role, // System role (super_admin, admin, employee)
-        phone_number: formData.phoneNumber || undefined,
+        phone_number: formData.phoneNumber ? `${formData.countryCode}${formData.phoneNumber}` : undefined,
         status: "active",
         is_active: true,
         start_date: formData.startDate,
@@ -278,13 +292,84 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         </div>
         <div className="space-y-2">
           <Label htmlFor="phoneNumber">Phone</Label>
-          <Input
-            id="phoneNumber"
-            type="tel"
-            value={formData.phoneNumber}
-            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-            placeholder="+1 (555) 123-4567"
-          />
+          <div className="flex gap-2">
+            <Popover open={countryCodeOpen} onOpenChange={setCountryCodeOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={countryCodeOpen}
+                  className="w-[140px] justify-between"
+                >
+                  {formData.countryCode}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0 max-h-[400px] overflow-hidden" align="start" side="bottom" sideOffset={4}>
+                <Command>
+                  <CommandInput placeholder="Search country..." />
+                  <CommandEmpty>No country found.</CommandEmpty>
+                  <CommandList className="max-h-[320px] overflow-y-scroll" onWheel={(e) => e.stopPropagation()}>
+                    {/* Popular Countries */}
+                    <CommandGroup heading="Popular">
+                      {popularCountries.map((country) => (
+                        <CommandItem
+                          key={`${country.code}-${country.dialCode}-popular`}
+                          value={`${country.name} ${country.dialCode} ${country.code}`}
+                          onSelect={() => {
+                            setFormData({ ...formData, countryCode: country.dialCode });
+                            setCountryCodeOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.countryCode === country.dialCode ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <span className="text-lg mr-2">{country.flag}</span>
+                          <span className="flex-1">{country.name}</span>
+                          <span className="text-muted-foreground">{country.dialCode}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                    
+                    {/* All Countries */}
+                    <CommandGroup heading="All Countries">
+                      {allCountries.map((country) => (
+                        <CommandItem
+                          key={`${country.code}-${country.dialCode}`}
+                          value={`${country.name} ${country.dialCode} ${country.code}`}
+                          onSelect={() => {
+                            setFormData({ ...formData, countryCode: country.dialCode });
+                            setCountryCodeOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.countryCode === country.dialCode ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <span className="text-lg mr-2">{country.flag}</span>
+                          <span className="flex-1">{country.name}</span>
+                          <span className="text-muted-foreground">{country.dialCode}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <Input
+              id="phoneNumber"
+              type="tel"
+              value={formData.phoneNumber}
+              onChange={(e) => setFormData({ ...formData, phoneNumber: formatPhoneNumber(e.target.value) })}
+              placeholder="5551234567"
+              className="flex-1"
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="role">System Role *</Label>
