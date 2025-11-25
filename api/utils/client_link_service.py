@@ -47,23 +47,24 @@ def get_or_generate_short_link(client, force_regenerate=False):
         logger.info(f"Using existing short link for client {client.id}: {client.short_checkin_link}")
         return client.short_checkin_link
     
-    # Determine which domain to use
+    # Determine which domain to use for the SHORT URL
     account = client.account
     if account.forms_domain and account.forms_domain_configured:
-        domain = account.forms_domain
-        logger.info(f"Using custom domain for client {client.id}: {domain}")
+        short_domain = account.forms_domain
+        logger.info(f"Using custom domain for client {client.id}: {short_domain}")
     else:
-        domain = settings.DEFAULT_FORMS_DOMAIN
-        logger.info(f"Using default domain for client {client.id}: {domain}")
+        short_domain = settings.DEFAULT_FORMS_DOMAIN
+        logger.info(f"Using default domain for client {client.id}: {short_domain}")
     
-    # Construct original full URL
-    original_url = f"https://{domain}/check-in/{client.checkin_link}/"
+    # Construct original full URL (always uses FRONTEND_URL for the actual check-in page)
+    frontend_url = settings.FRONTEND_URL.rstrip('/')
+    original_url = f"{frontend_url}/check-in/{client.checkin_link}/"
     
     # Try to shorten the URL
     client_name = f"{client.first_name} {client.last_name or ''}".strip()
     title = f"Check-In: {client_name}"
     
-    short_url = shorten_checkin_url(original_url, domain, title)
+    short_url = shorten_checkin_url(original_url, short_domain, title)
     
     # Fallback to full URL if shortening failed
     if short_url:
@@ -142,13 +143,6 @@ def get_checkin_url_without_saving(client):
     Returns:
         str: Check-in URL (full URL, not shortened)
     """
-    account = client.account
-    
-    # Determine domain
-    if account.forms_domain and account.forms_domain_configured:
-        domain = account.forms_domain
-    else:
-        domain = settings.DEFAULT_FORMS_DOMAIN
-    
-    # Return full URL
-    return f"https://{domain}/check-in/{client.checkin_link}/"
+    # Always use frontend URL for the actual check-in page
+    frontend_url = settings.FRONTEND_URL.rstrip('/')
+    return f"{frontend_url}/check-in/{client.checkin_link}/"
