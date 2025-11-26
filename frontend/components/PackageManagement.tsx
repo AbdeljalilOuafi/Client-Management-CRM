@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { Package as PackageIcon, Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react";
+import { listPackages, createPackage, updatePackage, deletePackage, Package as PackageAPI } from "@/lib/api/packages";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,60 +23,31 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// Data structure for package types
+// Map API Package to local PackageType for compatibility
 export interface PackageType {
-  id: string;
+  id: number;
   name: string;
   description?: string;
-  default_price?: number;
   is_active: boolean;
   created_at: string;
   updated_at?: string;
 }
 
-// Mock data for development
-const mockPackages: PackageType[] = [
-  {
-    id: '1',
-    name: 'Premium Coaching',
-    description: '1-on-1 personalized coaching',
-    default_price: 299,
-    is_active: true,
-    created_at: '2024-01-15'
-  },
-  {
-    id: '2',
-    name: 'Standard Plan',
-    description: 'Group coaching sessions',
-    default_price: 149,
-    is_active: true,
-    created_at: '2024-01-10'
-  },
-  {
-    id: '3',
-    name: 'Basic Package',
-    default_price: 99,
-    is_active: false,
-    created_at: '2024-01-05'
-  }
-];
-
 export const PackageManagement = () => {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [packages, setPackages] = useState<PackageType[]>([]);
+  const [packages, setPackages] = useState<PackageAPI[]>([]);
   const [loading, setLoading] = useState(false);
-  const [editingPackage, setEditingPackage] = useState<PackageType | null>(null);
+  const [editingPackage, setEditingPackage] = useState<PackageAPI | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [packageToDelete, setPackageToDelete] = useState<PackageType | null>(null);
+  const [packageToDelete, setPackageToDelete] = useState<PackageAPI | null>(null);
   const [activeTab, setActiveTab] = useState<string>("add");
   
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    default_price: '',
     is_active: true,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -88,21 +60,16 @@ export const PackageManagement = () => {
     }
   }, [open]);
 
-  // TODO: Connect to backend
   const fetchPackageTypes = async () => {
     try {
       setLoading(true);
-      // Will fetch from: GET /api/package-types
-      console.log("Fetching package types...");
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setPackages(mockPackages);
-    } catch (error) {
-      console.error("Failed to fetch package types:", error);
+      const data = await listPackages();
+      setPackages(data);
+    } catch (error: any) {
+      console.error("Failed to fetch packages:", error);
       toast({
         title: "Error",
-        description: "Failed to load package types",
+        description: error.message || "Failed to load packages",
         variant: "destructive",
       });
     } finally {
@@ -110,24 +77,9 @@ export const PackageManagement = () => {
     }
   };
 
-  // TODO: Connect to backend
-  const createPackageType = async (packageData: Partial<PackageType>) => {
+  const createPackageType = async (packageData: { package_name: string; description?: string }) => {
     try {
-      // Will post to: POST /api/package-types
-      console.log("Creating package:", packageData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const newPackage: PackageType = {
-        id: Date.now().toString(),
-        name: packageData.name!,
-        description: packageData.description,
-        default_price: packageData.default_price,
-        is_active: packageData.is_active ?? true,
-        created_at: new Date().toISOString(),
-      };
-      
+      const newPackage = await createPackage(packageData);
       setPackages(prev => [newPackage, ...prev]);
       
       toast({
@@ -136,30 +88,24 @@ export const PackageManagement = () => {
       });
       
       resetForm();
-    } catch (error) {
+      setActiveTab("existing"); // Switch to existing tab to see the new package
+    } catch (error: any) {
       console.error("Failed to create package:", error);
       toast({
         title: "Error",
-        description: "Failed to create package",
+        description: error.message || "Failed to create package",
         variant: "destructive",
       });
       throw error;
     }
   };
 
-  // TODO: Connect to backend
-  const updatePackageType = async (id: string, packageData: Partial<PackageType>) => {
+  const updatePackageType = async (id: number, packageData: Partial<{ package_name: string; description?: string; is_active?: boolean }>) => {
     try {
-      // Will put to: PUT /api/package-types/:id
-      console.log("Updating package:", id, packageData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      const updatedPackage = await updatePackage(id, packageData);
       
       setPackages(prev => prev.map(pkg => 
-        pkg.id === id 
-          ? { ...pkg, ...packageData, updated_at: new Date().toISOString() }
-          : pkg
+        pkg.id === id ? updatedPackage : pkg
       ));
       
       toast({
@@ -170,37 +116,31 @@ export const PackageManagement = () => {
       setEditingPackage(null);
       setEditDialogOpen(false);
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update package:", error);
       toast({
         title: "Error",
-        description: "Failed to update package",
+        description: error.message || "Failed to update package",
         variant: "destructive",
       });
       throw error;
     }
   };
 
-  // TODO: Connect to backend
-  const deletePackageType = async (id: string) => {
+  const deletePackageType = async (id: number) => {
     try {
-      // Will delete: DELETE /api/package-types/:id
-      console.log("Deleting package:", id);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
+      await deletePackage(id);
       setPackages(prev => prev.filter(pkg => pkg.id !== id));
       
       toast({
         title: "Success",
         description: "Package deleted successfully",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete package:", error);
       toast({
         title: "Error",
-        description: "Failed to delete package",
+        description: error.message || "Failed to delete package",
         variant: "destructive",
       });
       throw error;
@@ -215,16 +155,12 @@ export const PackageManagement = () => {
     } else {
       // Check for duplicate names (excluding current package when editing)
       const isDuplicate = packages.some(pkg => 
-        pkg.name.toLowerCase() === formData.name.toLowerCase() && 
+        pkg.package_name.toLowerCase() === formData.name.toLowerCase() && 
         pkg.id !== editingPackage?.id
       );
       if (isDuplicate) {
         errors.name = "Package name already exists";
       }
-    }
-    
-    if (formData.default_price && Number(formData.default_price) < 0) {
-      errors.default_price = "Price must be a positive number";
     }
     
     setFormErrors(errors);
@@ -241,17 +177,26 @@ export const PackageManagement = () => {
     setIsSubmitting(true);
     
     try {
-      const packageData = {
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-        default_price: formData.default_price ? Number(formData.default_price) : undefined,
-        is_active: formData.is_active,
-      };
-      
       if (editingPackage) {
-        await updatePackageType(editingPackage.id, packageData);
+        // Update existing package
+        const updateData: Partial<{ package_name: string; description?: string; is_active?: boolean }> = {
+          package_name: formData.name.trim(),
+          description: formData.description.trim() || undefined,
+          is_active: formData.is_active,
+        };
+        await updatePackageType(editingPackage.id, updateData);
       } else {
-        await createPackageType(packageData);
+        // Create new package
+        const createData: { package_name: string; description?: string } = {
+          package_name: formData.name.trim(),
+        };
+        
+        // Only include description if it has a value
+        if (formData.description.trim()) {
+          createData.description = formData.description.trim();
+        }
+        
+        await createPackageType(createData);
       }
     } catch (error) {
       // Error already handled in create/update functions
@@ -260,19 +205,18 @@ export const PackageManagement = () => {
     }
   };
 
-  const handleEdit = (pkg: PackageType) => {
+  const handleEdit = (pkg: PackageAPI) => {
     setEditingPackage(pkg);
     setFormData({
-      name: pkg.name,
+      name: pkg.package_name,
       description: pkg.description || '',
-      default_price: pkg.default_price?.toString() || '',
-      is_active: pkg.is_active,
+      is_active: pkg.is_active ?? true,
     });
     setFormErrors({});
     setEditDialogOpen(true);
   };
 
-  const handleDelete = (pkg: PackageType) => {
+  const handleDelete = (pkg: PackageAPI) => {
     setPackageToDelete(pkg);
     setDeleteConfirmOpen(true);
   };
@@ -289,7 +233,6 @@ export const PackageManagement = () => {
     setFormData({
       name: '',
       description: '',
-      default_price: '',
       is_active: true,
     });
     setFormErrors({});
@@ -301,16 +244,18 @@ export const PackageManagement = () => {
   };
 
   // Sort packages by created_at (newest first)
-  const sortedPackages = [...packages].sort((a, b) => 
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  const sortedPackages = (Array.isArray(packages) ? [...packages] : []).sort((a, b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return dateB - dateA;
+  });
 
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button className="gap-2">
-            <Package className="h-4 w-4" />
+            <PackageIcon className="h-4 w-4" />
             Manage Package Types
           </Button>
         </DialogTrigger>
@@ -363,26 +308,6 @@ export const PackageManagement = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="default_price">Default Price (One-Off)</Label>
-                  <Input
-                    id="default_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.default_price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, default_price: e.target.value }))}
-                    placeholder="0.00"
-                    className={formErrors.default_price ? "border-red-500" : ""}
-                  />
-                  {formErrors.default_price && (
-                    <p className="text-sm text-red-500 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {formErrors.default_price}
-                    </p>
-                  )}
-                </div>
-
                 <div className="flex gap-2 pt-2">
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
@@ -409,7 +334,7 @@ export const PackageManagement = () => {
                 </div>
               ) : sortedPackages.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <PackageIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
                   <p>No custom packages yet.</p>
                   <p className="text-sm">Create your first package above.</p>
                 </div>
@@ -422,7 +347,7 @@ export const PackageManagement = () => {
                     >
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{pkg.name}</h4>
+                          <h4 className="font-medium">{pkg.package_name}</h4>
                           <Badge variant={pkg.is_active ? "default" : "secondary"}>
                             {pkg.is_active ? "Active" : "Inactive"}
                           </Badge>
@@ -430,12 +355,11 @@ export const PackageManagement = () => {
                         {pkg.description && (
                           <p className="text-sm text-muted-foreground">{pkg.description}</p>
                         )}
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          {/* {pkg.default_price && (
-                            <span>Default Price: ${pkg.default_price.toFixed(2)}</span>
-                          )} */}
-                          <span>Created: {new Date(pkg.created_at).toLocaleDateString()}</span>
-                        </div>
+                        {pkg.created_at && (
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span>Created: {new Date(pkg.created_at).toLocaleDateString()}</span>
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex items-center gap-2">
@@ -473,7 +397,7 @@ export const PackageManagement = () => {
           <DialogHeader>
             <DialogTitle>Edit Package</DialogTitle>
             <DialogDescription>
-              Update the details of {editingPackage?.name}
+              Update the details of {editingPackage?.package_name}
             </DialogDescription>
           </DialogHeader>
 
@@ -575,7 +499,7 @@ export const PackageManagement = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete <strong>{packageToDelete?.name}</strong>? 
+              Are you sure you want to delete <strong>{packageToDelete?.package_name}</strong>? 
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

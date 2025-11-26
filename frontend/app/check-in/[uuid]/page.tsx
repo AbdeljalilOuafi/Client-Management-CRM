@@ -1,0 +1,498 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, CheckCircle2, AlertCircle, Send, Scale, Zap, Dumbbell, MessageSquare, Target, User, Mail, Package } from "lucide-react";
+import {
+  getPublicCheckInForm,
+  submitPublicCheckIn,
+  PublicCheckInData,
+  CheckInField,
+} from "@/lib/api/public-checkin";
+
+export default function PublicCheckInPage() {
+  const params = useParams();
+  const checkinUuid = params.uuid as string;
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkInData, setCheckInData] = useState<PublicCheckInData | null>(null);
+  const [formValues, setFormValues] = useState<Record<string, any>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadCheckInForm();
+  }, [checkinUuid]);
+
+  const loadCheckInForm = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await getPublicCheckInForm(checkinUuid);
+      setCheckInData(data);
+    } catch (err: any) {
+      console.error("Failed to load check-in form:", err);
+      setError(err.message || "Failed to load check-in form. Please check your link.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!checkInData) return false;
+
+    checkInData.form.form_schema.fields.forEach((field) => {
+      if (field.required && !formValues[field.id]) {
+        newErrors[field.id] = `${field.label} is required`;
+      }
+
+      // Validate number fields
+      if (field.type === "number" && formValues[field.id]) {
+        const value = parseFloat(formValues[field.id]);
+        if (isNaN(value)) {
+          newErrors[field.id] = "Please enter a valid number";
+        }
+      }
+    });
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setError(null);
+
+      // Convert number fields to actual numbers
+      const submissionData: Record<string, any> = {};
+      checkInData?.form.form_schema.fields.forEach((field) => {
+        if (formValues[field.id] !== undefined && formValues[field.id] !== "") {
+          if (field.type === "number") {
+            submissionData[field.id] = parseFloat(formValues[field.id]);
+          } else {
+            submissionData[field.id] = formValues[field.id];
+          }
+        }
+      });
+
+      await submitPublicCheckIn(checkinUuid, submissionData);
+      setSubmitSuccess(true);
+    } catch (err: any) {
+      console.error("Failed to submit check-in:", err);
+      setError(err.message || "Failed to submit check-in. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFieldChange = (fieldId: string, value: any) => {
+    setFormValues((prev) => ({
+      ...prev,
+      [fieldId]: value,
+    }));
+    // Clear error for this field
+    if (errors[fieldId]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldId];
+        return newErrors;
+      });
+    }
+  };
+
+  // Get icon for field
+  const getFieldIcon = (fieldId: string) => {
+    const iconMap: Record<string, any> = {
+      weight: Scale,
+      energy_level: Zap,
+      workouts_completed: Dumbbell,
+      challenges: MessageSquare,
+      goals: Target,
+    };
+    return iconMap[fieldId] || null;
+  };
+
+  const renderField = (field: CheckInField) => {
+    const value = formValues[field.id] || "";
+    const hasError = !!errors[field.id];
+    const FieldIcon = getFieldIcon(field.id);
+
+    switch (field.type) {
+      case "number":
+        return (
+          <div key={field.id} className="space-y-2.5">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="relative">
+              {FieldIcon && (
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <FieldIcon className="h-5 w-5" />
+                </div>
+              )}
+              <Input
+                id={field.id}
+                type="number"
+                value={value}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                min={field.min}
+                max={field.max}
+                className={`rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] ${hasError ? "border-red-500" : ""}`}
+                disabled={isSubmitting}
+              />
+            </div>
+            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+          </div>
+        );
+
+      case "select":
+        return (
+          <div key={field.id} className="space-y-2.5">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="relative">
+              {FieldIcon && (
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">
+                  <FieldIcon className="h-5 w-5" />
+                </div>
+              )}
+              <Select
+                value={value}
+                onValueChange={(val) => handleFieldChange(field.id, val)}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger 
+                  id={field.id} 
+                  className={`rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 h-14 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] ${hasError ? "border-red-500" : ""}`}
+                >
+                  <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
+                </SelectTrigger>
+                <SelectContent>
+                  {field.options?.map((option) => (
+                    <SelectItem key={option} value={option} className="text-base py-3">
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+          </div>
+        );
+
+      case "textarea":
+        return (
+          <div key={field.id} className="space-y-2.5">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="relative">
+              {FieldIcon && (
+                <div className="absolute left-4 top-4 text-gray-400">
+                  <FieldIcon className="h-5 w-5" />
+                </div>
+              )}
+              <Textarea
+                id={field.id}
+                value={value}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                className={`min-h-[120px] rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-4 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] resize-none ${hasError ? "border-red-500" : ""}`}
+                disabled={isSubmitting}
+              />
+            </div>
+            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+          </div>
+        );
+
+      case "text":
+      default:
+        return (
+          <div key={field.id} className="space-y-2.5">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </Label>
+            <div className="relative">
+              {FieldIcon && (
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <FieldIcon className="h-5 w-5" />
+                </div>
+              )}
+              <Input
+                id={field.id}
+                type="text"
+                value={value}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
+                className={`rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] ${hasError ? "border-red-500" : ""}`}
+                disabled={isSubmitting}
+              />
+            </div>
+            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+          </div>
+        );
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+        <Card className="w-full max-w-2xl shadow-2xl border-0">
+          <CardContent className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
+              <Loader2 className="relative h-16 w-16 animate-spin text-primary" />
+            </div>
+            <p className="text-muted-foreground mt-6 text-lg font-medium">Loading your check-in form...</p>
+            <p className="text-muted-foreground/60 text-sm mt-2">Please wait a moment</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error && !checkInData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+        <Card className="w-full max-w-2xl shadow-2xl border-0">
+          <CardContent className="py-16 px-6">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-destructive/20 blur-2xl rounded-full"></div>
+                <div className="relative bg-destructive/10 p-6 rounded-full">
+                  <AlertCircle className="h-16 w-16 text-destructive" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold tracking-tight">Unable to Load Form</h2>
+                <p className="text-muted-foreground max-w-md text-base">{error}</p>
+              </div>
+              <Button onClick={loadCheckInForm} size="lg" className="mt-4">
+                <Loader2 className="mr-2 h-4 w-4" />
+                Try Again
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Success state
+  if (submitSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+        <Card className="w-full max-w-2xl shadow-2xl border-0">
+          <CardContent className="py-16 px-6">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="relative">
+                <div className="absolute inset-0 bg-green-500/20 blur-2xl rounded-full animate-pulse"></div>
+                <div className="relative bg-green-500/10 p-6 rounded-full">
+                  <CheckCircle2 className="h-20 w-20 text-green-500 animate-in zoom-in duration-500" />
+                </div>
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                  Check-In Submitted!
+                </h2>
+                <p className="text-muted-foreground max-w-md text-lg">
+                  Thank you for completing your check-in{checkInData?.client.first_name ? `, ${checkInData.client.first_name}` : ''}!
+                </p>
+                <p className="text-muted-foreground text-base">
+                  Your coach will review your responses soon.
+                </p>
+              </div>
+              <div className="bg-muted/50 rounded-lg p-4 mt-4">
+                <p className="text-sm text-muted-foreground">✓ You can now close this page</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Group fields by category
+  const groupFields = () => {
+    const recap = checkInData?.form.form_schema.fields.filter(f => 
+      ['weight', 'energy_level', 'workouts_completed'].includes(f.id)
+    ) || [];
+    const feedback = checkInData?.form.form_schema.fields.filter(f => 
+      ['challenges', 'goals'].includes(f.id)
+    ) || [];
+    const other = checkInData?.form.form_schema.fields.filter(f => 
+      !['weight', 'energy_level', 'workouts_completed', 'challenges', 'goals'].includes(f.id)
+    ) || [];
+    
+    return { recap, feedback, other };
+  };
+
+  const { recap, feedback, other } = groupFields();
+
+  // Form state
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
+        
+        {/* Header Section */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
+              {checkInData?.form.title}
+            </h1>
+            {checkInData?.form.description && (
+              <p className="text-lg text-gray-500 dark:text-gray-400">
+                {checkInData.form.description}
+              </p>
+            )}
+          </div>
+          <div className="h-px bg-gray-200 dark:bg-gray-800"></div>
+        </div>
+
+        {/* Client Info Card */}
+        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+              <span className="text-white font-bold text-xl">
+                {checkInData?.client.first_name?.charAt(0) || ''}{checkInData?.client.last_name?.charAt(0) || ''}
+              </span>
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-400" />
+                <span className="font-semibold text-gray-900 dark:text-white">
+                  {checkInData?.client.first_name || ''} {checkInData?.client.last_name || ''}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {checkInData?.client.email || ''}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+            <Package className="h-4 w-4 text-indigo-500" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {checkInData?.package.package_name || 'Package'}
+            </span>
+          </div>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="rounded-xl animate-in slide-in-from-top-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          
+          {/* Progress Recap Section */}
+          {recap.length > 0 && (
+            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Progress Recap</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Let's track your key metrics for this week.
+                </p>
+              </div>
+              <div className="h-px bg-gray-200 dark:bg-gray-800"></div>
+              <div className="space-y-6">
+                {recap.map((field) => renderField(field))}
+              </div>
+            </div>
+          )}
+
+          {/* Feedback Section */}
+          {feedback.length > 0 && (
+            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-6">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Your Feedback</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Share your thoughts, challenges, and goals for the upcoming week.
+                </p>
+              </div>
+              <div className="h-px bg-gray-200 dark:bg-gray-800"></div>
+              <div className="space-y-6">
+                {feedback.map((field) => renderField(field))}
+              </div>
+            </div>
+          )}
+
+          {/* Other Fields */}
+          {other.length > 0 && (
+            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-6">
+              <div className="space-y-6">
+                {other.map((field) => renderField(field))}
+              </div>
+            </div>
+          )}
+
+        </form>
+      </div>
+
+      {/* Sticky Submit Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 shadow-2xl z-50">
+        <div className="max-w-2xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
+              All fields marked with <span className="text-red-500 font-medium">*</span> are required
+            </p>
+            <Button 
+              type="submit"
+              onClick={handleSubmit}
+              size="lg" 
+              disabled={isSubmitting}
+              className="w-full sm:w-auto rounded-xl py-6 px-8 text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Send className="mr-2 h-5 w-5" />
+                  Submit Check-In
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Spacer for Sticky Bar */}
+      <div className="h-24"></div>
+    </div>
+  );
+}

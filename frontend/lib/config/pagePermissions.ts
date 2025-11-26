@@ -168,6 +168,21 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     editRoles: ["super_admin"],
   },
 
+  // ==================== INTEGRATIONS ====================
+  {
+    id: "integrations",
+    name: "Integrations",
+    path: "/integrations",
+    icon: "Puzzle",
+    description: "Manage app connections and custom domain",
+    showInNav: true,
+    navOrder: 8,
+    // Only admin and super_admin can view
+    viewRoles: ["admin", "super_admin"],
+    // Only admin and super_admin can edit
+    editRoles: ["admin", "super_admin"],
+  },
+
   // ==================== PROFILE ====================
   {
     id: "profile",

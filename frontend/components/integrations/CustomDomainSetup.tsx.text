@@ -1,0 +1,449 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { 
+  CheckCircle2, 
+  XCircle, 
+  Loader2, 
+  Copy,
+  AlertCircle,
+  RefreshCw,
+  FileText,
+  CreditCard,
+  Send,
+  ExternalLink
+} from "lucide-react";
+import { DomainStatusIndicator } from "./DomainStatusIndicator";
+import { DNSInstructions } from "./DNSInstructions";
+
+const EXPECTED_IP = "13.51.251.199";
+const POLL_INTERVAL = 30000; // 30 seconds
+const MAX_ATTEMPTS = 20; // 10 minutes total
+
+type ValidationStatus = "not_set" | "validating" | "verified" | "failed";
+
+interface DomainState {
+  subdomain: string;
+  status: ValidationStatus;
+  lastChecked: string | null;
+  validationAttempts: number;
+  verifiedIP: string | null;
+}
+
+export function CustomDomainSetup() {
+  // Forms subdomain state
+  const [formsSubdomain, setFormsSubdomain] = useState("");
+  const [formsStatus, setFormsStatus] = useState<ValidationStatus>("not_set");
+  const [formsLastChecked, setFormsLastChecked] = useState<Date | null>(null);
+  const [formsValidationAttempts, setFormsValidationAttempts] = useState(0);
+  const [formsVerifiedIP, setFormsVerifiedIP] = useState<string | null>(null);
+  const [formsPollingInterval, setFormsPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [formsErrorMessage, setFormsErrorMessage] = useState<string>("");
+  
+  // Payment subdomain request state
+  const [paymentSubdomain, setPaymentSubdomain] = useState("");
+  const [paymentReason, setPaymentReason] = useState("");
+  const [paymentRequestStatus, setPaymentRequestStatus] = useState<"idle" | "submitting" | "submitted">("idle");
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("customDomainState");
+      if (saved) {
+        try {
+          const state: DomainState = JSON.parse(saved);
+          setSubdomain(state.subdomain || "");
+          setStatus(state.status || "not_set");
+          setLastChecked(state.lastChecked ? new Date(state.lastChecked) : null);
+          setValidationAttempts(state.validationAttempts || 0);
+          setVerifiedIP(state.verifiedIP || null);
+
+          // Resume polling if it was validating
+          if (state.status === "validating" && state.subdomain) {
+            resumeValidation(state.subdomain, state.validationAttempts);
+          }
+        } catch (error) {
+          console.error("Failed to load domain state:", error);
+        }
+      }
+    }
+  }, []);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const state: DomainState = {
+        subdomain,
+        status,
+        lastChecked: lastChecked?.toISOString() || null,
+        validationAttempts,
+        verifiedIP,
+      };
+      localStorage.setItem("customDomainState", JSON.stringify(state));
+    }
+  }, [subdomain, status, lastChecked, validationAttempts, verifiedIP]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
+  }, [pollingInterval]);
+
+  // No auto-retry - user must manually retry
+
+  const validateDomain = async (domain: string): Promise<{ success: boolean; ip?: string; message: string }> => {
+    try {
+      // Use Google DNS over HTTPS
+      const response = await fetch(
+        `https://dns.google/resolve?name=${domain}&type=A`,
+        { cache: "no-store" }
+      );
+      
+      if (!response.ok) {
+        throw new Error("DNS lookup failed");
+      }
+
+      const data = await response.json();
+      
+      if (data.Answer && data.Answer.length > 0) {
+        const aRecords = data.Answer.filter((r: any) => r.type === 1); // Type 1 = A record
+        
+        if (aRecords.length === 0) {
+          return {
+            success: false,
+            message: "No A record found for this domain",
+          };
+        }
+
+        const foundIP = aRecords[0].data;
+        const hasCorrectIP = aRecords.some((r: any) => r.data === EXPECTED_IP);
+        
+        return {
+          success: hasCorrectIP,
+          ip: foundIP,
+          message: hasCorrectIP 
+            ? "Domain verified successfully!" 
+            : `Found IP: ${foundIP}, expected: ${EXPECTED_IP}`,
+        };
+      }
+      
+      return {
+        success: false,
+        message: "No A record found for this domain",
+      };
+    } catch (error) {
+      console.error("DNS validation error:", error);
+      return {
+        success: false,
+        message: "Failed to check DNS. Please try again.",
+      };
+    }
+  };
+
+  const startValidation = useCallback(async () => {
+    if (!subdomain.trim()) {
+      toast.error("Please enter a subdomain");
+      return;
+    }
+
+    // Clear any existing polling
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+    }
+
+    setStatus("validating");
+    setValidationAttempts(0);
+    setErrorMessage("");
+    setLastChecked(new Date());
+
+    // Try immediately
+    const result = await validateDomain(subdomain);
+    
+    if (result.success) {
+      setStatus("verified");
+      setVerifiedIP(result.ip || EXPECTED_IP);
+      toast.success("Domain verified successfully!");
+      return;
+    }
+
+    // If failed, start polling
+    setErrorMessage(result.message);
+    let attempts = 1;
+    setValidationAttempts(attempts);
+
+    const interval = setInterval(async () => {
+      attempts++;
+      setValidationAttempts(attempts);
+      setLastChecked(new Date());
+      
+      const pollResult = await validateDomain(subdomain);
+      
+      if (pollResult.success) {
+        setStatus("verified");
+        setVerifiedIP(pollResult.ip || EXPECTED_IP);
+        clearInterval(interval);
+        setPollingInterval(null);
+        toast.success("Domain verified successfully!");
+      } else if (attempts >= MAX_ATTEMPTS) {
+        setStatus("failed");
+        setErrorMessage(pollResult.message);
+        clearInterval(interval);
+        setPollingInterval(null);
+        toast.error("DNS validation timed out. Please check your DNS settings and try again.");
+      } else {
+        setErrorMessage(pollResult.message);
+      }
+    }, POLL_INTERVAL);
+    
+    setPollingInterval(interval);
+  }, [subdomain, pollingInterval]);
+
+  const resumeValidation = async (domain: string, currentAttempts: number) => {
+    setStatus("validating");
+    
+    let attempts = currentAttempts;
+    
+    const interval = setInterval(async () => {
+      attempts++;
+      setValidationAttempts(attempts);
+      setLastChecked(new Date());
+      
+      const result = await validateDomain(domain);
+      
+      if (result.success) {
+        setStatus("verified");
+        setVerifiedIP(result.ip || EXPECTED_IP);
+        clearInterval(interval);
+        setPollingInterval(null);
+        toast.success("Domain verified successfully!");
+      } else if (attempts >= MAX_ATTEMPTS) {
+        setStatus("failed");
+        setErrorMessage(result.message);
+        clearInterval(interval);
+        setPollingInterval(null);
+      } else {
+        setErrorMessage(result.message);
+      }
+    }, POLL_INTERVAL);
+    
+    setPollingInterval(interval);
+  };
+
+  const cancelValidation = () => {
+    if (pollingInterval) {
+      clearInterval(pollingInterval);
+      setPollingInterval(null);
+    }
+    setStatus("failed");
+    if (!errorMessage) {
+      setErrorMessage("Validation cancelled by user");
+    }
+    toast.info("Validation stopped. Click 'Retry Validation' to try again.");
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success("Copied to clipboard!");
+  };
+
+  const handleSubmit = async () => {
+    console.log("Submitting domain:", {
+      subdomain,
+      validated: true,
+      ip_verified: verifiedIP,
+      validated_at: new Date().toISOString(),
+    });
+
+    toast.success("Custom domain configuration saved!");
+    
+    // TODO: Send to backend when API is ready
+    // await fetch('/api/custom-domain', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Authorization': `Token ${token}`,
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify({
+    //     subdomain,
+    //     validated: true,
+    //     validated_at: new Date().toISOString()
+    //   })
+    // });
+  };
+
+  const getCompanyName = () => {
+    // TODO: Get from user's account data
+    return "yourcompany";
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Current Domain Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Domain Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {status === "verified" && subdomain ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <span className="font-medium">Custom domain: {subdomain}</span>
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  Verified
+                </Badge>
+              </div>
+              <div className="space-y-1 text-sm text-muted-foreground pl-7">
+                <p>Payment links: https://{subdomain}/pay/invoice-123</p>
+                <p>Form links: https://{subdomain}/forms/checkin</p>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setStatus("not_set");
+                  setSubdomain("");
+                  setVerifiedIP(null);
+                }}
+                className="ml-7"
+              >
+                Change Domain
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">Using default: {getCompanyName()}.fithq.com</span>
+              </div>
+              <div className="space-y-1 text-sm text-muted-foreground pl-7">
+                <p>Payment links: https://{getCompanyName()}.fithq.com/pay/invoice-123</p>
+                <p>Form links: https://{getCompanyName()}.fithq.com/forms/checkin</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Custom Domain Setup */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Custom Domain Setup</CardTitle>
+          <CardDescription>
+            Set up your custom subdomain for payment links and client forms. If you don't set this up, 
+            we'll use the default FitHQ domain: {getCompanyName()}.fithq.com
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Subdomain Input */}
+          <div className="space-y-2">
+            <Label htmlFor="subdomain">Your Subdomain</Label>
+            <Input
+              id="subdomain"
+              placeholder="payments.yourbusiness.com"
+              value={subdomain}
+              onChange={(e) => setSubdomain(e.target.value)}
+              disabled={status === "validating" || status === "verified"}
+            />
+            <p className="text-xs text-muted-foreground">
+              Example: payments.yourbusiness.com or forms.yourcompany.com
+            </p>
+          </div>
+
+          {/* DNS Instructions */}
+          <DNSInstructions 
+            expectedIP={EXPECTED_IP}
+            onCopy={copyToClipboard}
+          />
+
+          {/* Domain Status Indicator */}
+          {subdomain && (
+            <DomainStatusIndicator
+              status={status}
+              lastChecked={lastChecked}
+              errorMessage={errorMessage}
+              validationAttempts={validationAttempts}
+              maxAttempts={MAX_ATTEMPTS}
+            />
+          )}
+
+          {/* Error Message */}
+          {status === "failed" && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>
+                {errorMessage}
+                <div className="mt-2 text-sm">
+                  Please check your DNS settings and click "Retry Validation" when ready.
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            {status === "not_set" && (
+              <Button 
+                onClick={startValidation}
+                disabled={!subdomain.trim()}
+                className="flex-1"
+              >
+                Validate Domain
+              </Button>
+            )}
+
+            {status === "validating" && (
+              <>
+                <Button disabled className="flex-1">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Validating... ({validationAttempts}/{MAX_ATTEMPTS})
+                </Button>
+                <Button variant="outline" onClick={cancelValidation}>
+                  Stop Validation
+                </Button>
+              </>
+            )}
+
+            {status === "failed" && (
+              <>
+                <Button onClick={startValidation} className="flex-1">
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry Validation
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setStatus("not_set");
+                    setValidationAttempts(0);
+                    setErrorMessage("");
+                    setSubdomain("");
+                  }}
+                >
+                  Reset
+                </Button>
+              </>
+            )}
+
+            {status === "verified" && (
+              <Button onClick={handleSubmit} className="flex-1">
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Save Domain Configuration
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

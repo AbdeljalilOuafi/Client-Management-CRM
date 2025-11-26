@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Users, LayoutDashboard, CreditCard, DollarSign, FileText } from "lucide-react";
+import { Users, LayoutDashboard, CreditCard, DollarSign, FileText, Puzzle } from "lucide-react";
 import { UserProfileMenu } from "@/components/UserProfileMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -40,6 +40,11 @@ export function Navbar() {
       label: "Forms",
       icon: FileText,
       path: "/check-in-forms",
+    },
+    {
+      label: "Integrations",
+      icon: Puzzle,
+      path: "/integrations",
     },
   ];
 
