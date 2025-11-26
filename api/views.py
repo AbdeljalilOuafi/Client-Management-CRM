@@ -1286,6 +1286,39 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
                 # Don't fail the form creation, just log the error
                 # Admin can manually recreate webhooks later
 
+    def perform_update(self, serializer):
+        """Handle is_active changes - cancel/activate webhooks accordingly"""
+        from .utils.webhook_scheduler import cancel_schedule_webhooks, activate_schedule_webhooks
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        # Get the current state before update
+        instance = self.get_object()
+        old_is_active = instance.is_active
+        
+        # Save the updated form
+        form = serializer.save()
+        new_is_active = form.is_active
+        
+        # Handle is_active changes if form has a schedule
+        if hasattr(form, 'schedule') and form.schedule:
+            if old_is_active and not new_is_active:
+                # Form was deactivated - cancel webhooks
+                try:
+                    cancel_schedule_webhooks(form.schedule)
+                    logger.info(f"Canceled webhooks for deactivated CheckInForm {form.id}")
+                except Exception as e:
+                    logger.error(f"Failed to cancel webhooks for CheckInForm {form.id}: {str(e)}")
+            
+            elif not old_is_active and new_is_active:
+                # Form was reactivated - activate webhooks
+                try:
+                    activate_schedule_webhooks(form.schedule)
+                    logger.info(f"Activated webhooks for reactivated CheckInForm {form.id}")
+                except Exception as e:
+                    logger.error(f"Failed to activate webhooks for CheckInForm {form.id}: {str(e)}")
+
     def perform_destroy(self, instance):
         """Delete webhook schedules before deleting form"""
         from .utils.webhook_scheduler import delete_schedule_webhooks
@@ -1364,19 +1397,56 @@ class CheckInScheduleViewSet(viewsets.ModelViewSet):
         ).select_related('form', 'account')
 
     def perform_update(self, serializer):
-        """Update webhooks when schedule is modified"""
-        from .utils.webhook_scheduler import update_schedule_webhooks
+        """Update webhooks when schedule is modified or handle is_active changes"""
+        from .utils.webhook_scheduler import update_schedule_webhooks, cancel_schedule_webhooks, activate_schedule_webhooks
         import logging
         
         logger = logging.getLogger(__name__)
-        schedule = serializer.save()
         
-        try:
-            update_schedule_webhooks(schedule)
-            logger.info(f"Updated webhooks for CheckInSchedule {schedule.id}")
-        except Exception as e:
-            logger.error(f"Failed to update webhooks for CheckInSchedule {schedule.id}: {str(e)}")
-            # Don't fail the update, just log the error
+        # Get the current state before update
+        instance = self.get_object()
+        old_is_active = instance.is_active
+        old_schedule_type = instance.schedule_type
+        old_day = instance.day_of_week
+        old_time = instance.time
+        old_timezone = instance.timezone
+        
+        # Save the updated schedule
+        schedule = serializer.save()
+        new_is_active = schedule.is_active
+        
+        # Check if schedule configuration changed (not just is_active)
+        schedule_config_changed = (
+            old_schedule_type != schedule.schedule_type or
+            old_day != schedule.day_of_week or
+            old_time != schedule.time or
+            old_timezone != schedule.timezone
+        )
+        
+        if schedule_config_changed:
+            # Schedule configuration changed - recreate webhooks
+            try:
+                update_schedule_webhooks(schedule)
+                logger.info(f"Updated webhooks for modified CheckInSchedule {schedule.id}")
+            except Exception as e:
+                logger.error(f"Failed to update webhooks for CheckInSchedule {schedule.id}: {str(e)}")
+        
+        elif old_is_active != new_is_active:
+            # Only is_active changed - cancel or activate webhooks
+            if new_is_active:
+                # Schedule was activated
+                try:
+                    activate_schedule_webhooks(schedule)
+                    logger.info(f"Activated webhooks for CheckInSchedule {schedule.id}")
+                except Exception as e:
+                    logger.error(f"Failed to activate webhooks for CheckInSchedule {schedule.id}: {str(e)}")
+            else:
+                # Schedule was deactivated
+                try:
+                    cancel_schedule_webhooks(schedule)
+                    logger.info(f"Canceled webhooks for CheckInSchedule {schedule.id}")
+                except Exception as e:
+                    logger.error(f"Failed to cancel webhooks for CheckInSchedule {schedule.id}: {str(e)}")
 
     def perform_destroy(self, instance):
         """Delete webhooks before deleting schedule"""

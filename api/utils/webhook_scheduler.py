@@ -141,44 +141,12 @@ def _create_single_webhook(schedule, day_name, crm_url, day_filter):
         
         logger.info(f"Webhook creation response: {webhook_data}")
         
-        # Try to extract ID from response (could be 'id', 'webhook_id', or in headers)
-        webhook_id = webhook_data.get('id') or webhook_data.get('webhook_id')
+        # Extract webhook ID from CronHooks response
+        webhook_id = webhook_data.get('id')
         
         if not webhook_id:
-            # Check if ID is in Location header
-            location = response.headers.get('Location', '')
-            if location:
-                # Extract ID from URL like /api/webhooks/123/
-                parts = location.rstrip('/').split('/')
-                if parts:
-                    webhook_id = parts[-1]
-        
-        if not webhook_id:
-            # Fallback: Query the webhook by name since CronHooks doesn't return ID
-            logger.warning("Webhook ID not in response, querying by name as fallback")
-            try:
-                list_response = requests.get(
-                    f"{settings.WEBHOOK_SCHEDULER_URL}/api/webhooks/",
-                    headers={
-                        'Authorization': f'Token {settings.WEBHOOK_SCHEDULER_TOKEN}'
-                    },
-                    params={'name': webhook_name},
-                    timeout=10
-                )
-                list_response.raise_for_status()
-                webhooks = list_response.json()
-                
-                if webhooks and len(webhooks) > 0:
-                    # Get the most recently created webhook with this name
-                    webhook_id = webhooks[0].get('id') if isinstance(webhooks, list) else webhooks.get('results', [{}])[0].get('id')
-                
-                if not webhook_id:
-                    logger.error(f"Could not find webhook after creation: {webhooks}")
-                    raise ValueError("Webhook created but could not retrieve ID")
-                    
-            except Exception as e:
-                logger.error(f"Failed to query webhook after creation: {str(e)}")
-                raise ValueError("Webhook created but no ID returned")
+            logger.error(f"No 'id' field in webhook creation response: {webhook_data}")
+            raise ValueError(f"CronHooks did not return webhook ID in response. Response: {webhook_data}")
         
         logger.info(f"Successfully created webhook with ID: {webhook_id}")
         return webhook_id
@@ -261,6 +229,67 @@ def delete_webhook(webhook_id):
         timeout=10
     )
     response.raise_for_status()
+
+
+def activate_schedule_webhooks(schedule):
+    """
+    Activates (resumes) all webhooks for a schedule.
+    
+    Args:
+        schedule: CheckInSchedule instance
+    """
+    if not schedule.webhook_job_ids:
+        return
+    
+    for webhook_id in schedule.webhook_job_ids:
+        try:
+            activate_webhook(webhook_id)
+            logger.info(f"Activated webhook {webhook_id} for schedule {schedule.id}")
+        except requests.RequestException as e:
+            logger.error(f"Failed to activate webhook {webhook_id}: {str(e)}")
+            # Continue with other webhooks
+
+
+def activate_webhook(webhook_id):
+    """
+    Activates (resumes) a single webhook via external scheduler API.
+    
+    Args:
+        webhook_id: Webhook ID from scheduler
+    """
+    response = requests.post(
+        f"{settings.WEBHOOK_SCHEDULER_URL}/api/webhooks/{webhook_id}/activate/",
+        headers={
+            'Authorization': f'Token {settings.WEBHOOK_SCHEDULER_TOKEN}'
+        },
+        timeout=10
+    )
+    response.raise_for_status()
+
+
+def get_webhook_executions(webhook_id):
+    """
+    Get execution history for a webhook.
+    
+    Args:
+        webhook_id: Webhook ID from scheduler
+    
+    Returns:
+        dict: Execution history data from CronHooks
+    """
+    try:
+        response = requests.get(
+            f"{settings.WEBHOOK_SCHEDULER_URL}/api/webhooks/{webhook_id}/executions/",
+            headers={
+                'Authorization': f'Token {settings.WEBHOOK_SCHEDULER_TOKEN}'
+            },
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        logger.error(f"Failed to get executions for webhook {webhook_id}: {str(e)}")
+        return None
 
 
 def update_schedule_webhooks(schedule):
