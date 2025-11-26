@@ -155,9 +155,9 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
 
   // ==================== FORMS ====================
   {
-    id: "check-in-forms",
+    id: "forms",
     name: "Forms",
-    path: "/check-in-forms",
+    path: "/forms",
     icon: "FileText",
     description: "Manage client forms",
     showInNav: true,
