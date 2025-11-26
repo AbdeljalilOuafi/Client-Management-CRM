@@ -20,6 +20,7 @@ import {
   deleteCheckInForm,
   updateCheckInForm,
   CheckInForm,
+  CheckInFormField,
   CreateCheckInFormData,
 } from "@/lib/api/checkin-forms";
 import { listPackages, Package } from "@/lib/api/packages";
@@ -48,38 +49,38 @@ const TIMEZONES = [
 ];
 
 // Default fields for new check-in forms (same as mock data)
-const DEFAULT_CHECKIN_FIELDS = [
+const DEFAULT_CHECKIN_FIELDS: CheckInFormField[] = [
   {
     id: "weight",
     type: "number",
     label: "Current Weight (kg)",
     required: true,
-  },
+  } as CheckInFormField,
   {
     id: "energy_level",
     type: "select",
     label: "Energy Level",
     options: ["Low", "Medium", "High"],
     required: true,
-  },
+  } as CheckInFormField,
   {
     id: "workouts_completed",
     type: "number",
     label: "Workouts Completed This Week",
     required: true,
-  },
+  } as CheckInFormField,
   {
     id: "challenges",
     type: "textarea",
     label: "What challenges did you face?",
     required: false,
-  },
+  } as CheckInFormField,
   {
     id: "goals",
     type: "textarea",
     label: "Goals for next week",
     required: true,
-  },
+  } as CheckInFormField,
 ];
 
 function CheckinFormsContent() {
