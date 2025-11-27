@@ -48,7 +48,7 @@ class StripeOAuthCallbackView(APIView):
         # Handle case where user denied authorization
         if error:
             logger.warning(f"User denied Stripe authorization: {error}")
-            return redirect(f'/settings?stripe_error={error}')
+            return redirect(f'https://app.fithq.ai/integrations?error={error}')
         
         # Validate required parameters
         if not code or not state:
@@ -82,7 +82,7 @@ class StripeOAuthCallbackView(APIView):
             
             if not stripe_user_id or not access_token:
                 logger.error(f"Missing data in token response: {token_response}")
-                return redirect('/settings?stripe_error=invalid_response')
+                return redirect('https://app.fithq.ai/integrations?error=invalid_response')
             
             logger.info(f"Successfully obtained Stripe account ID: {stripe_user_id}")
             
@@ -121,15 +121,15 @@ class StripeOAuthCallbackView(APIView):
             
             # Redirect user back to frontend with success message
             return redirect(
-                f'/settings?stripe_connected=true&account_name={business_name}'
+                f'https://app.fithq.ai/integrations?stripe_connected=true&account_name={business_name}'
             )
             
         except stripe.error.StripeError as e:
             # Handle Stripe-specific errors
             logger.error(f"Stripe API error: {str(e)}", exc_info=True)
-            return redirect(f'/settings?stripe_error=stripe_error')
+            return redirect(f'https://app.fithq.ai/integrations?error=stripe_error')
             
         except Exception as e:
             # Handle any other errors
             logger.error(f"Unexpected error during Stripe OAuth: {str(e)}", exc_info=True)
-            return redirect(f'/settings?stripe_error=connection_failed')
+            return redirect(f'https://app.fithq.ai/integrations?error=connection_failed')
