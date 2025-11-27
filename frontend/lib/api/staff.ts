@@ -148,10 +148,46 @@ export const getEmployeeStatistics = async (): Promise<EmployeeStatistics> => {
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch employee statistics: ${response.statusText}`);
+    throw new Error("Failed to fetch employee statistics");
   }
 
   return response.json();
+};
+
+// Get all active coaches (employees with "coach" in role or custom roles)
+export const listCoaches = async (): Promise<Employee[]> => {
+  const response = await listEmployees({ status: "active" });
+  return response.results.filter(emp => {
+    const roleMatch = emp.role?.toLowerCase().includes("coach");
+    const customRoleMatch = emp.custom_role_names?.some(role => 
+      role.toLowerCase().includes("coach")
+    );
+    return roleMatch || customRoleMatch;
+  });
+};
+
+// Get all active closers (employees with "closer" in role or custom roles)
+export const listClosers = async (): Promise<Employee[]> => {
+  const response = await listEmployees({ status: "active" });
+  return response.results.filter(emp => {
+    const roleMatch = emp.role?.toLowerCase().includes("closer");
+    const customRoleMatch = emp.custom_role_names?.some(role => 
+      role.toLowerCase().includes("closer")
+    );
+    return roleMatch || customRoleMatch;
+  });
+};
+
+// Get all active setters (employees with "setter" in role or custom roles)
+export const listSetters = async (): Promise<Employee[]> => {
+  const response = await listEmployees({ status: "active" });
+  return response.results.filter(emp => {
+    const roleMatch = emp.role?.toLowerCase().includes("setter");
+    const customRoleMatch = emp.custom_role_names?.some(role => 
+      role.toLowerCase().includes("setter")
+    );
+    return roleMatch || customRoleMatch;
+  });
 };
 
 // Get a single employee by ID

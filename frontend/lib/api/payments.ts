@@ -6,6 +6,8 @@ export interface Payment {
   currency?: string;
   exchange_rate?: number;
   native_account_currency?: string;
+  account_currency?: string; // TODO: Backend - Add this field if not present
+  payment_method?: string; // Account/Payment Method
   status: "paid" | "failed" | "refunded" | "disputed" | "incomplete";
   failure_reason?: string;
   payment_date: string;
