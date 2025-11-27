@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     'django_filters',
     'corsheaders',
     'api',
+    'stripe_integration',  # Stripe Connect OAuth integration
 ]
 
 MIDDLEWARE = [
@@ -246,6 +247,11 @@ FRONTEND_URL = env.str('FRONTEND_URL', default='http://localhost:3000')
 
 # URL Shortener Integration
 URL_SHORTENER_API_URL = env.str('URL_SHORTENER_API_URL', default='http://localhost:8001')
+
+# Stripe OAuth Integration
+STRIPE_CLIENT_ID = env.str('STRIPE_CLIENT_ID', default='')
+STRIPE_SECRET_KEY = env.str('STRIPE_SECRET_KEY', default='')
+STRIPE_OAUTH_REDIRECT_URI = env.str('STRIPE_OAUTH_REDIRECT_URI', default='https://stripe.fithq.ai/callback/')
 
 # Default forms domain (fallback when account has no custom domain)
 DEFAULT_FORMS_DOMAIN = env.str('DEFAULT_FORMS_DOMAIN', default='form.fithq.ai')
