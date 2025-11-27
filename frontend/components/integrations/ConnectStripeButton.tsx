@@ -22,7 +22,7 @@ export default function ConnectStripeButton() {
     // Stripe Connect OAuth parameters
     const stripeClientId = process.env.NEXT_PUBLIC_STRIPE_CLIENT_ID || 'ca_YOUR_CLIENT_ID';
     // Backend callback URL - backend will process and redirect back to frontend
-    const redirectUri = 'https://backend.onsync-test.xyz/api/stripe/callback/';
+    const redirectUri = 'https://stripe.fithq.ai/api/stripe/callback/';
     
     // Build Stripe OAuth URL
     const stripeOAuthUrl = new URL('https://connect.stripe.com/oauth/authorize');
