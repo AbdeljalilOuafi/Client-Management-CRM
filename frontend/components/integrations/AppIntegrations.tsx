@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ConnectStripeButton from "./ConnectStripeButton";
 
 export function AppIntegrations() {
   const integrations = [
@@ -10,19 +11,22 @@ export function AppIntegrations() {
       name: "Stripe",
       description: "Payment processing and invoicing",
       icon: "💳",
-      comingSoon: true,
+      comingSoon: false,
+      isStripe: true,
     },
     {
       name: "Slack",
       description: "Team notifications and updates",
       icon: "💬",
       comingSoon: true,
+      isStripe: false,
     },
     {
       name: "Calendly",
       description: "Schedule appointments and consultations",
       icon: "📅",
       comingSoon: true,
+      isStripe: false,
     },
   ];
 
@@ -57,13 +61,17 @@ export function AppIntegrations() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  disabled={integration.comingSoon}
-                >
-                  {integration.comingSoon ? "Coming Soon" : "Connect"}
-                </Button>
+                {integration.isStripe ? (
+                  <ConnectStripeButton />
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    disabled={integration.comingSoon}
+                  >
+                    {integration.comingSoon ? "Coming Soon" : "Connect"}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}
