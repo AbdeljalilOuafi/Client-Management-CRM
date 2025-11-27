@@ -9,8 +9,10 @@ class StripeApiKey(models.Model):
     """
     Stripe API Key model for managing Stripe Connect accounts via OAuth.
     
-    Note: stripe_account field stores the Stripe account name (not the ID).
-    The actual Stripe account ID (acct_xxxxx) is stored in this field.
+    Field mapping:
+    - stripe_account: Business display name from Stripe (e.g., "NTT Fitness")
+    - stripe_client_id: Stripe account ID (e.g., "acct_1LdN5IEee7MKhuOm")
+    - api_key: Stripe access token (e.g., "sk_live_xxxxx")
     """
     
     id = models.AutoField(primary_key=True)
@@ -25,13 +27,13 @@ class StripeApiKey(models.Model):
     stripe_account = models.CharField(
         max_length=255, 
         unique=True,
-        help_text='Stripe account ID (acct_xxxxx) from OAuth'
+        help_text='Business display name from Stripe dashboard (e.g., "NTT Fitness")'
     )
     stripe_client_id = models.CharField(
         max_length=255, 
         null=True, 
         blank=True,
-        help_text='Stripe Connect client ID used for OAuth (ca_xxxxx)'
+        help_text='Stripe account ID from OAuth (e.g., "acct_1LdN5IEee7MKhuOm")'
     )
     api_key = models.CharField(
         max_length=255, 

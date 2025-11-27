@@ -84,40 +84,44 @@ class StripeOAuthCallbackView(APIView):
                 logger.error(f"Missing data in token response: {token_response}")
                 return redirect('/settings?stripe_error=invalid_response')
             
-            logger.info(f"Successfully obtained Stripe account: {stripe_user_id}")
+            logger.info(f"Successfully obtained Stripe account ID: {stripe_user_id}")
             
-            # STEP 2: Fetch the Stripe account object to get account name
-            stripe_account = stripe.Account.retrieve(stripe_user_id)
-            
-            # STEP 3: Extract account name (try multiple possible fields)
-            account_name = (
-                stripe_account.get('business_profile', {}).get('name') or
-                stripe_account.get('settings', {}).get('dashboard', {}).get('display_name') or
-                stripe_account.get('email') or
+            # STEP 2: Fetch the Stripe account details using the Account API
+            # Set authorization header with secret key
+            stripe.api_key = settings.STRIPE_SECRET_KEY
+            stripe_account_data = stripe.Account.retrieve(stripe_user_id)
+            logger.info(f"Retrieved Stripe account data :\n{stripe_account_data}")
+            # STEP 3: Extract business display name (with fallback chain)
+            business_name = (
+                stripe_account_data.get('settings', {}).get('dashboard', {}).get('display_name') or
+                stripe_account_data.get('business_profile', {}).get('name') or
+                stripe_account_data.get('company', {}).get('name') or
+                stripe_account_data.get('email') or
                 'Unknown Account'
             )
             
-            logger.info(f"Stripe account name: {account_name}")
+            logger.info(f"Stripe business name: {business_name}, Account ID: {stripe_user_id}")
             
             # STEP 4: Save to database
             # Use update_or_create to handle existing connections
+            # Note: stripe_account stores the business name (unique key)
             stripe_api_key, created = StripeApiKey.objects.update_or_create(
-                stripe_account=stripe_user_id,  # Unique key
+                stripe_account=business_name,  # Business display name (unique key)
                 defaults={
-                    'account_id': account_id,                        # Link to our account
-                    'stripe_client_id': settings.STRIPE_CLIENT_ID,   # Store client ID
-                    'api_key': access_token,                         # Store access token
-                    'is_active': True,                               # Mark as active
-                    'is_primary': False,                             # Always False
+                    'account_id': account_id,           # Link to our CRM account
+                    'stripe_client_id': stripe_user_id, # Stripe account ID (acct_xxxxx)
+                    'api_key': access_token,            # Store access token (sk_live_xxxxx)
+                    'is_active': True,                  # Mark as active
+                    'is_primary': False,                # Always False
                 }
             )
             
             action = 'created' if created else 'updated'
-            logger.info(f"Stripe API key {action} for account_id {account_id}")
+            logger.info(f"Stripe API key {action} for account_id {account_id}, business: {business_name}")
             
             # Redirect user back to frontend with success message
             return redirect(
-                f'/settings?stripe_connected=true&account_name={account_name}'
+                f'/settings?stripe_connected=true&account_name={business_name}'
             )
             
         except stripe.error.StripeError as e:
