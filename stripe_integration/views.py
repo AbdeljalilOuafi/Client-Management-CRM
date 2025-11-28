@@ -6,10 +6,15 @@ import logging
 import stripe
 from django.shortcuts import redirect
 from django.conf import settings
+from django.db import transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, viewsets, serializers
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from .models import StripeApiKey
+from .serializers import StripeApiKeySerializer
+from api.permissions import IsAccountMember, IsSuperAdmin
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +107,13 @@ class StripeOAuthCallbackView(APIView):
             
             logger.info(f"Stripe business name: {business_name}, Account ID: {stripe_user_id}")
             
-            # STEP 4: Save to database
+            # STEP 4: Extract default currency
+            default_currency = stripe_account_data.get('default_currency', 'usd')
+            
+            # STEP 5: Check if this is the first Stripe account for this CRM account
+            is_first_account = not StripeApiKey.objects.filter(account_id=account_id).exists()
+            
+            # STEP 6: Save to database
             # Use update_or_create to handle existing connections
             # Note: stripe_account stores the business name (unique key)
             stripe_api_key, created = StripeApiKey.objects.update_or_create(
@@ -111,8 +122,9 @@ class StripeOAuthCallbackView(APIView):
                     'account_id': account_id,           # Link to our CRM account
                     'stripe_client_id': stripe_user_id, # Stripe account ID (acct_xxxxx)
                     'api_key': access_token,            # Store access token (sk_live_xxxxx)
+                    'default_currency': default_currency, # Default currency (e.g., "gbp", "usd")
                     'is_active': True,                  # Mark as active
-                    'is_primary': False,                # Always False
+                    'is_primary': is_first_account,     # Auto-set primary if first account
                 }
             )
             
@@ -133,3 +145,91 @@ class StripeOAuthCallbackView(APIView):
             # Handle any other errors
             logger.error(f"Unexpected error during Stripe OAuth: {str(e)}", exc_info=True)
             return redirect(f'https://app.fithq.ai/integrations?error=connection_failed')
+
+
+class StripeAccountViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Stripe accounts (CRUD operations).
+    
+    Permissions:
+    - List/Retrieve: Admins and SuperAdmins only
+    - Update: Admins and SuperAdmins only
+    - Delete: SuperAdmins only
+    - set_primary action: SuperAdmins only
+    """
+    
+    serializer_class = StripeApiKeySerializer
+    permission_classes = [IsAuthenticated, IsAccountMember]
+    
+    def get_queryset(self):
+        """Filter Stripe accounts by user's account (multi-tenant)"""
+        return StripeApiKey.objects.filter(
+            account_id=self.request.user.account_id
+        ).select_related('account').order_by('-is_primary', '-created_at')
+    
+    def get_permissions(self):
+        """
+        Override permissions based on action:
+        - list, retrieve, update: Admins and SuperAdmins
+        - destroy, set_primary: SuperAdmins only
+        """
+        if self.action in ['destroy', 'set_primary']:
+            return [IsAuthenticated(), IsSuperAdmin()]
+        return [IsAuthenticated(), IsAccountMember()]
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsSuperAdmin])
+    @transaction.atomic
+    def set_primary(self, request, pk=None):
+        """
+        Set a Stripe account as primary for the user's CRM account.
+        Automatically unsets all other accounts as primary (atomic operation).
+        
+        POST /api/stripe/accounts/{id}/set_primary/
+        """
+        stripe_account = self.get_object()
+        account_id = request.user.account_id
+        
+        # Lock all Stripe accounts for this CRM account to prevent race conditions
+        StripeApiKey.objects.filter(account_id=account_id).select_for_update()
+        
+        # Set all accounts to non-primary
+        StripeApiKey.objects.filter(account_id=account_id).update(is_primary=False)
+        
+        # Set target account as primary
+        stripe_account.is_primary = True
+        stripe_account.save(update_fields=['is_primary', 'updated_at'])
+        
+        logger.info(f"Set Stripe account {stripe_account.id} as primary for account {account_id}")
+        
+        serializer = self.get_serializer(stripe_account)
+        return Response({
+            'message': f'Stripe account "{stripe_account.stripe_account}" set as primary',
+            'data': serializer.data
+        })
+    
+    def perform_destroy(self, instance):
+        """
+        Prevent deletion if it's the only Stripe account.
+        """
+        account_id = self.request.user.account_id
+        total_accounts = StripeApiKey.objects.filter(account_id=account_id).count()
+        
+        if total_accounts == 1:
+            raise serializers.ValidationError(
+                "Cannot delete the only Stripe account. At least one account must remain."
+            )
+        
+        # If deleting primary account, set another account as primary
+        if instance.is_primary:
+            # Find another active account to set as primary
+            new_primary = StripeApiKey.objects.filter(
+                account_id=account_id,
+                is_active=True
+            ).exclude(id=instance.id).first()
+            
+            if new_primary:
+                new_primary.is_primary = True
+                new_primary.save(update_fields=['is_primary', 'updated_at'])
+                logger.info(f"Auto-set Stripe account {new_primary.id} as primary after deletion")
+        
+        instance.delete()
