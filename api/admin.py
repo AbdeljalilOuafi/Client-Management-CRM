@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     Account, Employee, EmployeeRole, EmployeeRoleAssignment, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer, StripeApiKey
+    Payment, Installment, StripeCustomer
 )
 
 
@@ -86,10 +86,3 @@ class StripeCustomerAdmin(admin.ModelAdmin):
     raw_id_fields = ['account', 'client', 'stripe_account']
 
 
-@admin.register(StripeApiKey)
-class StripeApiKeyAdmin(admin.ModelAdmin):
-    list_display = ['id', 'stripe_account', 'account', 'is_active', 'created_at']
-    list_filter = ['is_active', 'created_at']
-    search_fields = ['stripe_account', 'api_key']
-    raw_id_fields = ['account']
-    readonly_fields = ['created_at', 'updated_at']

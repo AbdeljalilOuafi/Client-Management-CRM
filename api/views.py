@@ -18,9 +18,10 @@ import logging
 
 from .models import (
     Account, Employee, EmployeeRole, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer, StripeApiKey, EmployeeToken,
+    Payment, Installment, StripeCustomer, EmployeeToken,
     CheckInForm, CheckInSchedule, CheckInSubmission
 )
+from stripe_integration.models import StripeApiKey
 from .serializers import (
     AccountSerializer, EmployeeSerializer, EmployeeRoleSerializer, EmployeeCreateSerializer,
     EmployeeUpdatePermissionsSerializer, ClientSerializer, PackageSerializer,

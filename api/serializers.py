@@ -2,8 +2,9 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from .models import (
     Account, Employee, EmployeeRole, EmployeeRoleAssignment, Client, Package, ClientPackage,
-    Payment, Installment, StripeCustomer, StripeApiKey, CheckInForm, CheckInSchedule, CheckInSubmission
+    Payment, Installment, StripeCustomer, CheckInForm, CheckInSchedule, CheckInSubmission
 )
+from stripe_integration.models import StripeApiKey
 
 
 class AccountSerializer(serializers.ModelSerializer):
@@ -352,22 +353,6 @@ class InstallmentSerializer(serializers.ModelSerializer):
         if 'account' not in validated_data and 'client' in validated_data:
             validated_data['account'] = validated_data['client'].account
         return super().create(validated_data)
-
-
-class StripeApiKeySerializer(serializers.ModelSerializer):
-    account_name = serializers.CharField(source='account.name', read_only=True)
-    
-    class Meta:
-        model = StripeApiKey
-        fields = [
-            'id', 'account', 'account_name', 'stripe_account', 'api_key',
-            'is_active', 'checkout_thanks_url', 'checkout_cancelled_url',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'account_name', 'created_at', 'updated_at']
-        extra_kwargs = {
-            'api_key': {'write_only': True}  # Don't expose API key in responses
-        }
 
 
 class StripeCustomerSerializer(serializers.ModelSerializer):
