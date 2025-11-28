@@ -373,8 +373,7 @@ const StaffContent = () => {
                 <Button 
                   onClick={() => setShowManageRoles(true)} 
                   variant="outline" 
-                  size="lg"
-                  className="gap-2 shadow-sm hover:shadow-lg transition-all hover:border-primary hover:bg-primary/5"
+                  className="gap-2"
                 >
                   <Tags className="h-4 w-4" />
                   Manage Roles

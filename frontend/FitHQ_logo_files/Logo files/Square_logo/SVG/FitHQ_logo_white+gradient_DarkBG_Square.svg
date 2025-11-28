@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1920 1920">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #393939;
+      }
+
+      .cls-2 {
+        fill: url(#linear-gradient-4);
+      }
+
+      .cls-3 {
+        fill: url(#linear-gradient-3);
+      }
+
+      .cls-4 {
+        fill: url(#linear-gradient-2);
+      }
+
+      .cls-5 {
+        fill: url(#linear-gradient);
+      }
+
+      .cls-6 {
+        fill: #fff;
+      }
+    </style>
+    <linearGradient id="linear-gradient" x1="1067.39" y1="1081.1" x2="1067.39" y2="719.68" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#edbfa8"/>
+      <stop offset=".24" stop-color="#bb8466"/>
+      <stop offset=".52" stop-color="#eec1a2"/>
+      <stop offset=".74" stop-color="#bb8466"/>
+      <stop offset="1" stop-color="#e2b99d"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-2" x1="1460.47" y1="1144.68" x2="1460.47" y2="711.79" xlink:href="#linear-gradient"/>
+    <linearGradient id="linear-gradient-3" x1="1459.83" y1="1108.84" x2="1459.83" y2="685.94" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b36e51"/>
+      <stop offset=".12" stop-color="#ca9175"/>
+      <stop offset=".26" stop-color="#e9bda4"/>
+      <stop offset=".3" stop-color="#d7a48b"/>
+      <stop offset=".35" stop-color="#c1856c"/>
+      <stop offset=".41" stop-color="#b16e55"/>
+      <stop offset=".46" stop-color="#a86148"/>
+      <stop offset=".5" stop-color="#a55d44"/>
+      <stop offset=".69" stop-color="#fff4e2"/>
+      <stop offset="1" stop-color="#ebbfa4"/>
+    </linearGradient>
+    <linearGradient id="linear-gradient-4" x1="1066.89" y1="1076.4" x2="1066.89" y2="724.51" xlink:href="#linear-gradient-3"/>
+  </defs>
+  <g id="Layer_3" data-name="Layer 3">
+    <rect class="cls-1" x="-41.31" y="-34.82" width="1991.09" height="1991.09"/>
+  </g>
+  <g id="Layer_2" data-name="Layer 2">
+    <g>
+      <polygon class="cls-6" points="525.15 782.84 525.15 720.18 264.49 720.18 264.49 1082.47 342.31 1082.47 342.31 939.24 505.85 939.24 505.85 877.96 341.93 877.96 341.93 782.84 525.15 782.84"/>
+      <ellipse class="cls-6" cx="604.73" cy="732.19" rx="44.14" ry="40.13"/>
+      <rect class="cls-6" x="567.88" y="811.66" width="72.93" height="270.81"/>
+      <path class="cls-6" d="M720.77,818.68v-64.16h72.43v64.16h63.66v55.39h-63.41v125.18c0,22.35,23.68,36.75,43.52,26.48l13.12-6.79,20.55,48.12s-21.3,19.8-63.16,19.8-86.47-17.54-86.47-99v-113.79h-41.35v-55.39h41.1Z"/>
+      <polygon class="cls-5" points="907.74 719.68 907.74 1081.1 988.95 1081.1 988.95 932.22 1145.34 932.22 1145.34 1081.1 1227.05 1081.1 1227.05 719.68 1145.84 719.68 1145.84 861.54 988.44 861.54 988.44 719.68 907.74 719.68"/>
+      <path class="cls-4" d="M1578.89,1144.68c-38.05,0-75.54-20.88-103.24-57.41-5.62.48-11.32.72-16.97.72-106.56,0-193.26-84.38-193.26-188.1s86.7-188.1,193.26-188.1,193.26,84.38,193.26,188.1c0,35.96-10.46,70.92-30.26,101.09-18.02,27.47-42.96,49.87-72.41,65.1,6.62,6.32,18.35,14.47,34.8,14.47s33.17-13.94,33.34-14.08l4.15-3.55,3.17,4.44,30.77,43.19-2.38,2.95c-1.03,1.27-25.71,31.19-74.24,31.19ZM1457.68,781.18c-64.08,0-116.21,53.81-116.21,119.96s52.13,119.96,116.21,119.96,116.21-53.81,116.21-119.96-52.13-119.96-116.21-119.96Z"/>
+      <path class="cls-3" d="M1620.67,1070.26s-17.8,15.29-36.59,15.29c-23.14,0-37.68-14.48-43.03-20.97,62.69-29.72,105.9-92.29,105.9-164.69,0-101.12-84.29-183.1-188.26-183.1s-188.26,81.98-188.26,183.1,84.29,183.1,188.26,183.1c6.52,0,12.96-.32,19.3-.95,23.98,32.65,60.01,57.64,100.91,57.64,46.7,0,70.35-29.32,70.35-29.32l-28.57-40.1ZM1457.68,1026.1c-66.94,0-121.21-55.95-121.21-124.96s54.27-124.96,121.21-124.96,121.21,55.95,121.21,124.96-54.27,124.96-121.21,124.96Z"/>
+      <polygon class="cls-2" points="982.18 867.12 982.18 724.51 912.5 724.51 912.5 1076.4 982.18 1076.4 982.18 926.52 1151.11 926.52 1151.11 1076.4 1221.28 1076.4 1221.28 725.26 1151.11 725.26 1151.11 867.87 982.18 867.12"/>
+    </g>
+  </g>
+</svg>
