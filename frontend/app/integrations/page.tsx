@@ -27,29 +27,47 @@ function IntegrationsContent() {
     const error = searchParams.get('error');
     
     if (stripeConnected === 'true' && accountName) {
-      // Switch to app integrations tab to show success
-      setActiveTab('app-integrations');
-      
-      toast({
-        title: 'Stripe Connected Successfully',
-        description: `Your Stripe account "${decodeURIComponent(accountName)}" has been connected.`,
-        variant: 'default',
-      });
-      
-      // Clean up URL parameters
-      window.history.replaceState({}, '', '/integrations');
+      // If this is a popup window, send message to parent and close
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'STRIPE_OAUTH_SUCCESS',
+          accountName: decodeURIComponent(accountName)
+        }, window.location.origin);
+        window.close();
+      } else {
+        // If not a popup, show toast in current window
+        setActiveTab('app-integrations');
+        
+        toast({
+          title: 'Stripe Connected Successfully',
+          description: `Your Stripe account "${decodeURIComponent(accountName)}" has been connected.`,
+          variant: 'default',
+        });
+        
+        // Clean up URL parameters
+        window.history.replaceState({}, '', '/integrations');
+      }
     } else if (error) {
-      // Switch to app integrations tab to show error
-      setActiveTab('app-integrations');
-      
-      toast({
-        title: 'Stripe Connection Failed',
-        description: decodeURIComponent(error),
-        variant: 'destructive',
-      });
-      
-      // Clean up URL parameters
-      window.history.replaceState({}, '', '/integrations');
+      // If this is a popup window, send error message to parent and close
+      if (window.opener) {
+        window.opener.postMessage({
+          type: 'STRIPE_OAUTH_ERROR',
+          error: decodeURIComponent(error)
+        }, window.location.origin);
+        window.close();
+      } else {
+        // If not a popup, show toast in current window
+        setActiveTab('app-integrations');
+        
+        toast({
+          title: 'Stripe Connection Failed',
+          description: decodeURIComponent(error),
+          variant: 'destructive',
+        });
+        
+        // Clean up URL parameters
+        window.history.replaceState({}, '', '/integrations');
+      }
     }
   }, [searchParams, toast]);
 
