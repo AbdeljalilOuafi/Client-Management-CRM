@@ -38,7 +38,7 @@ interface PaymentFormData {
   clientName: string;
   clientId: string;
   amount: string;
-  currency: string;
+  paid_currency: string;
   payment_method: string;
   payment_date: string;
   notes: string;
@@ -55,7 +55,7 @@ interface Client {
 interface FormErrors {
   clientId?: string;
   amount?: string;
-  currency?: string;
+  paid_currency?: string;
   payment_method?: string;
   payment_date?: string;
 }
@@ -73,7 +73,7 @@ export const AddPaymentDialog = () => {
     clientName: '',
     clientId: '',
     amount: '',
-    currency: '',
+    paid_currency: '',
     payment_method: '',
     payment_date: new Date().toISOString().split('T')[0],
     notes: '',
@@ -146,8 +146,8 @@ export const AddPaymentDialog = () => {
     }
 
     // Validate currency
-    if (!formData.currency) {
-      newErrors.currency = "Currency is required";
+    if (!formData.paid_currency) {
+      newErrors.paid_currency = "Currency is required";
     }
 
     // Validate payment method
@@ -200,7 +200,7 @@ export const AddPaymentDialog = () => {
         clientName: '',
         clientId: '',
         amount: '',
-        currency: '',
+        paid_currency: '',
         payment_method: '',
         payment_date: '',
         notes: '',
@@ -226,7 +226,7 @@ export const AddPaymentDialog = () => {
       clientName: '',
       clientId: '',
       amount: '',
-      currency: '',
+      paid_currency: '',
       payment_method: '',
       payment_date: '',
       notes: '',
@@ -347,12 +347,12 @@ export const AddPaymentDialog = () => {
                   Currency <span className="text-red-500">*</span>
                 </Label>
                 <Select 
-                  value={formData.currency} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, currency: value }))}
+                  value={formData.paid_currency} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, paid_currency: value }))}
                 >
                   <SelectTrigger 
                     id="currency" 
-                    className={errors.currency ? "border-red-500" : ""}
+                    className={errors.paid_currency ? "border-red-500" : ""}
                   >
                     <SelectValue placeholder="Select currency" />
                   </SelectTrigger>
@@ -364,10 +364,10 @@ export const AddPaymentDialog = () => {
                     <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.currency && (
+                {errors.paid_currency && (
                   <p className="text-sm text-red-500 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
-                    {errors.currency}
+                    {errors.paid_currency}
                   </p>
                 )}
               </div>

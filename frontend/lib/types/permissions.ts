@@ -18,6 +18,8 @@ export interface Permissions {
   can_manage_all_payments: boolean;
   can_view_all_installments: boolean;
   can_manage_all_installments: boolean;
+  can_view_integrations: boolean;
+  can_manage_integrations: boolean;
 }
 
 export interface UserWithPermissions {
@@ -47,6 +49,8 @@ export interface EmployeeWithPermissions {
   can_manage_all_payments: boolean;
   can_view_all_installments: boolean;
   can_manage_all_installments: boolean;
+  can_view_integrations: boolean;
+  can_manage_integrations: boolean;
 }
 
 // Permission string types for API calls
@@ -56,7 +60,9 @@ export type PermissionString =
   | "view_all_payments"
   | "manage_all_payments"
   | "view_all_installments"
-  | "manage_all_installments";
+  | "manage_all_installments"
+  | "view_integrations"
+  | "manage_integrations";
 
 // Page access configuration
 export interface PageAccess {

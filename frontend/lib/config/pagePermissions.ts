@@ -177,10 +177,17 @@ export const PAGE_PERMISSIONS: PagePermission[] = [
     description: "Manage app connections and custom domain",
     showInNav: true,
     navOrder: 8,
-    // Only admin and super_admin can view
-    viewRoles: ["admin", "super_admin"],
-    // Only admin and super_admin can edit
-    editRoles: ["admin", "super_admin"],
+    // Super admins always have access, admins need the permission
+    customViewCheck: (user, permissions) => {
+      if (user?.role === "super_admin") return true;
+      if (user?.role === "admin") return permissions?.can_view_integrations === true || permissions?.can_manage_integrations === true;
+      return false;
+    },
+    customEditCheck: (user, permissions) => {
+      if (user?.role === "super_admin") return true;
+      if (user?.role === "admin") return permissions?.can_manage_integrations === true;
+      return false;
+    },
   },
 
   // ==================== PROFILE ====================

@@ -32,6 +32,10 @@ export interface FitHQPermissions {
     create: boolean;
     delete: boolean;
   };
+  integrations: {
+    view: boolean;
+    edit: boolean;
+  };
   dashboard: boolean;
   password: string;
 }
@@ -65,6 +69,10 @@ const defaultPermissions: FitHQPermissions = {
     edit: false,
     create: false,
     delete: false,
+  },
+  integrations: {
+    view: false,
+    edit: false,
   },
   dashboard: false,
   password: "",
@@ -330,7 +338,37 @@ export function FitHQPermissionsDialog({
             </div>
           </div>
 
-          {/* Section 6: Dashboard */}
+          {/* Section 6: Integrations */}
+          <div className="space-y-3">
+            <h3 className="text-base font-semibold">Integrations</h3>
+            <div className="space-y-2 ml-2">
+              {[
+                { key: "view", label: "View" },
+                { key: "edit", label: "Edit" },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`integrations-${key}`}
+                    checked={permissions.integrations[key as keyof typeof permissions.integrations]}
+                    onCheckedChange={(checked) =>
+                      setPermissions(prev => ({
+                        ...prev,
+                        integrations: { ...prev.integrations, [key]: checked as boolean },
+                      }))
+                    }
+                  />
+                  <Label htmlFor={`integrations-${key}`} className="cursor-pointer">
+                    {label}
+                  </Label>
+                </div>
+              ))}
+              <p className="text-xs text-muted-foreground mt-1">
+                Only available for admin role. Grants access to manage app connections and custom domain.
+              </p>
+            </div>
+          </div>
+
+          {/* Section 7: Dashboard */}
           <div className="space-y-3">
             <h3 className="text-base font-semibold">Dashboard</h3>
             <RadioGroup

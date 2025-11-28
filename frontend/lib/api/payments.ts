@@ -3,7 +3,8 @@ const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 export interface Payment {
   id: string;
   amount: number;
-  currency?: string;
+  paid_currency?: string; // Renamed from 'currency'
+  company_currency_amount?: number; // New field for company currency amount
   exchange_rate?: number;
   native_account_currency?: string;
   account_currency?: string; // TODO: Backend - Add this field if not present

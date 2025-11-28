@@ -161,7 +161,7 @@ const PaymentsContent = () => {
     }
 
     if (advancedFilters.currency && advancedFilters.currency.length > 0) {
-      if (!payment.currency || !advancedFilters.currency.includes(payment.currency)) {
+      if (!payment.paid_currency || !advancedFilters.currency.includes(payment.paid_currency)) {
         return false;
       }
     }
@@ -266,7 +266,7 @@ const PaymentsContent = () => {
       case "amount":
         return <span className="font-semibold">${Number(payment.amount).toFixed(2)}</span>;
       case "currency":
-        return payment.currency || "-";
+        return payment.paid_currency || "-";
       case "account_currency":
         return payment.account_currency || "-";
       case "exchange_rate":

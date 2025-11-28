@@ -202,6 +202,12 @@ export const AddStaffForm = ({ onSuccess, onCancel }: AddStaffFormProps) => {
         employeeData.password = onSyncPermissions.password;
       }
 
+      // Map FitHQ integrations permissions to backend fields (only for admin role)
+      if (formData.role === "admin" && appAccess.fithq && onSyncPermissions?.integrations) {
+        employeeData.can_view_integrations = onSyncPermissions.integrations.view;
+        employeeData.can_manage_integrations = onSyncPermissions.integrations.edit;
+      }
+
       // Log the data for now (webhook will be added later)
       console.log("Employee data with app access:", employeeData);
 

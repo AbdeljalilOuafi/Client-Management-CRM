@@ -29,6 +29,8 @@ interface PermissionsContextType {
   canManageAllPayments: () => boolean;
   canViewAllInstallments: () => boolean;
   canManageAllInstallments: () => boolean;
+  canViewIntegrations: () => boolean;
+  canManageIntegrations: () => boolean;
   
   // Page access checks (legacy - kept for backwards compatibility)
   canAccessStaffPage: () => boolean;
@@ -108,6 +110,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
             can_manage_all_payments: (freshUser as any).can_manage_all_payments || false,
             can_view_all_installments: (freshUser as any).can_view_all_installments || false,
             can_manage_all_installments: (freshUser as any).can_manage_all_installments || false,
+            can_view_integrations: (freshUser as any).can_view_integrations || false,
+            can_manage_integrations: (freshUser as any).can_manage_integrations || false,
           };
           
           setPermissions(freshPermissions);
@@ -180,6 +184,14 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     return isSuperAdmin() || permissions?.can_manage_all_installments === true;
   };
 
+  const canViewIntegrations = (): boolean => {
+    return isSuperAdmin() || permissions?.can_view_integrations === true;
+  };
+
+  const canManageIntegrations = (): boolean => {
+    return isSuperAdmin() || permissions?.can_manage_integrations === true;
+  };
+
   // Page access checks
   const canAccessStaffPage = (): boolean => {
     // Only admin and super_admin can see the Staff page
@@ -221,6 +233,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         can_manage_all_payments: (freshUser as any).can_manage_all_payments || false,
         can_view_all_installments: (freshUser as any).can_view_all_installments || false,
         can_manage_all_installments: (freshUser as any).can_manage_all_installments || false,
+        can_view_integrations: (freshUser as any).can_view_integrations || false,
+        can_manage_integrations: (freshUser as any).can_manage_integrations || false,
       };
       
       setPermissions(freshPermissions);
@@ -275,6 +289,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     canManageAllPayments,
     canViewAllInstallments,
     canManageAllInstallments,
+    canViewIntegrations,
+    canManageIntegrations,
     canAccessStaffPage,
     canAccessCheckInPage,
     canViewPage: canViewPageMethod,

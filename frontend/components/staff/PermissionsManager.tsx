@@ -20,7 +20,7 @@ interface PermissionConfig {
   apiKey: PermissionString;
   label: string;
   description: string;
-  category: "clients" | "payments" | "installments";
+  category: "clients" | "payments" | "installments" | "integrations";
 }
 
 const PERMISSION_CONFIGS: PermissionConfig[] = [
@@ -66,6 +66,20 @@ const PERMISSION_CONFIGS: PermissionConfig[] = [
     description: "Can create, update, and delete installments",
     category: "installments",
   },
+  {
+    key: "can_view_integrations",
+    apiKey: "view_integrations",
+    label: "View Integrations",
+    description: "Can view integration settings and custom domain",
+    category: "integrations",
+  },
+  {
+    key: "can_manage_integrations",
+    apiKey: "manage_integrations",
+    label: "Manage Integrations",
+    description: "Can edit and manage integration settings and custom domain",
+    category: "integrations",
+  },
 ];
 
 export function PermissionsManager({ employee, onUpdate }: PermissionsManagerProps) {
@@ -78,6 +92,8 @@ export function PermissionsManager({ employee, onUpdate }: PermissionsManagerPro
     can_manage_all_payments: employee.can_manage_all_payments || false,
     can_view_all_installments: employee.can_view_all_installments || false,
     can_manage_all_installments: employee.can_manage_all_installments || false,
+    can_view_integrations: employee.can_view_integrations || false,
+    can_manage_integrations: employee.can_manage_integrations || false,
   });
 
   const handlePermissionChange = (key: string, checked: boolean) => {

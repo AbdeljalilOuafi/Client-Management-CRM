@@ -67,7 +67,7 @@ export const AdvancedPaymentFilters = ({
 
         // Extract unique currencies
         const uniqueCurrencies = Array.from(
-          new Set(payments.map(p => p.currency).filter(Boolean))
+          new Set(payments.map(p => p.paid_currency).filter(Boolean))
         ) as string[];
         setCurrencies(uniqueCurrencies.sort());
 
