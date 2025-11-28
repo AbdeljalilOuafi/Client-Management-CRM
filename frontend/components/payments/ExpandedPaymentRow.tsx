@@ -63,13 +63,13 @@ export const ExpandedPaymentRow = ({ payment }: ExpandedPaymentRowProps) => {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Amount</p>
-                <p className="text-lg font-bold">{formatCurrency(payment.amount, payment.currency)}</p>
+                <p className="text-lg font-bold">{formatCurrency(payment.amount, payment.paid_currency)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Currency</p>
-                <p className="font-medium">{payment.currency || '-'}</p>
+                <p className="font-medium">{payment.paid_currency || '-'}</p>
               </div>
-              {payment.account_currency && payment.account_currency !== payment.currency && (
+              {payment.account_currency && payment.account_currency !== payment.paid_currency && (
                 <>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Account Currency</p>

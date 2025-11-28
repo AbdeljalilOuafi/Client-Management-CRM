@@ -52,6 +52,8 @@ export interface Client {
   cta_lead_origin?: string;
   stripe_customer_id?: string;
   mamo_pay_id?: string;
+  created_at?: string; // Auto-generated timestamp (read-only)
+  updated_at?: string; // Auto-updated timestamp (read-only)
 }
 
 export interface ClientsResponse {

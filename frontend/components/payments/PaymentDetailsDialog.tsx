@@ -159,7 +159,7 @@ export function PaymentDetailsDialog({ payment, open, onOpenChange, onPaymentUpd
                       className="mt-1"
                     />
                   ) : (
-                    <p className="text-lg font-bold mt-1">{formatCurrency(displayPayment.amount, displayPayment.currency)}</p>
+                    <p className="text-lg font-bold mt-1">{formatCurrency(displayPayment.amount, displayPayment.paid_currency)}</p>
                   )}
                 </div>
 
@@ -167,16 +167,16 @@ export function PaymentDetailsDialog({ payment, open, onOpenChange, onPaymentUpd
                   <Label className="text-xs text-muted-foreground">Currency</Label>
                   {isEditing ? (
                     <Input
-                      value={displayPayment.currency || ''}
-                      onChange={(e) => updateEditedField('currency', e.target.value)}
+                      value={displayPayment.paid_currency || ''}
+                      onChange={(e) => updateEditedField('paid_currency', e.target.value)}
                       className="mt-1"
                     />
                   ) : (
-                    <p className="font-medium mt-1">{displayPayment.currency || '-'}</p>
+                    <p className="font-medium mt-1">{displayPayment.paid_currency || '-'}</p>
                   )}
                 </div>
 
-                {displayPayment.account_currency && displayPayment.account_currency !== displayPayment.currency && (
+                {displayPayment.account_currency && displayPayment.account_currency !== displayPayment.paid_currency && (
                   <>
                     <div>
                       <Label className="text-xs text-muted-foreground">Account Currency</Label>

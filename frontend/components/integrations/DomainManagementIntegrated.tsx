@@ -30,7 +30,6 @@ import {
   RefreshCw,
   FileText,
   CreditCard,
-  Send,
   Globe,
   Trash2,
   Edit
@@ -52,6 +51,13 @@ interface DomainConfig {
   forms_domain_verified: boolean;
   forms_domain_configured: boolean;
   forms_domain_added_at: string | null;
+}
+
+interface PaymentDomainConfig {
+  payment_domain: string | null;
+  payment_domain_verified: boolean;
+  payment_domain_configured: boolean;
+  payment_domain_added_at: string | null;
 }
 
 interface ConfigureResponse {
@@ -99,10 +105,21 @@ export function DomainManagementIntegrated() {
   const [showChangeDialog, setShowChangeDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
-  // Payment subdomain request state
+  // Payment subdomain state
   const [paymentSubdomain, setPaymentSubdomain] = useState("");
-  const [paymentReason, setPaymentReason] = useState("");
-  const [paymentRequestStatus, setPaymentRequestStatus] = useState<"idle" | "submitting" | "submitted">("idle");
+  const [paymentStatus, setPaymentStatus] = useState<ValidationStatus>("not_set");
+  const [paymentLastChecked, setPaymentLastChecked] = useState<Date | null>(null);
+  const [paymentValidationAttempts, setPaymentValidationAttempts] = useState(0);
+  const [paymentVerifiedIP, setPaymentVerifiedIP] = useState<string | null>(null);
+  const [paymentPollingInterval, setPaymentPollingInterval] = useState<NodeJS.Timeout | null>(null);
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState<string>("");
+  const [paymentDomainConfigured, setPaymentDomainConfigured] = useState(false);
+  const [paymentDomainAddedAt, setPaymentDomainAddedAt] = useState<string | null>(null);
+  const [isPaymentSubmitting, setIsPaymentSubmitting] = useState(false);
+  const [paymentConfigStep, setPaymentConfigStep] = useState<ConfigurationStep>("idle");
+  const [paymentConfigProgress, setPaymentConfigProgress] = useState(0);
+  const [showPaymentChangeDialog, setShowPaymentChangeDialog] = useState(false);
+  const [showPaymentDeleteDialog, setShowPaymentDeleteDialog] = useState(false);
   
   // Loading state
   const [isLoading, setIsLoading] = useState(true);
@@ -128,27 +145,50 @@ export function DomainManagementIntegrated() {
     setIsLoading(true);
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_BASE_URL}/api/domains/`, {
+      
+      // Fetch forms domain
+      const formsResponse = await fetch(`${API_BASE_URL}/api/domains/`, {
         headers: {
           'Authorization': `Token ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch domain configuration');
+      if (formsResponse.ok) {
+        const data: DomainConfig = await formsResponse.json();
+        
+        if (data.forms_domain) {
+          setFormsSubdomain(data.forms_domain);
+          setFormsStatus(data.forms_domain_verified ? 'verified' : 'not_set');
+          setDomainConfigured(data.forms_domain_configured);
+          setDomainAddedAt(data.forms_domain_added_at);
+          
+          if (data.forms_domain_verified) {
+            setFormsVerifiedIP(EXPECTED_IP);
+          }
+        }
       }
 
-      const data: DomainConfig = await response.json();
-      
-      if (data.forms_domain) {
-        setFormsSubdomain(data.forms_domain);
-        setFormsStatus(data.forms_domain_verified ? 'verified' : 'not_set');
-        setDomainConfigured(data.forms_domain_configured);
-        setDomainAddedAt(data.forms_domain_added_at);
+      // Fetch payment domain
+      const paymentResponse = await fetch(`${API_BASE_URL}/api/domains/payment/`, {
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (paymentResponse.ok) {
+        const paymentData: PaymentDomainConfig = await paymentResponse.json();
         
-        if (data.forms_domain_verified) {
-          setFormsVerifiedIP(EXPECTED_IP);
+        if (paymentData.payment_domain) {
+          setPaymentSubdomain(paymentData.payment_domain);
+          setPaymentStatus(paymentData.payment_domain_verified ? 'verified' : 'not_set');
+          setPaymentDomainConfigured(paymentData.payment_domain_configured);
+          setPaymentDomainAddedAt(paymentData.payment_domain_added_at);
+          
+          if (paymentData.payment_domain_verified) {
+            setPaymentVerifiedIP(EXPECTED_IP);
+          }
         }
       }
     } catch (error) {
@@ -418,32 +458,186 @@ export function DomainManagementIntegrated() {
     toast.success("Copied to clipboard!");
   };
 
-  const handlePaymentRequest = async () => {
+  const startPaymentValidation = useCallback(async () => {
     if (!paymentSubdomain.trim()) {
       toast.error("Please enter a subdomain");
       return;
     }
 
-    setPaymentRequestStatus("submitting");
+    if (paymentPollingInterval) {
+      clearInterval(paymentPollingInterval);
+    }
 
-    // Simulate API call
-    setTimeout(() => {
-      console.log("Payment subdomain request:", {
-        subdomain: paymentSubdomain,
-        reason: paymentReason,
-        requested_at: new Date().toISOString(),
-        type: "payment"
+    setPaymentStatus("validating");
+    setPaymentValidationAttempts(0);
+    setPaymentErrorMessage("");
+    setPaymentLastChecked(new Date());
+
+    const result = await validateDomain(paymentSubdomain);
+    
+    if (result.success) {
+      setPaymentStatus("verified");
+      setPaymentVerifiedIP(result.ip || EXPECTED_IP);
+      toast.success("Payment domain verified successfully!");
+      return;
+    }
+
+    setPaymentErrorMessage(result.message);
+    let attempts = 1;
+    setPaymentValidationAttempts(attempts);
+
+    const interval = setInterval(async () => {
+      attempts++;
+      setPaymentValidationAttempts(attempts);
+      setPaymentLastChecked(new Date());
+      
+      const pollResult = await validateDomain(paymentSubdomain);
+      
+      if (pollResult.success) {
+        setPaymentStatus("verified");
+        setPaymentVerifiedIP(pollResult.ip || EXPECTED_IP);
+        clearInterval(interval);
+        setPaymentPollingInterval(null);
+        toast.success("Payment domain verified successfully!");
+      } else if (attempts >= MAX_ATTEMPTS) {
+        setPaymentStatus("failed");
+        setPaymentErrorMessage(pollResult.message);
+        clearInterval(interval);
+        setPaymentPollingInterval(null);
+        toast.error("DNS validation timed out. Please check your DNS settings and try again.");
+      } else {
+        setPaymentErrorMessage(pollResult.message);
+      }
+    }, POLL_INTERVAL);
+    
+    setPaymentPollingInterval(interval);
+  }, [paymentSubdomain, paymentPollingInterval]);
+
+  const cancelPaymentValidation = () => {
+    if (paymentPollingInterval) {
+      clearInterval(paymentPollingInterval);
+      setPaymentPollingInterval(null);
+    }
+    setPaymentStatus("failed");
+    if (!paymentErrorMessage) {
+      setPaymentErrorMessage("Validation cancelled by user");
+    }
+    toast.info("Validation stopped. Click 'Retry Validation' to try again.");
+  };
+
+  const submitPaymentDomain = async () => {
+    if (paymentStatus !== 'verified') {
+      toast.error('Please validate DNS before submitting');
+      return;
+    }
+
+    if (!isSuperAdmin()) {
+      toast.error('Only Super Admins can configure custom domains');
+      return;
+    }
+
+    setIsPaymentSubmitting(true);
+    setPaymentConfigStep("configuring");
+    setPaymentConfigProgress(10);
+
+    try {
+      const token = getAuthToken();
+
+      // Configure payment domain with SSL and Nginx
+      setPaymentConfigProgress(20);
+      toast.info('Configuring payment domain and generating SSL certificate...');
+      
+      const configResponse = await fetch(`${API_BASE_URL}/api/domains/payment/configure/`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          payment_domain: paymentSubdomain
+        })
       });
 
-      setPaymentRequestStatus("submitted");
-      toast.success("Payment subdomain request submitted! We'll contact you soon.");
-      
-      setTimeout(() => {
-        setPaymentSubdomain("");
-        setPaymentReason("");
-        setPaymentRequestStatus("idle");
-      }, 2000);
-    }, 1500);
+      const configData: ConfigureResponse = await configResponse.json();
+
+      if (!configResponse.ok) {
+        if (configData.error?.includes('already in use')) {
+          throw new Error('This domain is already taken by another account');
+        } else if (configData.error?.includes('SSL certificate generation failed')) {
+          throw new Error('SSL setup failed. Please verify your DNS is pointing to ' + EXPECTED_IP);
+        } else if (configData.error?.includes('Invalid domain format')) {
+          throw new Error('Invalid domain format. Use format: subdomain.domain.com');
+        }
+        throw new Error(configData.error || 'Failed to configure payment domain');
+      }
+
+      setPaymentConfigStep("generating_ssl");
+      setPaymentConfigProgress(60);
+      toast.info('SSL certificate generated successfully!');
+
+      setPaymentConfigStep("complete");
+      setPaymentConfigProgress(100);
+      setPaymentDomainConfigured(true);
+      setPaymentDomainAddedAt(configData.configured_at || new Date().toISOString());
+
+      toast.success(
+        `Payment domain configured successfully!`,
+        { duration: 5000 }
+      );
+
+    } catch (error: any) {
+      setPaymentConfigStep("idle");
+      setPaymentConfigProgress(0);
+      toast.error(error.message || 'Configuration failed');
+      console.error('Payment domain configuration error:', error);
+    } finally {
+      setIsPaymentSubmitting(false);
+    }
+  };
+
+  const removePaymentDomain = async () => {
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_BASE_URL}/api/domains/payment/delete/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to remove payment domain');
+      }
+
+      toast.success('Payment domain removed. Payment links will use default domain.');
+
+      // Reset UI
+      setPaymentSubdomain('');
+      setPaymentStatus('not_set');
+      setPaymentDomainConfigured(false);
+      setPaymentDomainAddedAt(null);
+      setPaymentVerifiedIP(null);
+      setPaymentConfigStep('idle');
+      setPaymentConfigProgress(0);
+      setShowPaymentDeleteDialog(false);
+
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to remove payment domain');
+      console.error('Payment domain removal error:', error);
+    }
+  };
+
+  const handleChangePaymentDomain = () => {
+    setShowPaymentChangeDialog(false);
+    setPaymentStatus('not_set');
+    setPaymentDomainConfigured(false);
+    setPaymentSubdomain('');
+    setPaymentVerifiedIP(null);
+    setPaymentConfigStep('idle');
+    setPaymentConfigProgress(0);
   };
 
   // Cleanup polling on unmount
@@ -452,8 +646,11 @@ export function DomainManagementIntegrated() {
       if (formsPollingInterval) {
         clearInterval(formsPollingInterval);
       }
+      if (paymentPollingInterval) {
+        clearInterval(paymentPollingInterval);
+      }
     };
-  }, [formsPollingInterval]);
+  }, [formsPollingInterval, paymentPollingInterval]);
 
   if (isLoading) {
     return (
@@ -752,7 +949,7 @@ export function DomainManagementIntegrated() {
 
       <Separator className="my-8" />
 
-      {/* Payment Subdomain Request Section */}
+      {/* Payment Subdomain Section */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
@@ -760,104 +957,196 @@ export function DomainManagementIntegrated() {
               <CreditCard className="h-5 w-5 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <CardTitle>Payment Subdomain Request</CardTitle>
+              <CardTitle>Payment Subdomain Setup</CardTitle>
               <CardDescription>
-                Request a custom subdomain for your payment links (requires manual approval)
+                Configure your custom subdomain for payment links
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-900 dark:text-amber-100">
-              <p className="font-semibold">Manual Approval Required</p>
-              <p className="text-sm mt-1">
-                Payment subdomains require additional verification and SSL certificate setup. 
-                Our team will review your request and contact you within 24-48 hours.
-              </p>
-            </AlertDescription>
-          </Alert>
+          {/* Current Status - Configured Domain */}
+          {paymentDomainConfigured && paymentSubdomain ? (
+            <div className="space-y-4">
+              <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="font-semibold text-green-900 dark:text-green-100 text-lg">
+                        ✓ Active: {paymentSubdomain}
+                      </p>
+                      <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+                        Your payment links are accessible at: https://{paymentSubdomain}/*
+                      </p>
+                      {paymentDomainAddedAt && (
+                        <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                          Configured on: {new Date(paymentDomainAddedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
 
-          {paymentRequestStatus === "submitted" ? (
-            <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription>
-                <p className="font-semibold text-green-900 dark:text-green-100">
-                  Request Submitted Successfully!
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                  We'll review your payment subdomain request and contact you soon.
-                </p>
-              </AlertDescription>
-            </Alert>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowPaymentChangeDialog(true)}
+                        disabled={!isSuperAdmin()}
+                      >
+                        <Edit className="h-3 w-3 mr-1" />
+                        Change Domain
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => setShowPaymentDeleteDialog(true)}
+                        disabled={!isSuperAdmin()}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Remove Domain
+                      </Button>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </div>
           ) : (
             <>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="payment-subdomain" className="text-base font-semibold">
-                    Desired Payment Subdomain
-                  </Label>
-                  <Input
-                    id="payment-subdomain"
-                    placeholder="pay.yourbusiness.com"
-                    value={paymentSubdomain}
-                    onChange={(e) => setPaymentSubdomain(e.target.value)}
-                    disabled={paymentRequestStatus === "submitting" || !isSuperAdmin()}
-                    className="text-lg"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Example: pay.yourbusiness.com or payments.yourcompany.com
+              {/* Default Domain Status */}
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-semibold">Using default payment domain</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Payment links will use the default domain until you configure a custom one
                   </p>
-                </div>
+                </AlertDescription>
+              </Alert>
 
-                <div className="space-y-2">
-                  <Label htmlFor="payment-reason" className="text-base font-semibold">
-                    Business Use Case <span className="text-muted-foreground font-normal">(Optional)</span>
-                  </Label>
-                  <Textarea
-                    id="payment-reason"
-                    placeholder="Tell us about your business and why you need a custom payment subdomain..."
-                    value={paymentReason}
-                    onChange={(e) => setPaymentReason(e.target.value)}
-                    disabled={paymentRequestStatus === "submitting" || !isSuperAdmin()}
-                    rows={4}
-                    className="resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Help us understand your needs to expedite the approval process
-                  </p>
-                </div>
+              {/* Subdomain Input */}
+              <div className="space-y-2">
+                <Label htmlFor="payment-subdomain" className="text-base font-semibold">
+                  Your Payment Subdomain
+                </Label>
+                <Input
+                  id="payment-subdomain"
+                  placeholder="pay.yourbusiness.com"
+                  value={paymentSubdomain}
+                  onChange={(e) => setPaymentSubdomain(e.target.value)}
+                  disabled={paymentStatus === "validating" || !isSuperAdmin()}
+                  className="text-lg"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Example: pay.yourbusiness.com or payments.yourcompany.com
+                </p>
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                <h4 className="font-semibold text-sm">What happens next?</h4>
-                <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                  <li>We'll verify your domain ownership</li>
-                  <li>Set up SSL certificates for secure payments</li>
-                  <li>Configure payment gateway integration</li>
-                  <li>Notify you when your subdomain is ready</li>
-                </ol>
-              </div>
+              {/* DNS Instructions */}
+              <DNSInstructions 
+                expectedIP={EXPECTED_IP}
+                onCopy={copyToClipboard}
+              />
 
-              <Button 
-                onClick={handlePaymentRequest}
-                disabled={!paymentSubdomain.trim() || paymentRequestStatus === "submitting" || !isSuperAdmin()}
-                className="w-full"
-                size="lg"
-              >
-                {paymentRequestStatus === "submitting" ? (
+              {/* Domain Status Indicator */}
+              {paymentSubdomain && (
+                <DomainStatusIndicator
+                  status={paymentStatus}
+                  lastChecked={paymentLastChecked}
+                  errorMessage={paymentErrorMessage}
+                  validationAttempts={paymentValidationAttempts}
+                  maxAttempts={MAX_ATTEMPTS}
+                />
+              )}
+
+              {/* Error Message */}
+              {paymentStatus === "failed" && (
+                <Alert variant="destructive">
+                  <XCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {paymentErrorMessage}
+                    <div className="mt-2 text-sm">
+                      Please check your DNS settings and click "Retry Validation" when ready.
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Configuration Progress */}
+              {isPaymentSubmitting && (
+                <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                    <p className="font-semibold text-green-900 dark:text-green-100">
+                      {paymentConfigStep === "configuring" && "⏳ Step 1/2: Configuring payment domain..."}
+                      {paymentConfigStep === "generating_ssl" && "⏳ Step 2/2: Generating SSL certificate (1-2 minutes)..."}
+                      {paymentConfigStep === "complete" && "✅ Complete! Your payment domain is configured."}
+                    </p>
+                  </div>
+                  <Progress value={paymentConfigProgress} className="h-2" />
+                  <p className="text-xs text-green-700 dark:text-green-300">
+                    This may take 1-2 minutes. Please wait...
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {paymentStatus === "not_set" && (
+                  <Button 
+                    onClick={startPaymentValidation}
+                    disabled={!paymentSubdomain.trim() || !isSuperAdmin()}
+                    className="flex-1"
+                    size="lg"
+                  >
+                    Validate Domain
+                  </Button>
+                )}
+
+                {paymentStatus === "validating" && (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Submitting Request...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Submit Payment Subdomain Request
+                    <Button disabled className="flex-1" size="lg">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Validating... ({paymentValidationAttempts}/{MAX_ATTEMPTS})
+                    </Button>
+                    <Button variant="outline" onClick={cancelPaymentValidation} size="lg">
+                      Stop Validation
+                    </Button>
                   </>
                 )}
-              </Button>
+
+                {paymentStatus === "failed" && (
+                  <>
+                    <Button onClick={startPaymentValidation} className="flex-1" size="lg" disabled={!isSuperAdmin()}>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Retry Validation
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setPaymentStatus("not_set");
+                        setPaymentValidationAttempts(0);
+                        setPaymentErrorMessage("");
+                        setPaymentSubdomain("");
+                      }}
+                      size="lg"
+                    >
+                      Reset
+                    </Button>
+                  </>
+                )}
+
+                {paymentStatus === "verified" && !isPaymentSubmitting && (
+                  <Button 
+                    onClick={submitPaymentDomain} 
+                    className="w-full" 
+                    size="lg"
+                    disabled={!isSuperAdmin()}
+                  >
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Submit Payment Domain Configuration
+                  </Button>
+                )}
+              </div>
             </>
           )}
         </CardContent>
@@ -895,6 +1184,44 @@ export function DomainManagementIntegrated() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={removeDomain} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, Remove Domain
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payment Domain Change Dialog */}
+      <AlertDialog open={showPaymentChangeDialog} onOpenChange={setShowPaymentChangeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Payment Domain?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Changing your payment domain will require DNS reconfiguration and SSL certificate regeneration. 
+              Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleChangePaymentDomain}>
+              Yes, Change Domain
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payment Domain Delete Dialog */}
+      <AlertDialog open={showPaymentDeleteDialog} onOpenChange={setShowPaymentDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Payment Domain?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove your custom payment domain and revert to the default payment domain. 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={removePaymentDomain} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Yes, Remove Domain
             </AlertDialogAction>
           </AlertDialogFooter>

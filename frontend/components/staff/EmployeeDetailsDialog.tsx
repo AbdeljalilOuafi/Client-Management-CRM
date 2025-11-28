@@ -55,6 +55,7 @@ const getPagePermissionFields = (pageId: string): { view?: keyof Employee; edit?
     "clients": { view: "can_view_all_clients", edit: "can_manage_all_clients" },
     "payments": { view: "can_view_all_payments", edit: "can_manage_all_payments" },
     "instalments": { view: "can_view_all_installments", edit: "can_manage_all_installments" },
+    "integrations": { view: "can_view_integrations", edit: "can_manage_integrations" },
   };
   return mapping[pageId] || {};
 };
@@ -214,6 +215,8 @@ export function EmployeeDetailsDialog({
         'can_manage_all_payments',
         'can_view_all_installments',
         'can_manage_all_installments',
+        'can_view_integrations',
+        'can_manage_integrations',
       ];
 
       allPermissionFields.forEach((field) => {

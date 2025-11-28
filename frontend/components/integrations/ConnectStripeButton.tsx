@@ -3,7 +3,11 @@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
-export default function ConnectStripeButton() {
+interface ConnectStripeButtonProps {
+  onSuccess?: () => void;
+}
+
+export default function ConnectStripeButton({ onSuccess }: ConnectStripeButtonProps = {}) {
   const { toast } = useToast();
 
   const handleConnectStripe = () => {

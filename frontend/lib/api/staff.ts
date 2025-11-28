@@ -23,6 +23,8 @@ export interface EmployeeRolesResponse {
 export interface Employee {
   id: number;
   name: string;
+  first_name?: string; // New field for separate first name
+  last_name?: string; // New field for separate last name
   email: string;
   phone_number?: string | null;
   role: UserRole;
@@ -37,6 +39,8 @@ export interface Employee {
   can_manage_all_payments?: boolean;
   can_view_all_installments?: boolean;
   can_manage_all_installments?: boolean;
+  can_view_integrations?: boolean;
+  can_manage_integrations?: boolean;
   app_access?: {
     fithq: boolean;
     gohighlevel: boolean;
