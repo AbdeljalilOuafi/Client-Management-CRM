@@ -29,10 +29,15 @@ export default function LoginPage() {
         description: "Logged in successfully. Redirecting...",
       });
 
-      // Redirect to clients page after successful login
+      // Trigger a custom event to notify PermissionsContext
+      window.dispatchEvent(new Event('storage'));
+
+      // Redirect to dashboard after successful login
       setTimeout(() => {
-        router.push("/");
-      }, 1000);
+        router.push("/dashboard");
+        // Force a hard reload to ensure all contexts are refreshed
+        window.location.href = "/dashboard";
+      }, 500);
     } catch (error) {
       console.error("Login error:", error);
       let errorMessage = "Failed to login";

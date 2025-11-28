@@ -153,16 +153,15 @@ export function AdvancedClientFilters({
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="w-full sm:max-w-xl flex flex-col p-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b">
           <SheetTitle>Advanced Filters</SheetTitle>
           <SheetDescription>
-            Apply filters to narrow down your client list. Filters work together to refine results.
+            Apply advanced filters to refine your client list
           </SheetDescription>
         </SheetHeader>
-
-        <ScrollArea className="h-[calc(100vh-200px)] pr-4 mt-6">
-          <div className="space-y-6">
+        <ScrollArea className="flex-1 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[calc(100vh-200px)]" type="always">
+          <div className="py-6 space-y-6 pr-4">
             {/* Date Filters */}
             <div className="space-y-4">
               <h3 className="font-semibold text-sm">Date Ranges</h3>
@@ -272,6 +271,117 @@ export function AdvancedClientFilters({
                         mode="single"
                         selected={localFilters.latestPaymentDateTo ? new Date(localFilters.latestPaymentDateTo) : undefined}
                         onSelect={(date: Date | undefined) => updateFilter("latestPaymentDateTo", date ? format(date, "yyyy-MM-dd") : undefined)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Current Package Start Date Range */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Current Package Start Date</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("justify-start text-left font-normal", !localFilters.packageStartDateFrom && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.packageStartDateFrom ? format(new Date(localFilters.packageStartDateFrom), "PP") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.packageStartDateFrom ? new Date(localFilters.packageStartDateFrom) : undefined}
+                        onSelect={(date: Date | undefined) => updateFilter("packageStartDateFrom", date ? format(date, "yyyy-MM-dd") : undefined)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("justify-start text-left font-normal", !localFilters.packageStartDateTo && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.packageStartDateTo ? format(new Date(localFilters.packageStartDateTo), "PP") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.packageStartDateTo ? new Date(localFilters.packageStartDateTo) : undefined}
+                        onSelect={(date: Date | undefined) => updateFilter("packageStartDateTo", date ? format(date, "yyyy-MM-dd") : undefined)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Current Package End Date Range */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Current Package End Date</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("justify-start text-left font-normal", !localFilters.packageEndDateFrom && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.packageEndDateFrom ? format(new Date(localFilters.packageEndDateFrom), "PP") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.packageEndDateFrom ? new Date(localFilters.packageEndDateFrom) : undefined}
+                        onSelect={(date: Date | undefined) => updateFilter("packageEndDateFrom", date ? format(date, "yyyy-MM-dd") : undefined)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("justify-start text-left font-normal", !localFilters.packageEndDateTo && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.packageEndDateTo ? format(new Date(localFilters.packageEndDateTo), "PP") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.packageEndDateTo ? new Date(localFilters.packageEndDateTo) : undefined}
+                        onSelect={(date: Date | undefined) => updateFilter("packageEndDateTo", date ? format(date, "yyyy-MM-dd") : undefined)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Had Payments Range */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Had Payments</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("justify-start text-left font-normal", !localFilters.hadPaymentsFrom && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.hadPaymentsFrom ? format(new Date(localFilters.hadPaymentsFrom), "PP") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.hadPaymentsFrom ? new Date(localFilters.hadPaymentsFrom) : undefined}
+                        onSelect={(date: Date | undefined) => updateFilter("hadPaymentsFrom", date ? format(date, "yyyy-MM-dd") : undefined)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("justify-start text-left font-normal", !localFilters.hadPaymentsTo && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {localFilters.hadPaymentsTo ? format(new Date(localFilters.hadPaymentsTo), "PP") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={localFilters.hadPaymentsTo ? new Date(localFilters.hadPaymentsTo) : undefined}
+                        onSelect={(date: Date | undefined) => updateFilter("hadPaymentsTo", date ? format(date, "yyyy-MM-dd") : undefined)}
                       />
                     </PopoverContent>
                   </Popover>
@@ -807,11 +917,11 @@ export function AdvancedClientFilters({
           </div>
         </ScrollArea>
 
-        <SheetFooter className="mt-6 gap-2">
-          <Button variant="outline" onClick={handleClearAll}>
+        <SheetFooter className="px-6 py-4 border-t gap-2 mt-auto">
+          <Button variant="outline" onClick={handleClearAll} className="flex-1">
             Clear All
           </Button>
-          <Button onClick={handleApply}>
+          <Button onClick={handleApply} className="flex-1">
             Apply Filters
           </Button>
         </SheetFooter>

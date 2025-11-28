@@ -44,8 +44,11 @@ export function UserProfileMenu({ collapsed = false }: UserProfileMenuProps) {
         description: "You have been logged out of your account.",
       });
       
-      // Redirect to login page
-      router.push("/login");
+      // Trigger storage event to notify PermissionsContext
+      window.dispatchEvent(new Event('storage'));
+      
+      // Force a hard reload to clear all state
+      window.location.href = "/login";
     } catch (error) {
       console.error("Logout error:", error);
       toast({
@@ -53,7 +56,6 @@ export function UserProfileMenu({ collapsed = false }: UserProfileMenuProps) {
         description: error instanceof Error ? error.message : "Failed to logout. Please try again.",
         variant: "destructive",
       });
-    } finally {
       setIsLoggingOut(false);
     }
   };

@@ -14,6 +14,7 @@ import { AddClientForm } from "@/components/AddClientForm";
 import { listClients, getClientStatistics, Client } from "@/lib/api/clients";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { motion } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import { ClientDetailsDialog } from "@/components/clients/ClientDetailsDialog";
@@ -524,37 +525,36 @@ export default function Index() {
                       Columns ({Object.values(visibleColumns).filter(Boolean).length})
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-[250px] max-h-[400px] overflow-y-auto bg-background z-50">
-                    <div className="px-2 py-1.5 text-xs font-semibold border-b mb-1">
+                  <DropdownMenuContent align="end" className="w-[250px] bg-background z-50 p-0">
+                    <div className="px-2 py-1.5 text-xs font-semibold border-b sticky top-0 bg-background z-10">
                       <div className="flex items-center justify-between">
                         <span>Show/Hide Columns</span>
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-6 text-xs"
-                            onClick={() => {
-                              const defaults = columnDefinitions.reduce((acc, col) => ({ ...acc, [col.id]: col.default }), {});
-                              setVisibleColumns(defaults);
-                              setColumnOrder(columnDefinitions.map(col => col.id));
-                            }}
-                          >
-                            Reset All
-                          </Button>
-                        </div>
+                        <span className="text-muted-foreground font-normal">
+                          {Object.values(visibleColumns).filter(Boolean).length}/{columnDefinitions.length}
+                        </span>
                       </div>
                     </div>
-                    {getOrderedColumns().map((column) => (
-                      <DropdownMenuCheckboxItem
-                        key={column.id}
-                        checked={visibleColumns[column.id] ?? column.default}
-                        onCheckedChange={(checked) => setVisibleColumns((prev) => ({ ...prev, [column.id]: checked }))}
-                        disabled={column.mandatory}
-                      >
-                        {column.label}
-                        {column.mandatory && <span className="ml-2 text-xs text-muted-foreground">(Required)</span>}
-                      </DropdownMenuCheckboxItem>
-                    ))}
+                    <ScrollArea className="h-[400px]" type="always">
+                      <div className="p-1 pr-4">
+                        {columnDefinitions.map((column) => (
+                          <DropdownMenuCheckboxItem
+                            key={column.id}
+                            checked={visibleColumns[column.id]}
+                            onCheckedChange={(checked) => {
+                              setVisibleColumns((prev) => ({
+                                ...prev,
+                                [column.id]: checked,
+                              }));
+                            }}
+                            disabled={column.mandatory}
+                            className="cursor-pointer"
+                          >
+                            {column.label}
+                            {column.mandatory && <span className="ml-2 text-xs text-muted-foreground">(Required)</span>}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

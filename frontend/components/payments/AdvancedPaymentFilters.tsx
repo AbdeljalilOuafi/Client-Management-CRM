@@ -161,16 +161,15 @@ export const AdvancedPaymentFilters = ({
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="w-full sm:max-w-2xl flex flex-col p-0">
+        <SheetHeader className="px-6 pt-6 pb-4 border-b">
           <SheetTitle>Advanced Filters</SheetTitle>
           <SheetDescription>
-            Apply filters to narrow down your payment list. Filters work together to refine results.
+            Apply advanced filters to refine your payment list
           </SheetDescription>
         </SheetHeader>
-
-        <ScrollArea className="h-[calc(100vh-200px)] pr-4 mt-6">
-          <div className="space-y-6">
+        <ScrollArea className="flex-1 px-6 [&>[data-radix-scroll-area-viewport]]:max-h-[calc(100vh-200px)]" type="always">
+          <div className="py-6 space-y-6 pr-4">
             
             {/* Payment Method Filter */}
             <div className="space-y-2">
@@ -579,7 +578,7 @@ export const AdvancedPaymentFilters = ({
           </div>
         </ScrollArea>
 
-        <SheetFooter className="mt-6 flex gap-2">
+        <SheetFooter className="px-6 py-4 border-t gap-2 mt-auto">
           <Button variant="outline" onClick={clearAllFilters} className="flex-1">
             Clear All
           </Button>

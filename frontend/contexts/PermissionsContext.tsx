@@ -51,13 +51,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   const [user, setUser] = useState<UserWithPermissions | null>(null);
   const [permissions, setPermissions] = useState<Permissions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    // Prevent multiple fetches
-    if (hasFetched) return;
-    
     const loadPermissions = async () => {
+      setIsLoading(true);
       // First, load from localStorage for immediate display
       const storedUser = getStoredUser();
       const storedPermissions = getStoredPermissions();
@@ -121,12 +119,28 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         // Continue with localStorage data if backend fetch fails
       } finally {
         setIsLoading(false);
-        setHasFetched(true);
       }
     };
 
     loadPermissions();
-  }, [hasFetched]);
+  }, [refreshTrigger]);
+
+  // Listen for storage changes (login/logout events)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      // If auth_token or user changes, refresh permissions
+      if (e.key === 'auth_token' || e.key === 'user') {
+        console.log('[PermissionsContext] Storage change detected, refreshing permissions...');
+        setRefreshTrigger(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Role checks
   const isSuperAdmin = (): boolean => {

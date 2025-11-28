@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { listEmployees, getEmployeeStatistics, Employee, EmployeeStatistics } from "@/lib/api/staff";
-import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2, Smartphone, Zap, Tags } from "lucide-react";
+import { Search, Plus, Settings2, ArrowUpDown, Users, Maximize2, Smartphone, Zap, Tags, ArrowUp, ArrowDown, ChevronDown, GripVertical } from "lucide-react";
 import { AddStaffForm } from "@/components/AddStaffForm";
 import { AuthGuard } from "@/components/AuthGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
@@ -23,11 +23,16 @@ import { ManageRolesDialog } from "@/components/staff/ManageRolesDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { mergeAppAccessWithEmployees } from "@/lib/utils/appAccessStorage";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { AdvancedStaffFilters, StaffFilters } from "@/components/staff/AdvancedStaffFilters";
 
 interface ColumnDefinition {
   id: string;
   label: string;
-  visible: boolean;
+  default: boolean;
+  mandatory?: boolean;
 }
 
 // Helper function to determine if text should be dark or light based on background color
@@ -64,19 +69,64 @@ const StaffContent = () => {
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState<EmployeeStatistics | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [columnDefinitions, setColumnDefinitions] = useState<ColumnDefinition[]>([
-    { id: "id", label: "Employee ID", visible: true },
-    { id: "name", label: "Full Name", visible: true },
-    { id: "email", label: "Email", visible: true },
-    { id: "phone_number", label: "Phone Number", visible: false },
-    { id: "role", label: "System Role", visible: true },
-    { id: "job_role", label: "Job Title", visible: true },
-    { id: "start_date", label: "Start Date", visible: true },
-    { id: "end_date", label: "End Date", visible: false },
-    { id: "status", label: "Status", visible: true },
-    { id: "is_active", label: "Active", visible: true },
-    { id: "app_access", label: "App Access", visible: true },
-  ]);
+  const [advancedFilters, setAdvancedFilters] = useState<StaffFilters>({});
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("staff_visible_columns");
+      if (saved) return JSON.parse(saved);
+    }
+    return {
+      name: true,
+      email: true,
+      phone_number: true,
+      id: true,
+      start_date: true,
+      end_date: false,
+      role: true,
+      job_role: true,
+      app_access: true,
+      status: true,
+      date_created: false,
+      date_updated: false,
+      notes: false,
+    };
+  });
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("staff_column_order");
+      if (saved) return JSON.parse(saved);
+    }
+    return ["name", "email", "phone_number", "id", "start_date", "end_date", "role", "job_role", "app_access", "status", "date_created", "date_updated", "notes"];
+  });
+
+  const columnDefinitions: ColumnDefinition[] = [
+    { id: "name", label: "Name", default: true, mandatory: true },
+    { id: "email", label: "Email", default: true },
+    { id: "phone_number", label: "Phone", default: true },
+    { id: "id", label: "Employee ID", default: true },
+    { id: "start_date", label: "Start Date", default: true },
+    { id: "end_date", label: "End Date", default: false },
+    { id: "role", label: "System Role", default: true },
+    { id: "job_role", label: "Job Title", default: true },
+    { id: "app_access", label: "App Access", default: true },
+    { id: "status", label: "Status", default: true },
+    { id: "date_created", label: "Created Date", default: false },
+    { id: "date_updated", label: "Updated Date", default: false },
+    { id: "notes", label: "Notes", default: false },
+  ];
+
+  // Save column visibility and order to localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("staff_visible_columns", JSON.stringify(visibleColumns));
+    }
+  }, [visibleColumns]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("staff_column_order", JSON.stringify(columnOrder));
+    }
+  }, [columnOrder]);
 
 
   useEffect(() => {
@@ -148,12 +198,30 @@ const StaffContent = () => {
     }
   };
 
-  const toggleColumn = (columnId: string) => {
-    setColumnDefinitions(prev =>
-      prev.map(col =>
-        col.id === columnId ? { ...col, visible: !col.visible } : col
-      )
-    );
+  // Drag and drop handler
+  const handleDragEnd = (result: DropResult) => {
+    if (!result.destination) return;
+
+    const items = Array.from(columnOrder);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+
+    setColumnOrder(items);
+  };
+
+  // Get ordered columns
+  const getOrderedColumns = () => {
+    return columnOrder
+      .map(id => columnDefinitions.find(col => col.id === id))
+      .filter(Boolean) as typeof columnDefinitions;
+  };
+
+  const handleApplyFilters = () => {
+    // Filters are applied automatically through state
+  };
+
+  const toggleSortDirection = () => {
+    setSortDirection(prev => prev === "asc" ? "desc" : "asc");
   };
 
   const handleEmployeeClick = (employee: Employee) => {
@@ -179,15 +247,94 @@ const StaffContent = () => {
 
 
   const filteredEmployees = employees.filter(employee => {
+    // Search filter
     const matchesSearch =
       employee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       employee.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       employee.role.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Basic status filter
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "active" && employee.is_active) ||
       (statusFilter === "inactive" && !employee.is_active);
+    
+    // Basic role filter
     const matchesRole = roleFilter === "all" || employee.role === roleFilter;
+
+    // Advanced Filters
+    // Name filter
+    if (advancedFilters.name && advancedFilters.name.length > 0) {
+      if (!advancedFilters.name.includes(employee.name)) return false;
+    }
+
+    // Start Date filter
+    if (advancedFilters.startDateFrom && employee.start_date) {
+      const startDate = new Date(employee.start_date);
+      if (startDate < advancedFilters.startDateFrom) return false;
+    }
+    if (advancedFilters.startDateTo && employee.start_date) {
+      const startDate = new Date(employee.start_date);
+      if (startDate > advancedFilters.startDateTo) return false;
+    }
+
+    // End Date filter
+    if (advancedFilters.endDateFrom && employee.end_date) {
+      const endDate = new Date(employee.end_date);
+      if (endDate < advancedFilters.endDateFrom) return false;
+    }
+    if (advancedFilters.endDateTo && employee.end_date) {
+      const endDate = new Date(employee.end_date);
+      if (endDate > advancedFilters.endDateTo) return false;
+    }
+
+    // System Role filter
+    if (advancedFilters.systemRole && advancedFilters.systemRole.length > 0) {
+      if (!advancedFilters.systemRole.includes(employee.role)) return false;
+    }
+
+    // Job Title filter
+    if (advancedFilters.jobTitle && advancedFilters.jobTitle.length > 0) {
+      if (!employee.job_role || !advancedFilters.jobTitle.includes(employee.job_role)) return false;
+    }
+
+    // App Access filter
+    if (advancedFilters.appAccess && advancedFilters.appAccess.length > 0) {
+      const hasMatchingAccess = advancedFilters.appAccess.some(access => {
+        if (access === "full") return employee.app_access?.fithq && employee.app_access?.gohighlevel;
+        if (access === "limited") return (employee.app_access?.fithq || employee.app_access?.gohighlevel) && 
+                                        !(employee.app_access?.fithq && employee.app_access?.gohighlevel);
+        if (access === "read_only") return !employee.app_access?.fithq && !employee.app_access?.gohighlevel;
+        return false;
+      });
+      if (!hasMatchingAccess) return false;
+    }
+
+    // Status filter (from advanced filters)
+    if (advancedFilters.status && advancedFilters.status.length > 0) {
+      if (!employee.status || !advancedFilters.status.includes(employee.status)) return false;
+    }
+
+    // Created Date filter
+    if (advancedFilters.dateCreatedFrom && employee.created_at) {
+      const createdDate = new Date(employee.created_at);
+      if (createdDate < advancedFilters.dateCreatedFrom) return false;
+    }
+    if (advancedFilters.dateCreatedTo && employee.created_at) {
+      const createdDate = new Date(employee.created_at);
+      if (createdDate > advancedFilters.dateCreatedTo) return false;
+    }
+
+    // Updated Date filter
+    if (advancedFilters.dateUpdatedFrom && employee.updated_at) {
+      const updatedDate = new Date(employee.updated_at);
+      if (updatedDate < advancedFilters.dateUpdatedFrom) return false;
+    }
+    if (advancedFilters.dateUpdatedTo && employee.updated_at) {
+      const updatedDate = new Date(employee.updated_at);
+      if (updatedDate > advancedFilters.dateUpdatedTo) return false;
+    }
+
     return matchesSearch && matchesStatus && matchesRole;
   });
 
@@ -202,7 +349,6 @@ const StaffContent = () => {
     return 0;
   });
 
-  const visibleColumns = columnDefinitions.filter(col => col.visible);
   const uniqueRoles = Array.from(new Set(employees.map(e => e.role)));
 
   return (
@@ -259,43 +405,82 @@ const StaffContent = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <div className="flex gap-4 items-center flex-wrap">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search staff..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 shadow-sm"
+                      className="pl-9"
                     />
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="bg-background shadow-sm">
-                      <SelectValue placeholder="Status" />
+                  
+                  <Select value={sortColumn} onValueChange={setSortColumn}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Select value={roleFilter} onValueChange={setRoleFilter}>
-                    <SelectTrigger className="bg-background shadow-sm">
-                      <SelectValue placeholder="Role" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <SelectItem value="all">All Roles</SelectItem>
-                      {uniqueRoles.map(role => (
-                        <SelectItem key={role} value={role}>
-                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                    <SelectContent className="max-h-[300px]">
+                      {columnDefinitions.map((column) => (
+                        <SelectItem key={column.id} value={column.id}>
+                          {column.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button variant="outline" onClick={() => setShowColumnSettings(true)} className="shadow-sm hover:shadow-md transition-all">
-                    <Settings2 className="h-4 w-4 mr-2" />
-                    Columns
+                  
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={toggleSortDirection}
+                    title={sortDirection === "asc" ? "Ascending" : "Descending"}
+                    className="shadow-sm hover:shadow-md transition-all"
+                  >
+                    {sortDirection === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
                   </Button>
+
+                  <AdvancedStaffFilters
+                    filters={advancedFilters}
+                    onFiltersChange={setAdvancedFilters}
+                    onApply={handleApplyFilters}
+                  />
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="shadow-sm">
+                        <ChevronDown className="h-4 w-4 mr-2" />
+                        Columns
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-[250px] bg-background z-50 p-0">
+                      <div className="px-2 py-1.5 text-xs font-semibold border-b sticky top-0 bg-background z-10">
+                        <div className="flex items-center justify-between">
+                          <span>Show/Hide Columns</span>
+                          <span className="text-muted-foreground font-normal">
+                            {Object.values(visibleColumns).filter(Boolean).length}/{columnDefinitions.length}
+                          </span>
+                        </div>
+                      </div>
+                      <ScrollArea className="h-[400px]" type="always">
+                        <div className="p-1 pr-4">
+                          {columnDefinitions.map((column) => (
+                            <DropdownMenuCheckboxItem
+                              key={column.id}
+                              checked={visibleColumns[column.id]}
+                              onCheckedChange={(checked) =>
+                                setVisibleColumns((prev) => ({ ...prev, [column.id]: checked }))
+                              }
+                              disabled={column.mandatory}
+                              className="cursor-pointer"
+                            >
+                              {column.label}
+                              {column.mandatory && <span className="ml-2 text-xs text-muted-foreground">(Required)</span>}
+                            </DropdownMenuCheckboxItem>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {/* Employee Statistics Summary */}
@@ -347,28 +532,78 @@ const StaffContent = () => {
                       ))}
                     </div>
                   ) : (
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="w-16"></TableHead>
-                          {visibleColumns.map(col => (
-                            <TableHead
-                              key={col.id}
-                              className="cursor-pointer hover:bg-muted/70 transition-colors"
-                              onClick={() => handleSort(col.id)}
-                            >
-                              <div className="flex items-center gap-2">
-                                {col.label}
-                                <ArrowUpDown className="h-4 w-4" />
-                              </div>
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
+                    <DragDropContext onDragEnd={handleDragEnd}>
+                      <Table>
+                        <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm z-10">
+                          <Droppable droppableId="table-headers" direction="horizontal">
+                            {(provided) => (
+                              <TableRow 
+                                ref={provided.innerRef}
+                                {...provided.droppableProps}
+                                className="hover:bg-transparent"
+                              >
+                                <TableHead className="w-12">View</TableHead>
+                                {getOrderedColumns()
+                                  .filter(column => visibleColumns[column.id])
+                                  .map((column, index) => (
+                                    <Draggable
+                                      key={column.id}
+                                      draggableId={column.id}
+                                      index={index}
+                                    >
+                                      {(provided, snapshot) => (
+                                        <TableHead
+                                          ref={provided.innerRef}
+                                          {...provided.draggableProps}
+                                          style={{
+                                            ...provided.draggableProps.style,
+                                            position: snapshot.isDragging ? 'relative' : undefined,
+                                            top: snapshot.isDragging ? 0 : undefined,
+                                            left: snapshot.isDragging ? 0 : undefined,
+                                            zIndex: snapshot.isDragging ? 1000 : undefined,
+                                            transform: snapshot.isDragging 
+                                              ? `${provided.draggableProps.style?.transform} scale(0.98)` 
+                                              : undefined,
+                                          }}
+                                          className={`
+                                            relative group
+                                            transition-all duration-150 ease-out
+                                            ${snapshot.isDragging 
+                                              ? 'opacity-50 bg-muted/30' 
+                                              : 'opacity-100'
+                                            }
+                                          `}
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-max py-1">
+                                            <div 
+                                              {...provided.dragHandleProps}
+                                              className={`
+                                                flex-shrink-0 p-0.5 rounded
+                                                transition-all duration-150
+                                                ${snapshot.isDragging 
+                                                  ? 'opacity-0' 
+                                                  : 'opacity-0 group-hover:opacity-100 hover:bg-muted'
+                                                }
+                                                cursor-grab active:cursor-grabbing
+                                              `}
+                                            >
+                                              <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
+                                            </div>
+                                            <span className="select-none font-medium text-sm">{column.label}</span>
+                                          </div>
+                                        </TableHead>
+                                      )}
+                                    </Draggable>
+                                  ))}
+                                {provided.placeholder}
+                              </TableRow>
+                            )}
+                          </Droppable>
+                        </TableHeader>
                       <TableBody>
                         {sortedEmployees.length === 0 ? (
                           <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={visibleColumns.length + 1} className="text-center py-16">
+                            <TableCell colSpan={Object.values(visibleColumns).filter(Boolean).length + 1} className="text-center py-16">
                               <div className="flex flex-col items-center gap-4">
                                 <div className="rounded-full bg-muted p-6">
                                   <Users className="h-12 w-12 text-muted-foreground" />
@@ -405,7 +640,9 @@ const StaffContent = () => {
                                       <Maximize2 className="h-4 w-4" />
                                     </Button>
                                   </TableCell>
-                                  {visibleColumns.map(col => (
+                                  {getOrderedColumns()
+                                    .filter(column => visibleColumns[column.id])
+                                    .map((col) => (
                                     <TableCell key={col.id}>
                                       {col.id === "id" && String(employee.id).slice(0, 8)}
                                       {col.id === "name" && <span className="font-medium">{employee.name}</span>}
@@ -500,6 +737,19 @@ const StaffContent = () => {
                                           )}
                                         </div>
                                       )}
+                                      {col.id === "date_created" && (
+                                        employee.created_at 
+                                          ? new Date(employee.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                          : "-"
+                                      )}
+                                      {col.id === "date_updated" && (
+                                        employee.updated_at 
+                                          ? new Date(employee.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                                          : "-"
+                                      )}
+                                      {col.id === "notes" && (
+                                        <span className="text-sm">{(employee as any).notes || "-"}</span>
+                                      )}
                                     </TableCell>
                                   ))}
                                 </motion.tr>
@@ -509,6 +759,7 @@ const StaffContent = () => {
                         )}
                       </TableBody>
                     </Table>
+                  </DragDropContext>
                   )}
                 </div>
               </CardContent>
@@ -530,29 +781,6 @@ const StaffContent = () => {
             }}
             onCancel={() => setShowAddStaff(false)}
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* Column Settings Dialog */}
-      <Dialog open={showColumnSettings} onOpenChange={setShowColumnSettings}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manage Columns</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {columnDefinitions.map(col => (
-              <div key={col.id} className="flex items-center space-x-2">
-                <Checkbox
-                  id={`col-${col.id}`}
-                  checked={col.visible}
-                  onCheckedChange={() => toggleColumn(col.id)}
-                />
-                <Label htmlFor={`col-${col.id}`} className="cursor-pointer">
-                  {col.label}
-                </Label>
-              </div>
-            ))}
-          </div>
         </DialogContent>
       </Dialog>
 
