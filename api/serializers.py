@@ -311,8 +311,8 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = [
             'id', 'account', 'account_name', 'client_package', 'client', 'client_name',
-            'stripe_customer_id', 'amount', 'currency', 'exchange_rate',
-            'native_account_currency', 'status', 'failure_reason', 'payment_date'
+            'stripe_customer_id', 'amount', 'paid_currency', 'company_currency_amount',
+            'exchange_rate', 'native_account_currency', 'status', 'failure_reason', 'payment_date'
         ]
         read_only_fields = ['id', 'account_name', 'client_name']
         extra_kwargs = {
