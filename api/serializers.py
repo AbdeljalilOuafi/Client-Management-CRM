@@ -12,9 +12,12 @@ class AccountSerializer(serializers.ModelSerializer):
         model = Account
         fields = ['id', 'name', 'email', 'ceo_name', 'niche', 'location', 'website_url',
                   'date_joined', 'created_at', 'updated_at', 'timezone', 'forms_domain',
-                  'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at']
+                  'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at',
+                  'payment_domain', 'payment_domain_verified', 'payment_domain_configured', 
+                  'payment_domain_added_at']
         read_only_fields = ['id', 'date_joined', 'created_at', 'updated_at', 
-                           'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at']
+                           'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at',
+                           'payment_domain_verified', 'payment_domain_configured', 'payment_domain_added_at']
     
     def validate_forms_domain(self, value):
         """Validate custom forms domain format"""
@@ -34,6 +37,28 @@ class AccountSerializer(serializers.ModelSerializer):
         if value.startswith('http://') or value.startswith('https://'):
             raise serializers.ValidationError(
                 "Domain should not include protocol (http:// or https://). Use format: check.gymname.com"
+            )
+        
+        return value.lower()  # Normalize to lowercase
+    
+    def validate_payment_domain(self, value):
+        """Validate custom payment domain format"""
+        if not value:
+            return value
+        
+        # Basic domain format validation (subdomain.domain.tld)
+        import re
+        domain_pattern = r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$'
+        
+        if not re.match(domain_pattern, value):
+            raise serializers.ValidationError(
+                "Invalid domain format. Expected format: subdomain.domain.com (e.g., pay.gymname.com)"
+            )
+        
+        # Ensure no protocol prefix
+        if value.startswith('http://') or value.startswith('https://'):
+            raise serializers.ValidationError(
+                "Domain should not include protocol (http:// or https://). Use format: pay.gymname.com"
             )
         
         return value.lower()  # Normalize to lowercase

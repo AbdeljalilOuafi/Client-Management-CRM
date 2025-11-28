@@ -1159,7 +1159,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 payment.id,
                 payment.client.email,
                 f'{payment.amount:.2f}',
-                payment.currency or 'USD',
+                payment.paid_currency or 'USD',
                 f'{payment.exchange_rate:.6f}' if payment.exchange_rate else '',
                 payment.native_account_currency or '',
                 payment.status,
@@ -2141,6 +2141,263 @@ def delete_domain_config(request):
         
     except Exception as e:
         logger.exception(f"Error deleting domain config: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ==============================================================================
+# Payment Domain Management Views
+# ==============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def configure_payment_domain(request):
+    """
+    Configure custom payment domain for the authenticated user's account.
+    
+    Frontend has already verified DNS points to server IP.
+    This endpoint generates SSL certificate and configures Nginx.
+    
+    POST /api/domains/payment/configure/
+    Request Body:
+    {
+        "payment_domain": "pay.gymname.com"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Payment domain configured successfully with SSL and Nginx",
+        "domain": "pay.gymname.com",
+        "configured_at": "2025-11-28T10:30:00Z",
+        "ssl_status": "Active",
+        "nginx_status": "Configured"
+    }
+    """
+    from api.services.domain_service import DomainService
+    logger = logging.getLogger(__name__)
+    
+    try:
+        payment_domain = request.data.get('payment_domain')
+        
+        if not payment_domain:
+            return Response(
+                {'error': 'payment_domain is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get the authenticated user's account
+        account = request.user.account
+        
+        # Check if domain already in use by another account
+        existing = Account.objects.filter(payment_domain=payment_domain).exclude(id=account.id).first()
+        if existing:
+            return Response(
+                {'error': f'This domain is already in use by another account: {existing.name}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Configuring payment domain for account {account.id}: {payment_domain}")
+        
+        # Step 1: Generate SSL certificate
+        ssl_success, ssl_message = DomainService.generate_ssl_certificate(payment_domain)
+        if not ssl_success:
+            logger.error(f"SSL generation failed for {payment_domain}: {ssl_message}")
+            return Response({
+                'success': False,
+                'error': 'SSL certificate generation failed',
+                'details': ssl_message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Step 2: Create Nginx configuration
+        config_success, config_message = DomainService.create_nginx_config(payment_domain)
+        if not config_success:
+            logger.error(f"Nginx config creation failed for {payment_domain}: {config_message}")
+            return Response({
+                'success': False,
+                'error': 'Nginx configuration failed',
+                'details': config_message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Step 3: Test and reload Nginx
+        reload_success, reload_message = DomainService.test_and_reload_nginx()
+        if not reload_success:
+            logger.error(f"Nginx reload failed for {payment_domain}: {reload_message}")
+            return Response({
+                'success': False,
+                'error': 'Nginx reload failed',
+                'details': reload_message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Step 4: Save domain configuration in database
+        # Frontend has verified DNS, SSL and Nginx are now configured
+        account.payment_domain = payment_domain
+        account.payment_domain_verified = True
+        account.payment_domain_configured = True
+        account.payment_domain_added_at = timezone.now()
+        account.save()
+        
+        logger.info(f"Payment domain configured successfully for account {account.id}: {payment_domain}")
+        
+        return Response({
+            'success': True,
+            'message': 'Payment domain configured successfully with SSL and Nginx',
+            'domain': payment_domain,
+            'configured_at': account.payment_domain_added_at.isoformat(),
+            'ssl_status': 'Active',
+            'nginx_status': 'Configured'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error configuring payment domain: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_payment_domain_config(request):
+    """
+    Get current payment domain configuration for the authenticated user's account.
+    
+    GET /api/domains/payment/
+    
+    Response:
+    {
+        "payment_domain": "pay.gymname.com",
+        "payment_domain_verified": true,
+        "payment_domain_configured": true,
+        "payment_domain_added_at": "2025-11-28T10:30:00Z"
+    }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        account = request.user.account
+        
+        return Response({
+            'payment_domain': account.payment_domain,
+            'payment_domain_verified': account.payment_domain_verified,
+            'payment_domain_configured': account.payment_domain_configured,
+            'payment_domain_added_at': account.payment_domain_added_at.isoformat() if account.payment_domain_added_at else None
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error getting payment domain config: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def update_payment_domain(request):
+    """
+    Update payment domain configuration.
+    
+    PATCH /api/domains/payment/update/
+    Request Body:
+    {
+        "payment_domain": "newdomain.gym.com"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Payment domain updated successfully",
+        "domain": "newdomain.gym.com"
+    }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        account = request.user.account
+        payment_domain = request.data.get('payment_domain')
+        
+        if not payment_domain:
+            return Response(
+                {'error': 'payment_domain is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if domain already in use by another account
+        existing = Account.objects.filter(payment_domain=payment_domain).exclude(id=account.id).first()
+        if existing:
+            return Response(
+                {'error': f'This domain is already in use by another account: {existing.name}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Updating payment domain for account {account.id}: {payment_domain}")
+        
+        account.payment_domain = payment_domain
+        account.payment_domain_verified = True
+        account.payment_domain_configured = True
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Payment domain updated successfully',
+            'domain': payment_domain
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error updating payment domain: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def remove_payment_domain(request):
+    """
+    Remove payment domain configuration and revert to default domain.
+    
+    DELETE /api/domains/payment/delete/
+    
+    Response:
+    {
+        "success": true,
+        "message": "Payment domain removed successfully"
+    }
+    """
+    from api.services.domain_service import DomainService
+    logger = logging.getLogger(__name__)
+    
+    try:
+        account = request.user.account
+        
+        logger.info(f"Removing payment domain for account {account.id}")
+        
+        domain_to_remove = account.payment_domain
+        
+        # Remove SSL certificate and Nginx configuration
+        if domain_to_remove:
+            remove_success, remove_message = DomainService.remove_domain_config(domain_to_remove)
+            if not remove_success:
+                logger.warning(f"Failed to remove domain config for {domain_to_remove}: {remove_message}")
+                # Continue with DB cleanup even if file removal fails
+        
+        account.payment_domain = None
+        account.payment_domain_verified = False
+        account.payment_domain_configured = False
+        account.payment_domain_added_at = None
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Payment domain removed successfully. Payment links will now use the default domain.'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error removing payment domain: {str(e)}")
         return Response(
             {'error': f'Internal server error: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

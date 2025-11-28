@@ -66,6 +66,16 @@ class Account(models.Model):
                                                   help_text='Whether domain is fully configured')
     forms_domain_added_at = models.DateTimeField(null=True, blank=True, 
                                                  help_text='When custom domain was configured')
+    
+    # Custom Payment Domain Fields
+    payment_domain = models.CharField(max_length=255, null=True, blank=True, unique=True,
+                                     help_text='Custom subdomain for payment links (e.g., pay.gymname.com)')
+    payment_domain_verified = models.BooleanField(default=False,
+                                                  help_text='Whether DNS has been verified')
+    payment_domain_configured = models.BooleanField(default=False,
+                                                    help_text='Whether domain is fully configured')
+    payment_domain_added_at = models.DateTimeField(null=True, blank=True,
+                                                   help_text='When custom payment domain was configured')
 
     class Meta:
         managed = False
