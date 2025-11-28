@@ -11,6 +11,7 @@ import { listPayments, getPaymentStatistics, Payment, PaymentStatistics } from "
 import { AuthGuard } from "@/components/AuthGuard";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AppLayout } from "@/components/AppLayout";
@@ -422,8 +423,8 @@ const PaymentsContent = () => {
                       Columns ({Object.values(visibleColumns).filter(Boolean).length})
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-[250px] max-h-[400px] overflow-y-auto bg-background z-50">
-                    <div className="px-2 py-1.5 text-xs font-semibold border-b mb-1">
+                  <DropdownMenuContent align="end" className="w-[250px] bg-background z-50 p-0">
+                    <div className="px-2 py-1.5 text-xs font-semibold border-b sticky top-0 bg-background z-10">
                       <div className="flex items-center justify-between">
                         <span>Show/Hide Columns</span>
                         <div className="flex gap-1">
@@ -442,7 +443,9 @@ const PaymentsContent = () => {
                         </div>
                       </div>
                     </div>
-                    {getOrderedColumns().map((column) => (
+                    <ScrollArea className="h-[400px]" type="always">
+                      <div className="p-1 pr-4">
+                        {getOrderedColumns().map((column) => (
                       <DropdownMenuCheckboxItem
                         key={column.id}
                         checked={visibleColumns[column.id] ?? column.default}
@@ -451,8 +454,10 @@ const PaymentsContent = () => {
                       >
                         {column.label}
                         {column.mandatory && <span className="ml-2 text-xs text-muted-foreground">(Required)</span>}
-                      </DropdownMenuCheckboxItem>
-                    ))}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
