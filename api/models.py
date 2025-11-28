@@ -55,6 +55,7 @@ class Account(models.Model):
     ghl_location_id = models.TextField(null=True, blank=True, unique=True)
     short_url_domain = models.TextField(null=True, blank=True)  # DEPRECATED: Use forms_domain instead
     timezone = models.TextField(null=True, blank=True)
+    company_currency = models.TextField(null=True, blank=True, help_text='Default currency for this company (e.g., "gbp", "usd")')
     
     # Custom Forms Domain Fields
     forms_domain = models.CharField(max_length=255, null=True, blank=True, unique=True, 
@@ -154,6 +155,8 @@ class Employee(AbstractBaseUser, PermissionsMixin):
     id = models.AutoField(primary_key=True)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     name = models.CharField(max_length=255)
+    first_name = models.TextField(null=True, blank=True, help_text='First name (separate from name field)')
+    last_name = models.TextField(null=True, blank=True, help_text='Last name (separate from name field)')
     email = models.EmailField(max_length=255, unique=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     job_role = models.CharField(max_length=255, null=True, blank=True)
@@ -292,6 +295,8 @@ class Client(models.Model):
         Employee, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='set_clients', db_column='setter_id'
     )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
 
     class Meta:
         managed = False
@@ -417,7 +422,8 @@ class Payment(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE, db_column='client_id')
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=10, null=True, blank=True)
+    paid_currency = models.TextField(null=True, blank=True, help_text='Currency the payment was made in (e.g., "gbp", "usd")')
+    company_currency_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text='Amount in company currency after conversion')
     exchange_rate = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
     native_account_currency = models.CharField(max_length=10, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES)
