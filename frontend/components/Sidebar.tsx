@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
   Users,
@@ -9,7 +10,6 @@ import {
   CreditCard,
   DollarSign,
   FileText,
-  Dumbbell,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -30,9 +30,15 @@ import { useSidebar } from "@/contexts/SidebarContext";
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { theme, resolvedTheme } = useTheme();
   const { isExpanded, toggleSidebar } = useSidebar();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({}); // Track which parent menus are expanded
   const { getNavigationPages, isLoading, user } = usePermissions();
+  
+  // Determine which logo to use based on theme
+  const isDark = resolvedTheme === 'dark';
+  const logoSrc = isDark ? '/logos/FitHQ_logo_for_dark_white+gradient_DarkBG.png' : '/logos/FitHQ_logo_for_light_gradient_lightBG.png';
+  const iconSrc = isDark ? '/favicons/favicon.svg' : '/favicons/favicon_for_light.svg';
   
   // Get navigation pages dynamically based on permissions
   const navPages = getNavigationPages();
@@ -91,20 +97,23 @@ export function Sidebar() {
       <div className="flex flex-col h-full">
         {/* Header Section */}
         <div className="relative h-16 border-b border-border/50 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-          <div className="flex items-center h-full px-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex-shrink-0 relative">
-                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
-                <Dumbbell className="h-6 w-6 text-primary relative z-10 drop-shadow-lg" />
-              </div>
-              <span
-                className={cn(
-                  "font-bold text-xl whitespace-nowrap transition-all duration-300 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent",
-                  isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4 w-0"
-                )}
-              >
-                FitHQ
-              </span>
+          <div className="flex items-center h-full px-3">
+            <div className="flex items-center justify-center w-full min-w-0">
+              {isExpanded ? (
+                <img 
+                  src={logoSrc}
+                  alt="FitHQ" 
+                  className="h-[80px] w-auto transition-all duration-300 object-contain"
+                />
+              ) : (
+                <div className="flex-shrink-0 relative">
+                  <img 
+                    src={iconSrc}
+                    alt="FitHQ" 
+                    className="h-10 w-10 relative z-10 transition-all duration-300"
+                  />
+                </div>
+              )}
             </div>
           </div>
           
@@ -149,8 +158,8 @@ export function Sidebar() {
                   className={cn(
                     "w-full justify-start gap-3 transition-all duration-200 relative group overflow-hidden",
                     (active || childActive)
-                      ? "bg-gradient-to-r from-primary/10 via-primary/5 to-transparent text-primary font-semibold shadow-sm border-l-2 border-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-accent/50 hover:to-transparent",
+                      ? "bg-primary/10 text-primary font-semibold shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-primary/5",
                     !isExpanded && "justify-center px-2"
                   )}
                   onClick={() => {
@@ -166,14 +175,11 @@ export function Sidebar() {
                   }}
                   aria-label={page.name}
                 >
-                  {/* Hover effect background */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  
                   <Icon className={cn(
                     "h-5 w-5 flex-shrink-0 relative z-10 transition-all duration-200",
                     (active || childActive) 
-                      ? "text-primary drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]" 
-                      : "text-muted-foreground/70 group-hover:text-primary group-hover:scale-110 group-hover:drop-shadow-sm"
+                      ? "text-primary" 
+                      : "text-muted-foreground group-hover:text-primary"
                   )} />
                   <span
                     className={cn(
@@ -223,8 +229,8 @@ export function Sidebar() {
                         className={cn(
                           "w-full justify-start gap-3 transition-all duration-200 text-sm relative group overflow-hidden",
                           childIsActive
-                            ? "bg-gradient-to-r from-primary/10 to-transparent text-primary font-semibold border-l-2 border-primary/50"
-                            : "text-muted-foreground hover:text-foreground hover:bg-gradient-to-r hover:from-accent/30 hover:to-transparent",
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-muted-foreground hover:text-foreground hover:bg-primary/5",
                           // Stagger animation delay
                           `animate-in slide-in-from-left-2 fade-in duration-200`,
                         )}
@@ -232,12 +238,11 @@ export function Sidebar() {
                         onClick={() => router.push(child.path)}
                         aria-label={child.name}
                       >
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-primary/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         <ChildIcon className={cn(
                           "h-4 w-4 flex-shrink-0 relative z-10 transition-all duration-200",
                           childIsActive 
-                            ? "text-primary drop-shadow-sm" 
-                            : "text-muted-foreground/60 group-hover:text-primary group-hover:scale-110"
+                            ? "text-primary" 
+                            : "text-muted-foreground group-hover:text-primary"
                         )} />
                         <span className="whitespace-nowrap relative z-10">{child.name}</span>
                       </Button>
