@@ -386,7 +386,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated, IsAccountMember, CanViewClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'coach', 'closer', 'setter', 'country', 'currency']
+    filterset_fields = ['status', 'coach', 'closer', 'setter', 'country']
     search_fields = ['first_name', 'last_name', 'email', 'instagram_handle']
     ordering_fields = ['first_name', 'last_name', 'email', 'client_start_date']
     ordering = ['first_name']
@@ -904,7 +904,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated, IsAccountMember, CanViewPayments]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['client', 'status', 'currency']
+    filterset_fields = ['client', 'status', 'paid_currency']
     search_fields = ['client__first_name', 'client__last_name', 'id']
     ordering_fields = ['payment_date', 'amount']
     ordering = ['-payment_date']
