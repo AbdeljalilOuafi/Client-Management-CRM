@@ -376,7 +376,7 @@ const StaffContent = () => {
                   className="gap-2"
                 >
                   <Tags className="h-4 w-4" />
-                  Manage Roles
+                  Manage Job Titles
                 </Button>
               )}
               <Button 
@@ -792,7 +792,7 @@ const StaffContent = () => {
         currentUserRole={user?.role || ""}
       />
 
-      {/* Manage Roles Dialog */}
+      {/* Manage Job Titles Dialog */}
       <ManageRolesDialog
         open={showManageRoles}
         onOpenChange={setShowManageRoles}

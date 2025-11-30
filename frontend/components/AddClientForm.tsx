@@ -16,6 +16,7 @@ import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { listEmployees, Employee } from "@/lib/api/staff";
 import { usePermissions } from "@/hooks/usePermissions";
 import { createClient } from "@/lib/api/clients";
+import { listPackages, type Package } from "@/lib/api/packages";
 import { cn } from "@/lib/utils";
 import { COUNTRY_CODES, getPopularCountries, getAllCountries, type Country } from "@/lib/country-codes";
 
@@ -208,21 +209,9 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
   }, [isFreeClient, setValue]);
 
   // Fetch package types using React Query
-  const { data: packageTypes } = useQuery({
+  const { data: packageTypes } = useQuery<Package[]>({
     queryKey: ["packageTypes"],
-    queryFn: async () => {
-      // TODO: Replace with actual API call
-      // const { data, error } = await supabase.from("package_types").select("*").eq("is_active", true);
-      // if (error) throw error;
-      // return data;
-      
-      // Mock data for now
-      return [
-        { id: "1", name: "Premium Package", is_active: true },
-        { id: "2", name: "Standard Package", is_active: true },
-        { id: "3", name: "Basic Package", is_active: true },
-      ];
-    },
+    queryFn: listPackages,
   });
 
   // Fetch all active employees and filter for coaches (including roles like "Head Coach", "Assistant Coach", etc.)
@@ -393,6 +382,10 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         notes: data.notes || "",
       };
 
+      // Find the package ID from packageTypes
+      const selectedPackage = packageTypes?.find(pkg => pkg.package_name === data.packageType);
+      const packageId = selectedPackage?.id;
+
       // Prepare webhook payload with user and client IDs
       const webhookPayload = {
         userId,
@@ -406,6 +399,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         generateContract: Boolean(data.generateContract),
         // Include closer ID
         closerId: data.closerId,
+        // Include package ID as integer from packages table
+        packageId: packageId,
       };
 
       console.log("[AddClientForm] Creating client with payload:", {
@@ -746,9 +741,9 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
                   <SelectValue placeholder="Select package type" />
                 </SelectTrigger>
                 <SelectContent>
-                  {packageTypes?.filter((pkg) => pkg.is_active !== false).map((pkg) => (
-                    <SelectItem key={pkg.id} value={pkg.name}>
-                      {pkg.name}
+                  {packageTypes?.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.package_name}>
+                      {pkg.package_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
