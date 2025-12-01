@@ -361,9 +361,9 @@ class InstallmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Installment
         fields = [
-            'id', 'account', 'account_name', 'client', 'client_name', 'invoice_id',
-            'stripe_customer_id', 'stripe_account', 'amount', 'currency', 'status',
-            'instalment_number', 'schedule_date', 'date_created', 'date_updated'
+            'id', 'account', 'account_name', 'client', 'client_name', 'client_package',
+            'invoice_id', 'stripe_customer_id', 'stripe_account', 'amount', 'currency',
+            'status', 'instalment_number', 'schedule_date', 'date_created', 'date_updated'
         ]
         read_only_fields = ['id', 'account_name', 'client_name', 'date_created', 'date_updated']
         extra_kwargs = {

@@ -53,7 +53,6 @@ class Account(models.Model):
     trz_group_id = models.IntegerField(null=True, blank=True, unique=True)
     trz_admin_user_id = models.IntegerField(null=True, blank=True, unique=True)
     ghl_location_id = models.TextField(null=True, blank=True, unique=True)
-    short_url_domain = models.TextField(null=True, blank=True)  # DEPRECATED: Use forms_domain instead
     timezone = models.TextField(null=True, blank=True)
     company_currency = models.TextField(null=True, blank=True, help_text='Default currency for this company (e.g., "gbp", "usd")')
     
@@ -344,6 +343,7 @@ class ClientPackage(models.Model):
     ]
     
     STATUS_CHOICES = [
+        ('pending', 'Pending'),
         ('active', 'Active'),
         ('inactive', 'Inactive'),
     ]
@@ -461,6 +461,7 @@ class Installment(models.Model):
     id = models.AutoField(primary_key=True)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     client = models.ForeignKey(Client, on_delete=models.CASCADE, db_column='client_id')
+    client_package = models.ForeignKey('ClientPackage', on_delete=models.SET_NULL, null=True, blank=True, db_column='client_package_id')
     invoice_id = models.CharField(max_length=255, null=True, blank=True)
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True)
     stripe_account = models.CharField(max_length=255, null=True, blank=True)

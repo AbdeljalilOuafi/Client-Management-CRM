@@ -878,18 +878,21 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        When creating a new client package, automatically set all previous
+        When creating a new client package with 'active' status, automatically set all previous
         active packages for the same client to inactive (only 1 active package per client).
+        Pending packages are left untouched and multiple pending packages are allowed.
         """
         client = serializer.validated_data.get('client')
+        new_status = serializer.validated_data.get('status', 'active')
         
-        # Set all existing active packages for this client to inactive
-        ClientPackage.objects.filter(
-            client=client,
-            status='active'
-        ).update(status='inactive')
+        # Only deactivate existing active packages if the new package is being set to 'active'
+        if new_status == 'active':
+            ClientPackage.objects.filter(
+                client=client,
+                status='active'
+            ).update(status='inactive')
         
-        # Create the new package (defaults to active status)
+        # Create the new package
         serializer.save()
 
     # Removed get_permissions - all authenticated account members can CRUD client packages
