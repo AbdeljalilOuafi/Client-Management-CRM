@@ -192,14 +192,18 @@ class StripeAccountViewSet(viewsets.ModelViewSet):
         # Lock all Stripe accounts for this CRM account to prevent race conditions
         StripeApiKey.objects.filter(account_id=account_id).select_for_update()
         
-        # Set all accounts to non-primary
-        StripeApiKey.objects.filter(account_id=account_id).update(is_primary=False)
+        # Set all accounts to non-primary and inactive (only one active/primary account allowed)
+        StripeApiKey.objects.filter(account_id=account_id).update(
+            is_primary=False,
+            is_active=False
+        )
         
-        # Set target account as primary
+        # Set target account as primary and active
         stripe_account.is_primary = True
-        stripe_account.save(update_fields=['is_primary', 'updated_at'])
+        stripe_account.is_active = True
+        stripe_account.save(update_fields=['is_primary', 'is_active', 'updated_at'])
         
-        logger.info(f"Set Stripe account {stripe_account.id} as primary for account {account_id}")
+        logger.info(f"Set Stripe account {stripe_account.id} as primary and active for account {account_id}")
         
         serializer = self.get_serializer(stripe_account)
         return Response({
