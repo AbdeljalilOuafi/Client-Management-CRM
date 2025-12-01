@@ -19,7 +19,7 @@ class StripeApiKeySerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'account_name', 
-                           'stripe_account', 'stripe_client_id', 'api_key']
+                           'stripe_account', 'stripe_client_id']
         extra_kwargs = {
             'api_key': {'write_only': True},  # Don't expose in responses
         }
