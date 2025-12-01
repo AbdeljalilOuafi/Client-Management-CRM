@@ -20,6 +20,7 @@ interface StripeAccount {
   api_key: string;
   default_currency: string | null;
   is_primary: boolean;
+  is_active: boolean;
   account: number;
   created_at: string;
 }

@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, DollarSign, Package } from "lucide-react";
-import { getClientPackageHistory, PackageHistoryItem } from "@/lib/api/package-history";
+import { Calendar, Package } from "lucide-react";
+import { listClientPackages, ClientPackage } from "@/lib/api/client-packages";
 
 interface PackageHistoryProps {
   clientId: number;
@@ -11,7 +11,7 @@ interface PackageHistoryProps {
 }
 
 export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
-  const [history, setHistory] = useState<PackageHistoryItem[]>([]);
+  const [history, setHistory] = useState<ClientPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -19,9 +19,17 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
   useEffect(() => {
     if (isOpen && !loaded) {
       setLoading(true);
-      getClientPackageHistory(clientId)
-        .then((data: PackageHistoryItem[]) => {
-          setHistory(data);
+      listClientPackages({ client: clientId })
+        .then((data: ClientPackage[]) => {
+          // Sort by created_at descending (newest first), with pending first
+          const sorted = data.sort((a, b) => {
+            // Pending packages first
+            if (a.status === 'pending' && b.status !== 'pending') return -1;
+            if (a.status !== 'pending' && b.status === 'pending') return 1;
+            // Then by created_at (newest first)
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          });
+          setHistory(sorted);
           setLoaded(true);
         })
         .catch((error: Error) => {
@@ -78,30 +86,21 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
                 <Package className="h-4 w-4 text-primary" />
                 <h5 className="font-semibold text-foreground">{item.package_name || "Unknown Package"}</h5>
               </div>
-              {item.status && (
-                <Badge
-                  variant={item.status === "completed" ? "secondary" : "default"}
-                  className="text-xs"
-                >
-                  {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                </Badge>
-              )}
+              <Badge
+                variant={item.status === "active" ? "default" : item.status === "pending" ? "secondary" : "outline"}
+                className={`text-xs ${
+                  item.status === "active" 
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100" 
+                    : item.status === "pending" 
+                    ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100" 
+                    : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
+                }`}
+              >
+                {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+              </Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-3.5 w-3.5 text-muted-foreground" />
-                <Label className="text-xs text-muted-foreground">Payment:</Label>
-                <span className="font-semibold text-green-600 dark:text-green-400">
-                  {item.currency || "USD"} ${item.payment_amount ? item.payment_amount.toFixed(2) : "0.00"}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Method:</Label>
-                <span className="font-medium">{item.payment_method || "-"}</span>
-              </div>
-
               {item.start_date && (
                 <div className="flex items-center gap-2">
                   <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
@@ -121,6 +120,20 @@ export function PackageHistory({ clientId, isOpen }: PackageHistoryProps) {
                   </span>
                 </div>
               )}
+
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Created:</Label>
+                <span className="font-medium">
+                  {new Date(item.created_at).toLocaleDateString()}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Updated:</Label>
+                <span className="font-medium">
+                  {new Date(item.updated_at).toLocaleDateString()}
+                </span>
+              </div>
             </div>
           </div>
         ))}
