@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Users, ArrowUp, ArrowDown, Maximize2, UserPlus, Filter, CheckCircle2, GripVertical } from "lucide-react";
+import { Search, Users, ArrowUp, ArrowDown, Maximize2, UserPlus, Filter, CheckCircle2, GripVertical, Package } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,6 +24,7 @@ import { ImportExportButtons } from "@/components/ImportExportButtons";
 import { usePermissions } from "@/hooks/usePermissions";
 import { AdvancedClientFilters, ClientFilters } from "@/components/clients/AdvancedClientFilters";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { AddPackageDialog } from "@/components/clients/AddPackageDialog";
 
 const columnDefinitions = [
   { id: "name", label: "Name", default: true, mandatory: true }, // Combined first + last name
@@ -83,6 +84,7 @@ export default function Index() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientDetailsOpen, setClientDetailsOpen] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
+  const [addPackageOpen, setAddPackageOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -445,27 +447,46 @@ export default function Index() {
             </div>
             <div className="flex items-center gap-2">
               <ImportExportButtons 
-                entityType="clients" 
+                entityType="clients"
                 onImportSuccess={() => {
                   fetchClients();
                   fetchStatistics();
                 }}
               />
               {canManageAllClients() && (
-                <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
-                      <UserPlus className="h-4 w-4" />
-                      Add New Client
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="text-2xl">Add New Client</DialogTitle>
-                    </DialogHeader>
-                    <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
-                  </DialogContent>
-                </Dialog>
+                <>
+                  <Button 
+                    variant="outline" 
+                    className="gap-2 shadow-sm hover:shadow-md transition-all"
+                    onClick={() => setAddPackageOpen(true)}
+                  >
+                    <Package className="h-4 w-4" />
+                    Add New Package
+                  </Button>
+                  <AddPackageDialog 
+                    open={addPackageOpen}
+                    onOpenChange={setAddPackageOpen}
+                    onSuccess={() => { 
+                      setAddPackageOpen(false); 
+                      fetchClients(); 
+                      fetchStatistics(); 
+                    }} 
+                  />
+                  <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2 shadow-sm hover:shadow-md transition-all">
+                        <UserPlus className="h-4 w-4" />
+                        Add New Client
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl">Add New Client</DialogTitle>
+                      </DialogHeader>
+                      <AddClientForm onSuccess={() => { setAddClientOpen(false); fetchClients(); fetchStatistics(); }} />
+                    </DialogContent>
+                  </Dialog>
+                </>
               )}
             </div>
           </div>
