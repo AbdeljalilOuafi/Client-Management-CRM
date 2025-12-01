@@ -71,7 +71,7 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
       console.error("Failed to fetch roles:", error);
       toast({
         title: "Error",
-        description: "Failed to load employee roles",
+        description: "Failed to load job titles",
         variant: "destructive",
       });
     } finally {
@@ -87,13 +87,13 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
         await updateEmployeeRole(editingRole.id, formData);
         toast({
           title: "Success",
-          description: "Role updated successfully",
+          description: "Job title updated successfully",
         });
       } else {
         await createEmployeeRole(formData);
         toast({
           title: "Success",
-          description: "Role created successfully",
+          description: "Job title created successfully",
         });
       }
       
@@ -102,7 +102,7 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
       onRolesUpdated?.();
     } catch (error: any) {
       const errorData = JSON.parse(error.message);
-      const errorMessage = errorData.name?.[0] || errorData.color?.[0] || "Failed to save role";
+      const errorMessage = errorData.name?.[0] || errorData.color?.[0] || "Failed to save job title";
       toast({
         title: "Error",
         description: errorMessage,
@@ -128,13 +128,13 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
       await deleteEmployeeRole(deleteConfirmRole.id);
       toast({
         title: "Success",
-        description: "Role deleted successfully",
+        description: "Job title deleted successfully",
       });
       fetchRoles();
       onRolesUpdated?.();
     } catch (error: any) {
       const errorData = JSON.parse(error.message);
-      const errorMessage = errorData.error || errorData.detail || "Failed to delete role";
+      const errorMessage = errorData.error || errorData.detail || "Failed to delete job title";
       toast({
         title: "Error",
         description: errorMessage,
@@ -184,9 +184,9 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
               <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center">
                 <Users className="h-5 w-5 text-primary" />
               </div>
-              Manage Employee Roles
+              Manage Job Titles
             </DialogTitle>
-            <p className="text-sm text-muted-foreground mt-2">Create and manage custom role tags for your team members</p>
+            <p className="text-sm text-muted-foreground mt-2">Create and manage custom job title tags for your team members</p>
           </DialogHeader>
 
           <ScrollArea className="h-[calc(90vh-180px)]">
@@ -198,12 +198,12 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
                     {editingRole ? (
                       <>
                         <Pencil className="h-5 w-5 text-primary" />
-                        Edit Role
+                        Edit Job Title
                       </>
                     ) : (
                       <>
                         <Plus className="h-5 w-5 text-primary" />
-                        Add New Role
+                        Add New Job Title
                       </>
                     )}
                   </h3>
@@ -224,13 +224,13 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name" className="text-sm font-semibold">
-                      Role Name <span className="text-destructive">*</span>
+                      Job Title Name <span className="text-destructive">*</span>
                     </Label>
                     <Input
                       id="name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="e.g., Sales Manager, Team Lead"
+                      placeholder="e.g., Senior Coach, Nutritionist, Manager"
                       maxLength={100}
                       required
                       className="h-11"
@@ -285,7 +285,7 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
                       onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
                     />
                     <Label htmlFor="is_active" className="cursor-pointer font-medium">
-                      {formData.is_active ? "Active Role" : "Inactive Role"}
+                      {formData.is_active ? "Active Job Title" : "Inactive Job Title"}
                     </Label>
                   </div>
 
@@ -293,12 +293,12 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
                     {editingRole ? (
                       <>
                         <Pencil className="h-4 w-4 mr-2" />
-                        Update Role
+                        Update Job Title
                       </>
                     ) : (
                       <>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Role
+                        Add Job Title
                       </>
                     )}
                   </Button>
@@ -310,7 +310,7 @@ export function ManageRolesDialog({ open, onOpenChange, onRolesUpdated }: Manage
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-bold flex items-center gap-2">
                     <div className="h-1 w-1 rounded-full bg-primary" />
-                    Existing Roles
+                    Existing Job Titles ({roles.length})
                     <Badge variant="secondary" className="ml-1">{roles.length}</Badge>
                   </h3>
                 </div>

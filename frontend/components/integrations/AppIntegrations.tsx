@@ -213,10 +213,7 @@ export function AppIntegrations() {
 
           <div className="mt-6 p-4 bg-muted/50 rounded-lg">
             <p className="text-sm text-muted-foreground text-center">
-              More integrations coming soon! Have a suggestion?{" "}
-              <a href="mailto:support@fithq.com" className="text-primary hover:underline">
-                Let us know
-              </a>
+              More integrations coming soon! Have a suggestion? Let us know
             </p>
           </div>
         </CardContent>
