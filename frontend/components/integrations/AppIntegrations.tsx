@@ -16,9 +16,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 interface StripeAccount {
   id: number;
   stripe_account: string;
-  stripe_client_id: string;
+  stripe_client_id: string | null;
   api_key: string;
-  default_currency: string;
+  default_currency: string | null;
   is_primary: boolean;
   account: number;
   created_at: string;
@@ -66,8 +66,13 @@ export function AppIntegrations() {
       });
 
       if (response.ok) {
-        const data: StripeAccount[] = await response.json();
-        setStripeAccounts(data);
+        const data = await response.json();
+        console.log('[AppIntegrations] Raw API response:', data);
+        // Handle both paginated response (with results array) and direct array
+        const accounts = Array.isArray(data) ? data : (data.results || []);
+        console.log('[AppIntegrations] Parsed accounts:', accounts);
+        console.log('[AppIntegrations] Accounts length:', accounts.length);
+        setStripeAccounts(accounts);
       }
     } catch (error) {
       console.error('Failed to fetch Stripe accounts:', error);
