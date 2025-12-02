@@ -446,6 +446,55 @@ class ClientViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsAccountMember, CanManageClients])
+    def upsert(self, request):
+        """
+        Create or update a client based on email uniqueness within account.
+        POST /api/clients/upsert/
+        
+        If a client with the given email exists in this account, updates it.
+        Otherwise, creates a new client.
+        
+        Request body should include 'email' and any other client fields.
+        """
+        email = request.data.get('email')
+        
+        if not email:
+            return Response(
+                {'email': ['Email is required for upsert operation.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Try to find existing client by email in user's account
+        try:
+            client = Client.objects.get(
+                account_id=request.user.account_id,
+                email=email
+            )
+            # Update existing client
+            serializer = self.get_serializer(client, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(
+                {
+                    'created': False,
+                    'client': serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Client.DoesNotExist:
+            # Create new client
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(account_id=request.user.account_id)
+            return Response(
+                {
+                    'created': True,
+                    'client': serializer.data
+                },
+                status=status.HTTP_201_CREATED
+            )
+
     @action(detail=False, methods=['get'])
     def statistics(self, request):
         """
