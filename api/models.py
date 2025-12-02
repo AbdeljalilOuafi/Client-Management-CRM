@@ -336,10 +336,10 @@ class ClientPackage(models.Model):
     """ClientPackage model for client-package relationships"""
     
     PAYMENT_SCHEDULE_CHOICES = [
-        ('PIF', 'PIF'),
-        ('Monthly', 'Monthly'),
-        ('Quarterly', 'Quarterly'),
-        ('Yearly', 'Yearly'),
+        ('one_time', 'One Time'),
+        ('instalments', 'Instalments'),
+        ('subscription', 'Subscription'),
+        ('deposit', 'Deposit'),
     ]
     
     STATUS_CHOICES = [
