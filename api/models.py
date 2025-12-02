@@ -261,7 +261,7 @@ class Client(models.Model):
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255, null=True, blank=True)
-    email = models.EmailField(max_length=255, unique=True)
+    email = models.EmailField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     address = models.TextField(null=True, blank=True)
     instagram_handle = models.CharField(max_length=255, null=True, blank=True)
@@ -310,6 +310,7 @@ class Client(models.Model):
     class Meta:
         managed = False
         db_table = 'clients'
+        unique_together = [['account', 'email']]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name or ''} ({self.email})".strip()
