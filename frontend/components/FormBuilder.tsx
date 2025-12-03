@@ -224,7 +224,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
           title: formTitle.trim(),
           description: formDescription.trim() || undefined,
           form_type: initialMetadata.form_type,
-          ...(initialMetadata.package && { package: initialMetadata.package }),
+          ...(initialMetadata.packages && initialMetadata.packages.length > 0 && { package: initialMetadata.packages[0] }),
           form_schema: { fields },
           is_active: true,
           schedule_data: initialMetadata.schedule_data,
