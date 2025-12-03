@@ -396,6 +396,9 @@ class Client(models.Model):
     notice_given = models.BooleanField(default=False)
     no_more_payments = models.BooleanField(default=False)
     timezone = models.TextField(null=True, blank=True)
+    phone = models.CharField(max_length=255, null=True, blank=True)
+    assigned_coach = models.TextField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
     checkin_link = models.UUIDField(
         default=uuid.uuid4, 
         unique=True, 
