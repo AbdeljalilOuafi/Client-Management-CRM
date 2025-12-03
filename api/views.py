@@ -34,6 +34,7 @@ from .permissions import (
     CanManageEmployees, IsSelfOrAdmin, CanViewClients, CanManageClients,
     CanViewPayments, CanManagePayments, CanViewInstallments, CanManageInstallments
 )
+from .mixins import AccountResolutionMixin
 
 
 class AuthViewSet(viewsets.ViewSet):
@@ -233,25 +234,27 @@ class AuthViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
 
-class AccountViewSet(viewsets.ReadOnlyModelViewSet):
+class AccountViewSet(AccountResolutionMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for viewing Account information.
     Employees can only view their own account.
+    Master token users can view any account specified in X-Account-ID header.
     """
     queryset = Account.objects.all()
     serializer_class = AccountSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
 
     def get_queryset(self):
-        # Users can only see their own account
-        return Account.objects.filter(id=self.request.user.account_id)
+        # Users can only see their own account (or specified account for master token)
+        return Account.objects.filter(id=self.get_resolved_account_id())
 
 
-class EmployeeRoleViewSet(viewsets.ModelViewSet):
+class EmployeeRoleViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing custom Employee Roles.
     - Super Admin and Admin can create/update/delete roles
     - All authenticated users can view roles in their account
+    - Master token users can access any account via X-Account-ID header
     """
     serializer_class = EmployeeRoleSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
@@ -263,7 +266,7 @@ class EmployeeRoleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Filter roles by account"""
-        return EmployeeRole.objects.filter(account_id=self.request.user.account_id)
+        return EmployeeRole.objects.filter(account_id=self.get_resolved_account_id())
 
     def get_permissions(self):
         """Only admins can create/update/delete roles"""
@@ -273,7 +276,7 @@ class EmployeeRoleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Automatically set account when creating a role"""
-        serializer.save(account_id=self.request.user.account_id)
+        serializer.save(account_id=self.get_resolved_account_id())
 
     def destroy(self, request, *args, **kwargs):
         """Prevent deletion if employees are assigned to this role"""
@@ -298,16 +301,17 @@ class EmployeeRoleViewSet(viewsets.ModelViewSet):
         GET /api/employee-roles/{id}/employees/
         """
         role = self.get_object()
-        employees = role.employees.filter(account_id=request.user.account_id)
+        employees = role.employees.filter(account_id=self.get_resolved_account_id())
         serializer = EmployeeSerializer(employees, many=True, context={'request': request})
         return Response(serializer.data)
 
 
-class EmployeeViewSet(viewsets.ModelViewSet):
+class EmployeeViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Employees.
     - Super Admin and Admin can create/update/delete employees
     - Employees can view colleagues and update their own profile
+    - Master token users can access any account via X-Account-ID header
     """
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
@@ -319,8 +323,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        # Users can only see employees in their account
-        return Employee.objects.filter(account_id=self.request.user.account_id)
+        # Users can only see employees in their account (or specified account for master token)
+        return Employee.objects.filter(account_id=self.get_resolved_account_id())
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -377,10 +381,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Password changed successfully'})
 
 
-class ClientViewSet(viewsets.ModelViewSet):
+class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Clients.
     Permissions controlled by can_view_all_clients and can_manage_all_clients flags.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
@@ -400,12 +405,18 @@ class ClientViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter queryset based on permissions:
+        - Master token: sees all clients in specified account
         - Super admin: sees all clients in account
         - Has 'can_view_all_clients': sees all clients in account
         - Otherwise: sees only assigned clients (coach/closer/setter)
         """
         user = self.request.user
-        queryset = Client.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = Client.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('account', 'coach', 'closer', 'setter')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -424,7 +435,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Ensure account is set (permission already checked by CanManageClients)"""
-        serializer.save(account_id=self.request.user.account_id)
+        serializer.save(account_id=self.get_resolved_account_id())
 
     @action(detail=False, methods=['get'])
     def my_clients(self, request):
@@ -465,10 +476,12 @@ class ClientViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        account_id = self.get_resolved_account_id()
+        
         # Try to find existing client by email in user's account
         try:
             client = Client.objects.get(
-                account_id=request.user.account_id,
+                account_id=account_id,
                 email=email
             )
             # Update existing client
@@ -486,7 +499,7 @@ class ClientViewSet(viewsets.ModelViewSet):
             # Create new client
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save(account_id=request.user.account_id)
+            serializer.save(account_id=account_id)
             return Response(
                 {
                     'created': True,
@@ -790,7 +803,7 @@ class ClientViewSet(viewsets.ModelViewSet):
                         
                         # Create client
                         Client.objects.create(
-                            account_id=request.user.account_id,
+                            account_id=self.get_resolved_account_id(),
                             first_name=row.get('first_name', '').strip(),
                             last_name=row.get('last_name', '').strip() or None,
                             email=email,
@@ -883,10 +896,11 @@ class ClientViewSet(viewsets.ModelViewSet):
         return response
 
 
-class PackageViewSet(viewsets.ModelViewSet):
+class PackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Packages.
     All authenticated users can perform CRUD operations on packages in their account.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Package.objects.all()
     serializer_class = PackageSerializer
@@ -897,18 +911,19 @@ class PackageViewSet(viewsets.ModelViewSet):
     ordering = ['package_name']
 
     def get_queryset(self):
-        # Users can only see packages in their account
-        return Package.objects.filter(account_id=self.request.user.account_id)
+        # Users can only see packages in their account (or specified account for master token)
+        return Package.objects.filter(account_id=self.get_resolved_account_id())
 
     def perform_create(self, serializer):
-        # Automatically set the account to the current user's account
-        serializer.save(account_id=self.request.user.account_id)
+        # Automatically set the account to the resolved account
+        serializer.save(account_id=self.get_resolved_account_id())
 
 
-class ClientPackageViewSet(viewsets.ModelViewSet):
+class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Client Packages.
     All authenticated users can perform CRUD operations on client packages in their account.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = ClientPackage.objects.all()
     serializer_class = ClientPackageSerializer
@@ -920,9 +935,9 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
     ordering = ['-start_date']
 
     def get_queryset(self):
-        # Users can only see client packages in their account
+        # Users can only see client packages in their account (or specified account for master token)
         return ClientPackage.objects.filter(
-            client__account_id=self.request.user.account_id
+            client__account_id=self.get_resolved_account_id()
         ).select_related('client', 'package')
 
     def perform_create(self, serializer):
@@ -947,10 +962,11 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
     # Removed get_permissions - all authenticated account members can CRUD client packages
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Payments.
     Permissions controlled by can_view_all_payments and can_manage_all_payments flags.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
@@ -970,12 +986,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter queryset based on permissions:
+        - Master token: sees all payments in specified account
         - Super admin: sees all payments in account
         - Has 'can_view_all_payments': sees all payments in account
         - Otherwise: sees only payments for assigned clients
         """
         user = self.request.user
-        queryset = Payment.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = Payment.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('client', 'client_package', 'account')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -1091,7 +1113,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         try:
                             client = Client.objects.get(
                                 email=client_email,
-                                account_id=request.user.account_id
+                                account_id=self.get_resolved_account_id()
                             )
                         except Client.DoesNotExist:
                             errors.append({'row': row_num, 'error': f'Client with email {client_email} not found in your account'})
@@ -1149,7 +1171,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         # Create payment
                         Payment.objects.create(
                             id=payment_id,
-                            account_id=request.user.account_id,
+                            account_id=self.get_resolved_account_id(),
                             client=client,
                             amount=amount,
                             currency=row.get('currency', 'USD').strip().upper(),
@@ -1222,10 +1244,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return response
 
 
-class InstallmentViewSet(viewsets.ModelViewSet):
+class InstallmentViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Installments.
     Permissions controlled by can_view_all_installments and can_manage_all_installments flags.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Installment.objects.all()
     serializer_class = InstallmentSerializer
@@ -1245,12 +1268,18 @@ class InstallmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter queryset based on permissions:
+        - Master token: sees all installments in specified account
         - Super admin: sees all installments in account
         - Has 'can_view_all_installments': sees all installments in account
         - Otherwise: sees only installments for assigned clients
         """
         user = self.request.user
-        queryset = Installment.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = Installment.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('client', 'account')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -1278,10 +1307,11 @@ class InstallmentViewSet(viewsets.ModelViewSet):
             serializer.save()
 
 
-class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):
+class StripeCustomerViewSet(AccountResolutionMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for viewing Stripe Customers.
     Read-only for all authenticated users.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = StripeCustomer.objects.all()
     serializer_class = StripeCustomerSerializer
@@ -1293,16 +1323,17 @@ class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['email']
 
     def get_queryset(self):
-        # Users can only see stripe customers in their account
+        # Users can only see stripe customers in their account (or specified account for master token)
         return StripeCustomer.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('client', 'account', 'stripe_account')
 
 
-class CheckInFormViewSet(viewsets.ModelViewSet):
+class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Check-In Forms.
     All authenticated account members can CRUD check-in forms.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInForm.objects.all()
     serializer_class = CheckInFormSerializer
@@ -1314,9 +1345,9 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Filter forms to user's account"""
+        """Filter forms to user's account (or specified account for master token)"""
         return CheckInForm.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('account', 'package', 'schedule')
 
     def perform_create(self, serializer):
@@ -1327,7 +1358,7 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
         logger = logging.getLogger(__name__)
         
         # Save the form with account
-        form = serializer.save(account_id=self.request.user.account_id)
+        form = serializer.save(account_id=self.get_resolved_account_id())
         
         # Create webhook schedules if schedule was provided
         if hasattr(form, 'schedule') and form.schedule:
@@ -1396,7 +1427,7 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
         form = self.get_object()
         submissions = CheckInSubmission.objects.filter(
             form=form,
-            account_id=request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('client', 'form').order_by('-submitted_at')
         
         from .serializers import CheckInSubmissionSerializer
@@ -1430,10 +1461,11 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
             )
 
 
-class CheckInScheduleViewSet(viewsets.ModelViewSet):
+class CheckInScheduleViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Check-In Schedules.
     All authenticated account members can CRUD schedules.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInSchedule.objects.all()
     serializer_class = CheckInScheduleSerializer
@@ -1444,9 +1476,9 @@ class CheckInScheduleViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Filter schedules to user's account"""
+        """Filter schedules to user's account (or specified account for master token)"""
         return CheckInSchedule.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('form', 'account')
 
     def perform_update(self, serializer):
@@ -1517,10 +1549,11 @@ class CheckInScheduleViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
-class CheckInSubmissionViewSet(viewsets.ModelViewSet):
+class CheckInSubmissionViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Check-In Submissions.
     Permissions controlled by can_view_all_clients flag.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInSubmission.objects.all()
     serializer_class = CheckInSubmissionSerializer
@@ -1534,12 +1567,18 @@ class CheckInSubmissionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter submissions based on permissions:
+        - Master token: sees all submissions in specified account
         - Super admin: sees all submissions in account
         - Has 'can_view_all_clients': sees all submissions in account
         - Otherwise: sees only submissions for assigned clients
         """
         user = self.request.user
-        queryset = CheckInSubmission.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = CheckInSubmission.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('client', 'form', 'account')
         
         # Super admin sees everything
         if user.is_super_admin:

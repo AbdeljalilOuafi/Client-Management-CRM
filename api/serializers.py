@@ -270,15 +270,13 @@ class ClientSerializer(serializers.ModelSerializer):
             'no_more_payments', 'timezone', 'coach', 'coach_name', 'closer',
             'closer_name', 'setter', 'setter_name', 'checkin_link', 'short_checkin_link'
         ]
-        read_only_fields = ['id', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
+        read_only_fields = ['id', 'account', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
                            'checkin_link', 'short_checkin_link']
-        extra_kwargs = {
-            'account': {'required': False}
-        }
 
     def create(self, validated_data):
-        # Set account from request user
-        validated_data['account'] = self.context['request'].user.account
+        # Account is set by the ViewSet via perform_create() using account_id kwarg
+        # This is especially important for master token users where account is resolved dynamically
+        # Note: account_id kwarg from save() is added to validated_data by DRF automatically
         return super().create(validated_data)
 
     def validate_coach(self, value):

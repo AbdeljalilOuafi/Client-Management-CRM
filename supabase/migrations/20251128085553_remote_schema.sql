@@ -44,9 +44,10 @@ alter table "public"."stripe_api_keys" drop constraint "stripe_api_keys_api_key_
 
 alter table "public"."stripe_api_keys" drop constraint "stripe_api_keys_client_account_id_fkey";
 
-alter table "public"."stripe_api_keys" drop constraint "stripe_api_keys_stripe_account_key";
-
+-- Drop FK constraint BEFORE dropping the unique constraint it depends on
 alter table "public"."stripe_customers" drop constraint "stripe_customers_stripe_account_fkey";
+
+alter table "public"."stripe_api_keys" drop constraint "stripe_api_keys_stripe_account_key";
 
 alter table "public"."stripe_api_keys" drop constraint "stripe_api_keys_pkey";
 

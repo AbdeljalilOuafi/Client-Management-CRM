@@ -158,6 +158,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'api.authentication.MasterTokenAuthentication',  # Master token for cross-account service access (checked first)
         'api.authentication.EmployeeTokenAuthentication',  # Custom token authentication for Employee model
         'rest_framework.authentication.SessionAuthentication',
     ],
