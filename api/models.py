@@ -36,6 +36,123 @@ class EmployeeToken(models.Model):
         return self.key
 
 
+class MasterToken(models.Model):
+    """
+    Master token for cross-account service authentication.
+    Used for automation (n8n workflows) with full super_admin access to any account.
+    These tokens never expire and require X-Account-ID header to specify target account.
+    """
+    key = models.CharField(max_length=64, primary_key=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'master_tokens'
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def generate_key(cls):
+        """Generate a 64-character hex token"""
+        return binascii.hexlify(os.urandom(32)).decode()
+
+    def __str__(self):
+        return f"{self.name} ({'active' if self.is_active else 'inactive'})"
+
+
+class MasterTokenUser:
+    """
+    Pseudo-user object returned when authenticating with a MasterToken.
+    Mimics the Employee interface but with dynamic account_id from request header.
+    Has full super_admin permissions on any account.
+    """
+    
+    def __init__(self, master_token, account_id=None):
+        self.master_token = master_token
+        self._account_id = account_id
+        self._account = None
+        
+        # Required attributes for DRF compatibility
+        self.pk = None
+        self.id = None
+        self.is_authenticated = True
+        self.is_active = True
+        self.is_staff = True
+        self.is_superuser = True
+        
+        # Master token identifier
+        self.is_master_token = True
+    
+    @property
+    def account_id(self):
+        return self._account_id
+    
+    @account_id.setter
+    def account_id(self, value):
+        self._account_id = value
+        self._account = None  # Reset cached account
+    
+    @property
+    def account(self):
+        """Lazy load the account object"""
+        if self._account is None and self._account_id:
+            from api.models import Account
+            try:
+                self._account = Account.objects.get(id=self._account_id)
+            except Account.DoesNotExist:
+                self._account = None
+        return self._account
+    
+    @property
+    def is_super_admin(self):
+        """Master token always has super_admin privileges"""
+        return True
+    
+    @property
+    def is_admin(self):
+        """Master token always has admin privileges"""
+        return True
+    
+    @property
+    def role(self):
+        return 'super_admin'
+    
+    # Permission flags - master token has all permissions
+    @property
+    def can_view_all_clients(self):
+        return True
+    
+    @property
+    def can_manage_all_clients(self):
+        return True
+    
+    @property
+    def can_view_all_payments(self):
+        return True
+    
+    @property
+    def can_manage_all_payments(self):
+        return True
+    
+    @property
+    def can_view_all_installments(self):
+        return True
+    
+    @property
+    def can_manage_all_installments(self):
+        return True
+    
+    def __str__(self):
+        return f"MasterTokenUser({self.master_token.name})"
+
+
 class Account(models.Model):
     """Account model for multi-tenancy"""
     id = models.AutoField(primary_key=True)
