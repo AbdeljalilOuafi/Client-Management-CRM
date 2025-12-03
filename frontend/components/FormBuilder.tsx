@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, GripVertical, Trash2, Settings, X, ChevronLeft } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Trash2, Settings, X, ChevronLeft, Loader2 } from "lucide-react";
 import QuestionEditor from "@/components/QuestionEditor";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { Badge } from "@/components/ui/badge";
+import { FormMetadata } from "@/components/CreateFormDialog";
+import { createCheckInForm, getCheckInForm, updateCheckInForm, CheckInFormField } from "@/lib/api/checkin-forms";
 
 interface Question {
   id: string;
@@ -22,8 +24,11 @@ interface Question {
 }
 
 interface FormBuilderProps {
-  formId: string;
+  mode: "create" | "edit";
+  formId?: string;
+  initialMetadata?: FormMetadata;
   onBack: () => void;
+  onFormCreated?: (formId: string) => void;
 }
 
 // Mock questions for demonstration
@@ -82,12 +87,14 @@ const QUESTION_TYPE_LABELS: Record<Question["question_type"], string> = {
   file_upload: "File Upload",
 };
 
-export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
+export default function FormBuilder({ mode, formId, initialMetadata, onBack, onFormCreated }: FormBuilderProps) {
   const { toast } = useToast();
-  const [formTitle, setFormTitle] = useState("Weekly Check-in");
-  const [formDescription, setFormDescription] = useState("Standard weekly progress check-in");
-  const [questions, setQuestions] = useState<Question[]>(INITIAL_MOCK_QUESTIONS);
+  const [formTitle, setFormTitle] = useState(initialMetadata?.title || "Weekly Check-in");
+  const [formDescription, setFormDescription] = useState(initialMetadata?.description || "Standard weekly progress check-in");
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(mode === "edit");
+  const [isSaving, setIsSaving] = useState(false);
   
   // Initialize sidebar state from localStorage
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -98,6 +105,13 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
     return false;
   });
 
+  // Fetch form data in edit mode
+  useEffect(() => {
+    if (mode === "edit" && formId) {
+      fetchFormData();
+    }
+  }, [mode, formId]);
+
   // Persist sidebar state to localStorage whenever it changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -105,11 +119,153 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
     }
   }, [sidebarOpen]);
 
-  const handleUpdateForm = () => {
-    toast({
-      title: "Success",
-      description: "Form updated successfully",
-    });
+  const fetchFormData = async () => {
+    if (!formId) return;
+    
+    try {
+      setIsLoading(true);
+      const form = await getCheckInForm(formId);
+      setFormTitle(form.title);
+      setFormDescription(form.description || "");
+      
+      // Convert CheckInFormField to Question format
+      const convertedQuestions: Question[] = form.form_schema.fields.map((field, index) => ({
+        id: field.id,
+        question_text: field.label,
+        question_type: convertFieldTypeToQuestionType(field.type),
+        is_required: field.required,
+        order_index: index,
+        config: field.options ? { options: field.options, allow_multiple: false, allow_other: false } : {},
+      }));
+      
+      setQuestions(convertedQuestions);
+    } catch (error: any) {
+      console.error("Failed to load form:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load form",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const convertFieldTypeToQuestionType = (fieldType: string): Question["question_type"] => {
+    switch (fieldType) {
+      case "text":
+        return "short_text";
+      case "textarea":
+        return "long_text";
+      case "select":
+        return "multiple_choice";
+      case "number":
+        return "number";
+      case "file":
+        return "file_upload";
+      default:
+        return "short_text";
+    }
+  };
+
+  const convertQuestionTypeToFieldType = (questionType: Question["question_type"]): string => {
+    switch (questionType) {
+      case "short_text":
+        return "text";
+      case "long_text":
+        return "textarea";
+      case "multiple_choice":
+        return "select";
+      case "number":
+        return "number";
+      case "file_upload":
+        return "file";
+      default:
+        return "text";
+    }
+  };
+
+  const handleSaveForm = async () => {
+    if (!formTitle.trim()) {
+      toast({
+        title: "Error",
+        description: "Form title is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (questions.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please add at least one question",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Convert questions to CheckInFormField format
+      const fields: CheckInFormField[] = questions.map((q) => ({
+        id: q.id,
+        type: convertQuestionTypeToFieldType(q.question_type) as any,
+        label: q.question_text,
+        required: q.is_required,
+        ...(q.question_type === "multiple_choice" && q.config?.options && {
+          options: q.config.options,
+        }),
+      }));
+
+      if (mode === "create" && initialMetadata) {
+        // Create new form
+        const formData = {
+          title: formTitle.trim(),
+          description: formDescription.trim() || undefined,
+          form_type: initialMetadata.form_type,
+          ...(initialMetadata.package && { package: initialMetadata.package }),
+          form_schema: { fields },
+          is_active: true,
+          schedule_data: initialMetadata.schedule_data,
+        };
+
+        const createdForm = await createCheckInForm(formData);
+
+        toast({
+          title: "Success",
+          description: "Form created successfully",
+        });
+
+        // Call onFormCreated with the new form ID
+        if (onFormCreated && createdForm?.id) {
+          onFormCreated(createdForm.id);
+        }
+
+        onBack();
+      } else if (mode === "edit" && formId) {
+        // Update existing form
+        await updateCheckInForm(formId, {
+          title: formTitle.trim(),
+          description: formDescription.trim() || undefined,
+          form_schema: { fields },
+        });
+
+        toast({
+          title: "Success",
+          description: "Form updated successfully",
+        });
+      }
+    } catch (error: any) {
+      console.error("Failed to save form:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save form",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddQuestion = (type: Question["question_type"]) => {
@@ -169,73 +325,147 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
     setQuestions(questions.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-6 py-8">
-        <div className="mb-6">
-          <Button variant="outline" onClick={onBack}>
+  if (isLoading) {
+    return (
+      <div className="h-full flex flex-col">
+        <div className="px-6 py-8 shrink-0 border-b border-border/50">
+          <Button variant="outline" onClick={onBack} className="hover:bg-muted transition-colors">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Forms
           </Button>
         </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-muted-foreground">Loading form...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="px-6 py-8 shrink-0 border-b border-border/50">
+        <div className="flex items-center justify-between">
+          <Button 
+            variant="outline" 
+            onClick={onBack}
+            className="hover:bg-muted transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Forms
+          </Button>
+          
+          <Button 
+            onClick={handleSaveForm} 
+            size="lg" 
+            disabled={isSaving}
+            className="px-8 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all duration-200"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              mode === "create" ? (
+                <>
+                  <Plus className="h-5 w-5 mr-2" />
+                  Create Form
+                </>
+              ) : (
+                "Save Changes"
+              )
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-6 pb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-6">
           {/* Left Column - Form Details & Questions */}
           <div className="lg:col-span-2 space-y-6">
             {/* Form Details Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Form Details</CardTitle>
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="bg-gradient-to-br from-primary/5 to-transparent pb-4">
+                <CardTitle className="text-xl font-bold">Form Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5 pt-6">
                 <div>
-                  <Label htmlFor="title">Form Title</Label>
+                  <Label htmlFor="title" className="text-sm font-semibold text-foreground/90">Form Title</Label>
                   <Input
                     id="title"
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
-                    onBlur={handleUpdateForm}
-                    className="mt-1.5"
+                    className="mt-2 h-11 border-border/60 focus:border-primary/50 transition-colors"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="description">Description</Label>
+                  <Label htmlFor="description" className="text-sm font-semibold text-foreground/90">Description</Label>
                   <Textarea
                     id="description"
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
-                    onBlur={handleUpdateForm}
-                    className="mt-1.5 min-h-[80px]"
+                    className="mt-2 min-h-[90px] border-border/60 focus:border-primary/50 transition-colors resize-none"
                   />
                 </div>
+                {initialMetadata && (
+                  <div className="pt-4 border-t border-border/50 space-y-3">
+                    <div className="space-y-2">
+                      <span className="font-semibold text-sm text-foreground/90">Packages:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {initialMetadata.package_names && initialMetadata.package_names.length > 0 ? (
+                          initialMetadata.package_names.map((name, index) => (
+                            <Badge key={index} className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
+                              {name}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge variant="outline">N/A</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
+                      <p className="text-sm">
+                        <span className="font-semibold text-foreground/90">📅 Schedule:</span>{" "}
+                        <span className="text-muted-foreground">
+                          {initialMetadata.schedule_data.schedule_type === "SAME_DAY" 
+                            ? `Every ${initialMetadata.schedule_data.day_of_week} at ${initialMetadata.schedule_data.time}` 
+                            : `Individual days at ${initialMetadata.schedule_data.time}`}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Questions Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Questions</CardTitle>
+            <Card className="border-border/60 shadow-sm">
+              <CardHeader className="bg-gradient-to-br from-primary/5 to-transparent pb-4">
+                <CardTitle className="text-xl font-bold">Questions</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <DragDropContext onDragEnd={handleDragEnd}>
                   <Droppable droppableId="questions">
                     {(provided) => (
-                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+                      <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
                         {questions.map((question, index) => (
                           <Draggable key={question.id} draggableId={question.id} index={index}>
                             {(provided, snapshot) => (
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                className={`p-4 border rounded-lg flex items-center gap-3 transition-all duration-200 ${
+                                className={`group p-4 border rounded-xl flex items-center gap-3 transition-all duration-200 ${
                                   selectedQuestion === question.id 
-                                    ? "border-primary bg-accent shadow-sm" 
-                                    : "hover:border-muted-foreground/50 hover:shadow-sm"
+                                    ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-md ring-2 ring-primary/20" 
+                                    : "hover:border-primary/50 hover:shadow-md hover:bg-accent/30"
                                 } ${
-                                  snapshot.isDragging ? "shadow-lg" : ""
+                                  snapshot.isDragging ? "shadow-xl ring-2 ring-primary/30 scale-105" : ""
                                 }`}
                               >
-                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                                <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100 transition-opacity">
                                   <GripVertical className="h-5 w-5 text-muted-foreground" />
                                 </div>
                                 <div 
@@ -248,13 +478,15 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                                     }
                                   }}
                                 >
-                                  <div className="font-medium mb-1">{question.question_text}</div>
+                                  <div className="font-semibold mb-2 leading-relaxed text-foreground group-hover:text-primary transition-colors">
+                                    {question.question_text}
+                                  </div>
                                   <div className="flex gap-2 items-center">
-                                    <Badge variant="secondary" className="text-xs">
+                                    <Badge className="text-xs bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors">
                                       {QUESTION_TYPE_LABELS[question.question_type]}
                                     </Badge>
                                     {question.is_required && (
-                                      <Badge variant="outline" className="text-xs">
+                                      <Badge variant="outline" className="text-xs bg-primary/5 text-primary border-primary/30">
                                         Required
                                       </Badge>
                                     )}
@@ -263,7 +495,7 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="hover:bg-destructive/10 hover:text-destructive"
+                                  className="hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
                                   onClick={() => handleDeleteQuestion(question.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -284,14 +516,17 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                   </div>
                 )}
 
-                <div className="mt-6 pt-6 border-t">
-                  <p className="text-sm font-medium mb-3">Add Question</p>
+                <div className="mt-6 pt-6 border-t border-border/50">
+                  <p className="text-sm font-bold mb-4 text-foreground/90 flex items-center gap-2">
+                    <Plus className="h-4 w-4 text-primary" />
+                    <span>Add Question</span>
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     <Button 
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("short_text")}
-                      className="hover:bg-accent"
+                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Short Text
@@ -300,7 +535,7 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("long_text")}
-                      className="hover:bg-accent"
+                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Long Text
@@ -309,7 +544,7 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("multiple_choice")}
-                      className="hover:bg-accent"
+                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Multiple Choice
@@ -318,7 +553,7 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("number")}
-                      className="hover:bg-accent"
+                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Number
@@ -327,7 +562,7 @@ export default function FormBuilder({ formId, onBack }: FormBuilderProps) {
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("file_upload")}
-                      className="hover:bg-accent"
+                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       File Upload

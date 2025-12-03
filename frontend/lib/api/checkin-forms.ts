@@ -34,6 +34,7 @@ export interface CheckInForm {
   id: string;
   title: string;
   description: string | null;
+  form_type?: "onboarding" | "checkins" | "reviews";
   package: number;
   package_name: string;
   form_schema: CheckInFormSchema;
@@ -44,12 +45,13 @@ export interface CheckInForm {
 }
 
 export interface CreateCheckInFormData {
-  package: number;
+  package?: number;
   title: string;
   description?: string;
-  form_schema: CheckInFormSchema;
-  is_active: boolean;
-  schedule_data: {
+  form_type?: "onboarding" | "checkins" | "reviews";
+  form_schema?: CheckInFormSchema;
+  is_active?: boolean;
+  schedule_data?: {
     schedule_type: "SAME_DAY" | "INDIVIDUAL_DAYS";
     day_of_week?: string;
     time: string;
@@ -159,7 +161,8 @@ export async function createCheckInForm(data: CreateCheckInFormData): Promise<Ch
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Failed to create form" }));
-    throw new Error(error.detail || error.message || "Failed to create form");
+    console.error("Backend error response:", error);
+    throw new Error(JSON.stringify(error) || "Failed to create form");
   }
 
   return response.json();

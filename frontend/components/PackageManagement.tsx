@@ -5,23 +5,42 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { 
+  Package as PackageIcon, 
+  Plus, 
+  Pencil, 
+  Trash2, 
+  Loader2, 
+  AlertCircle 
+} from "lucide-react";
+import { 
+  listCheckInForms, 
+  CheckInForm
+} from "@/lib/api/checkin-forms";
+import { 
+  listPackages, 
+  createPackage, 
+  updatePackage, 
+  deletePackage, 
+  Package as PackageAPI 
+} from "@/lib/api/packages";
+import { CreateFormDialog } from "@/components/CreateFormDialog";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle
+} from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
-import { Package as PackageIcon, Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react";
-import { listPackages, createPackage, updatePackage, deletePackage, Package as PackageAPI } from "@/lib/api/packages";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 // Map API Package to local PackageType for compatibility
 export interface PackageType {
@@ -37,26 +56,36 @@ export const PackageManagement = () => {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [packages, setPackages] = useState<PackageAPI[]>([]);
+  const [checkinForms, setCheckinForms] = useState<CheckInForm[]>([]);
+  const [onboardingForms, setOnboardingForms] = useState<CheckInForm[]>([]);
+  const [reviewForms, setReviewForms] = useState<CheckInForm[]>([]);
   const [loading, setLoading] = useState(false);
+  const [formsLoading, setFormsLoading] = useState(false);
   const [editingPackage, setEditingPackage] = useState<PackageAPI | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [packageToDelete, setPackageToDelete] = useState<PackageAPI | null>(null);
   const [activeTab, setActiveTab] = useState<string>("add");
+  const [showCreateFormDialog, setShowCreateFormDialog] = useState(false);
+  const [formTypeToCreate, setFormTypeToCreate] = useState<'checkin' | 'onboarding'>('onboarding');
   
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     is_active: true,
+    checkin_form: '' as string | null,
+    onboarding_form: '' as string | null,
+    review_form: '' as string | null,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Load packages on mount
+  // Load packages and forms on mount
   useEffect(() => {
     if (open) {
       fetchPackageTypes();
+      fetchForms();
     }
   }, [open]);
 
@@ -77,7 +106,30 @@ export const PackageManagement = () => {
     }
   };
 
-  const createPackageType = async (packageData: { package_name: string; description?: string }) => {
+  const fetchForms = async () => {
+    try {
+      setFormsLoading(true);
+      
+      // Fetch check-in forms from backend
+      const checkinResponse = await listCheckInForms({ is_active: true });
+      setCheckinForms(checkinResponse.results);
+      
+      // TODO: Fetch onboarding forms when API is available
+      // For now, onboarding forms will show "No forms found"
+      setOnboardingForms([]);
+      
+      // TODO: Fetch review forms when API is available
+      // For now, review forms will show "No forms found"
+      setReviewForms([]);
+    } catch (error: any) {
+      console.error("Failed to fetch forms:", error);
+      // Don't show error toast for forms as it's not critical
+    } finally {
+      setFormsLoading(false);
+    }
+  };
+
+  const createPackageType = async (packageData: { package_name: string; description?: string; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null }) => {
     try {
       const newPackage = await createPackage(packageData);
       setPackages(prev => [newPackage, ...prev]);
@@ -100,7 +152,7 @@ export const PackageManagement = () => {
     }
   };
 
-  const updatePackageType = async (id: number, packageData: Partial<{ package_name: string; description?: string; is_active?: boolean }>) => {
+  const updatePackageType = async (id: number, packageData: Partial<{ package_name: string; description?: string; is_active?: boolean; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null }>) => {
     try {
       const updatedPackage = await updatePackage(id, packageData);
       
@@ -179,15 +231,18 @@ export const PackageManagement = () => {
     try {
       if (editingPackage) {
         // Update existing package
-        const updateData: Partial<{ package_name: string; description?: string; is_active?: boolean }> = {
+        const updateData: Partial<{ package_name: string; description?: string; is_active?: boolean; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null }> = {
           package_name: formData.name.trim(),
           description: formData.description.trim() || undefined,
           is_active: formData.is_active,
+          checkin_form: formData.checkin_form || null,
+          onboarding_form: formData.onboarding_form || null,
+          review_form: formData.review_form || null,
         };
         await updatePackageType(editingPackage.id, updateData);
       } else {
         // Create new package
-        const createData: { package_name: string; description?: string } = {
+        const createData: { package_name: string; description?: string; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null } = {
           package_name: formData.name.trim(),
         };
         
@@ -195,6 +250,11 @@ export const PackageManagement = () => {
         if (formData.description.trim()) {
           createData.description = formData.description.trim();
         }
+        
+        // Include checkin_form, onboarding_form, and review_form (can be null)
+        createData.checkin_form = formData.checkin_form || null;
+        createData.onboarding_form = formData.onboarding_form || null;
+        createData.review_form = formData.review_form || null;
         
         await createPackageType(createData);
       }
@@ -211,6 +271,9 @@ export const PackageManagement = () => {
       name: pkg.package_name,
       description: pkg.description || '',
       is_active: pkg.is_active ?? true,
+      checkin_form: pkg.checkin_form || '',
+      onboarding_form: pkg.onboarding_form || '',
+      review_form: (pkg as any).review_form || '',
     });
     setFormErrors({});
     setEditDialogOpen(true);
@@ -234,6 +297,9 @@ export const PackageManagement = () => {
       name: '',
       description: '',
       is_active: true,
+      checkin_form: '',
+      onboarding_form: '',
+      review_form: '',
     });
     setFormErrors({});
     setEditingPackage(null);
@@ -308,6 +374,135 @@ export const PackageManagement = () => {
                   />
                 </div>
 
+                {/* Onboarding Form Dropdown */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="onboarding_form">Onboarding Form</Label>
+                    <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                  </div>
+                  <Select 
+                    value={formData.onboarding_form || 'none'} 
+                    onValueChange={(value) => {
+                      if (value === 'none') {
+                        setFormData(prev => ({ ...prev, onboarding_form: '' }));
+                      } else {
+                        setFormData(prev => ({ ...prev, onboarding_form: value }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="onboarding_form" className="bg-background">
+                      <SelectValue placeholder="Select an onboarding form..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="none">None for now</SelectItem>
+                      {onboardingForms.length === 0 && (
+                        <SelectItem value="no_forms" disabled>
+                          No forms found
+                        </SelectItem>
+                      )}
+                      {onboardingForms.map((form) => (
+                        <SelectItem key={form.id} value={form.id}>
+                          {form.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!formData.onboarding_form && (
+                    <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Warning:</strong> No onboarding form will be sent to clients unless a form is assigned to this package.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Check-in Form Dropdown */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="checkin_form">Check-in Form</Label>
+                    <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                  </div>
+                  <Select 
+                    value={formData.checkin_form || 'none'} 
+                    onValueChange={(value) => {
+                      if (value === 'none') {
+                        setFormData(prev => ({ ...prev, checkin_form: '' }));
+                      } else {
+                        setFormData(prev => ({ ...prev, checkin_form: value }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="checkin_form" className="bg-background">
+                      <SelectValue placeholder="Select a check-in form..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="none">None for now</SelectItem>
+                      {formsLoading ? (
+                        <SelectItem value="loading" disabled>
+                          Loading forms...
+                        </SelectItem>
+                      ) : checkinForms.length === 0 ? (
+                        <SelectItem value="no_forms" disabled>
+                          No forms found
+                        </SelectItem>
+                      ) : (
+                        checkinForms.map((form) => (
+                          <SelectItem key={form.id} value={form.id}>
+                            {form.title}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {!formData.checkin_form && (
+                    <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Warning:</strong> No check-in form will be sent to clients unless a form is assigned to this package.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Review Form Dropdown */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="review_form">Review Form</Label>
+                    <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                  </div>
+                  <Select 
+                    value={formData.review_form || 'none'} 
+                    onValueChange={(value) => {
+                      if (value === 'none') {
+                        setFormData(prev => ({ ...prev, review_form: '' }));
+                      } else {
+                        setFormData(prev => ({ ...prev, review_form: value }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="review_form" className="bg-background">
+                      <SelectValue placeholder="Select a review form..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="none">None for now</SelectItem>
+                      <SelectItem value="no_forms" disabled>
+                        No forms found
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!formData.review_form && (
+                    <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                      <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Warning:</strong> No review form will be sent to clients unless a form is assigned to this package.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+             
+
                 <div className="flex gap-2 pt-2">
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
@@ -355,11 +550,43 @@ export const PackageManagement = () => {
                         {pkg.description && (
                           <p className="text-sm text-muted-foreground">{pkg.description}</p>
                         )}
-                        {pkg.created_at && (
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                          {pkg.created_at && (
                             <span>Created: {new Date(pkg.created_at).toLocaleDateString()}</span>
+                          )}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {pkg.onboarding_form_title ? (
+                              <Badge variant="outline" className="text-xs">
+                                Onboarding: {pkg.onboarding_form_title}
+                              </Badge>
+                            ) : (
+                              <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500 text-xs">
+                                <AlertCircle className="h-3 w-3" />
+                                No onboarding form
+                              </span>
+                            )}
+                            {pkg.checkin_form_title ? (
+                              <Badge variant="outline" className="text-xs">
+                                Check-in: {pkg.checkin_form_title}
+                              </Badge>
+                            ) : (
+                              <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500 text-xs">
+                                <AlertCircle className="h-3 w-3" />
+                                No check-in form
+                              </span>
+                            )}
+                            {(pkg as any).review_form_title ? (
+                              <Badge variant="outline" className="text-xs">
+                                Review: {(pkg as any).review_form_title}
+                              </Badge>
+                            ) : (
+                              <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-500 text-xs">
+                                <AlertCircle className="h-3 w-3" />
+                                No review form
+                              </span>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                       
                       <div className="flex items-center gap-2">
@@ -431,6 +658,135 @@ export const PackageManagement = () => {
                 rows={3}
               />
             </div>
+
+            {/* Onboarding Form Dropdown */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="edit-onboarding_form">Onboarding Form</Label>
+                <Badge variant="secondary" className="text-xs">Recommended</Badge>
+              </div>
+              <Select 
+                value={formData.onboarding_form || 'none'} 
+                onValueChange={(value) => {
+                  if (value === 'none') {
+                    setFormData(prev => ({ ...prev, onboarding_form: '' }));
+                  } else {
+                    setFormData(prev => ({ ...prev, onboarding_form: value }));
+                  }
+                }}
+              >
+                <SelectTrigger id="edit-onboarding_form" className="bg-background">
+                  <SelectValue placeholder="Select an onboarding form..." />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="none">None for now</SelectItem>
+                  {onboardingForms.length === 0 && (
+                    <SelectItem value="no_forms" disabled>
+                      No forms found
+                    </SelectItem>
+                  )}
+                  {onboardingForms.map((form) => (
+                    <SelectItem key={form.id} value={form.id}>
+                      {form.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!formData.onboarding_form && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                  <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Warning:</strong> No onboarding form will be sent to clients unless a form is assigned to this package.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Check-in Form Dropdown */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="edit-checkin_form">Check-in Form</Label>
+                <Badge variant="secondary" className="text-xs">Recommended</Badge>
+              </div>
+              <Select 
+                value={formData.checkin_form || 'none'} 
+                onValueChange={(value) => {
+                  if (value === 'none') {
+                    setFormData(prev => ({ ...prev, checkin_form: '' }));
+                  } else {
+                    setFormData(prev => ({ ...prev, checkin_form: value }));
+                  }
+                }}
+              >
+                <SelectTrigger id="edit-checkin_form" className="bg-background">
+                  <SelectValue placeholder="Select a check-in form..." />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="none">None for now</SelectItem>
+                  {formsLoading ? (
+                    <SelectItem value="loading" disabled>
+                      Loading forms...
+                    </SelectItem>
+                  ) : checkinForms.length === 0 ? (
+                    <SelectItem value="no_forms" disabled>
+                      No forms found
+                    </SelectItem>
+                  ) : (
+                    checkinForms.map((form) => (
+                      <SelectItem key={form.id} value={form.id}>
+                        {form.title}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {!formData.checkin_form && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                  <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Warning:</strong> No check-in form will be sent to clients unless a form is assigned to this package.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Review Form Dropdown */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="edit-review_form">Review Form</Label>
+                <Badge variant="secondary" className="text-xs">Recommended</Badge>
+              </div>
+              <Select 
+                value={formData.review_form || 'none'} 
+                onValueChange={(value) => {
+                  if (value === 'none') {
+                    setFormData(prev => ({ ...prev, review_form: '' }));
+                  } else {
+                    setFormData(prev => ({ ...prev, review_form: value }));
+                  }
+                }}
+              >
+                <SelectTrigger id="edit-review_form" className="bg-background">
+                  <SelectValue placeholder="Select a review form..." />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="none">None for now</SelectItem>
+                  <SelectItem value="no_forms" disabled>
+                    No forms found
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {!formData.review_form && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                  <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Warning:</strong> No review form will be sent to clients unless a form is assigned to this package.
+                  </p>
+                </div>
+              )}
+            </div>
+
+           
 
             {/* <div className="space-y-2">
               <Label htmlFor="edit-default_price">Default Price (Optional)</Label>
@@ -514,6 +870,26 @@ export const PackageManagement = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Create Form Dialog */}
+      <CreateFormDialog
+        open={showCreateFormDialog}
+        onOpenChange={setShowCreateFormDialog}
+        defaultPackageId={editingPackage?.id}
+        hidePackageField={true}
+        onFormCreated={(newForm) => {
+          // Add to appropriate forms list based on type
+          if (formTypeToCreate === 'onboarding') {
+            setOnboardingForms(prev => [newForm, ...prev]);
+            // Auto-select the newly created form
+            setFormData(prev => ({ ...prev, onboarding_form: newForm.id }));
+          } else {
+            setCheckinForms(prev => [newForm, ...prev]);
+            // Auto-select the newly created form
+            setFormData(prev => ({ ...prev, checkin_form: newForm.id }));
+          }
+        }}
+      />
     </>
   );
 };
