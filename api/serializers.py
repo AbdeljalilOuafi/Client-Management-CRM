@@ -286,8 +286,9 @@ class ClientSerializer(serializers.ModelSerializer):
             'status', 'address', 'instagram_handle', 'ghl_id', 'coaching_app_id',
             'trz_id', 'client_start_date', 'client_end_date', 'dob', 'country',
             'state', 'currency', 'gender', 'lead_origin', 'notice_given',
-            'no_more_payments', 'timezone', 'coach', 'coach_name', 'closer',
-            'closer_name', 'setter', 'setter_name', 'checkin_link', 'short_checkin_link'
+            'no_more_payments', 'timezone', 'phone', 'assigned_coach', 'notes',
+            'coach', 'coach_name', 'closer', 'closer_name', 'setter', 'setter_name',
+            'checkin_link', 'short_checkin_link'
         ]
         read_only_fields = ['id', 'account', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
                            'checkin_link', 'short_checkin_link']
