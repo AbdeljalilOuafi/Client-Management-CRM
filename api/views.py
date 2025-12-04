@@ -434,8 +434,49 @@ class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         return queryset.select_related('account', 'coach', 'closer', 'setter')
 
     def perform_create(self, serializer):
-        """Ensure account is set (permission already checked by CanManageClients)"""
-        serializer.save(account_id=self.get_resolved_account_id())
+        """
+        Ensure account is set and generate onboarding link if applicable.
+        
+        After client creation:
+        1. Check if client has an active ClientPackage
+        2. If yes, check if there's an active onboarding form for that package
+        3. If yes, generate the onboarding short link
+        """
+        from api.models import ClientPackage, CheckInForm
+        from api.utils.client_link_service import get_or_generate_onboarding_short_link
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        client = serializer.save(account_id=self.get_resolved_account_id())
+        
+        # Try to generate onboarding link if applicable
+        try:
+            # Check if client has an active package
+            client_package = ClientPackage.objects.filter(
+                client=client,
+                status='active'
+            ).select_related('package').first()
+            
+            if client_package:
+                # Check if there's an active onboarding form for this package
+                onboarding_form = CheckInForm.objects.filter(
+                    package=client_package.package,
+                    form_type='onboarding',
+                    is_active=True
+                ).first()
+                
+                if onboarding_form:
+                    # Generate onboarding link
+                    get_or_generate_onboarding_short_link(client)
+                    logger.info(f"Generated onboarding link for new client {client.id}")
+                else:
+                    logger.debug(f"No active onboarding form for client {client.id}'s package, skipping link generation")
+            else:
+                logger.debug(f"No active package for client {client.id}, skipping onboarding link generation")
+        except Exception as e:
+            # Don't fail client creation if onboarding link generation fails
+            logger.error(f"Failed to generate onboarding link for client {client.id}: {str(e)}")
 
     @action(detail=False, methods=['get'])
     def my_clients(self, request):
@@ -1385,6 +1426,17 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                 logger.error(f"Failed to create webhooks for Form {form.id}: {str(e)}")
                 # Don't fail the form creation, just log the error
                 # Admin can manually recreate webhooks later
+        
+        # If this is an onboarding form with a package, populate onboarding links for existing clients
+        if form.form_type == 'onboarding' and form.package is not None:
+            from .utils.client_link_service import populate_onboarding_links_for_package
+            try:
+                stats = populate_onboarding_links_for_package(form.package)
+                logger.info(f"Populated onboarding links for package {form.package.id}: "
+                           f"{stats['success_count']}/{stats['total_count']} clients")
+            except Exception as e:
+                logger.error(f"Failed to populate onboarding links for package {form.package.id}: {str(e)}")
+                # Don't fail form creation
 
     def perform_update(self, serializer):
         """
@@ -1983,6 +2035,181 @@ def submit_checkin_form(request, checkin_uuid):
     
     except Exception as e:
         logger.error(f"Error in submit_checkin_form: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ===================== Public Onboarding Endpoints =====================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_onboarding_form(request, onboarding_uuid):
+    """
+    Public endpoint to retrieve onboarding form by client's onboarding_link UUID.
+    
+    GET /api/public/onboarding/{uuid}/
+    
+    Returns:
+        {
+            "client": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john@example.com"
+            },
+            "form": {
+                "id": "uuid",
+                "title": "New Client Onboarding",
+                "description": "...",
+                "form_schema": {...}
+            },
+            "package": {
+                "package_name": "Premium Package"
+            }
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Look up client by onboarding_link
+        client = Client.objects.get(onboarding_link=onboarding_uuid)
+        
+        # Get active package for client
+        try:
+            client_package = ClientPackage.objects.select_related('package').get(
+                client=client,
+                status='active'
+            )
+        except ClientPackage.DoesNotExist:
+            return Response(
+                {'error': 'No active package found for this client'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get onboarding form for this package
+        try:
+            form = CheckInForm.objects.get(
+                package=client_package.package,
+                form_type='onboarding',
+                is_active=True
+            )
+        except CheckInForm.DoesNotExist:
+            return Response(
+                {'error': 'No onboarding form available for your package'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Return form data
+        return Response({
+            'client': {
+                'first_name': client.first_name,
+                'last_name': client.last_name,
+                'email': client.email
+            },
+            'form': {
+                'id': str(form.id),
+                'title': form.title,
+                'description': form.description or '',
+                'form_schema': form.form_schema
+            },
+            'package': {
+                'package_name': client_package.package.package_name
+            }
+        })
+    
+    except Client.DoesNotExist:
+        logger.warning(f"Invalid onboarding_link: {onboarding_uuid}")
+        return Response(
+            {'error': 'Invalid onboarding link'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_onboarding_form: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def submit_onboarding_form(request, onboarding_uuid):
+    """
+    Public endpoint to submit onboarding form response.
+    
+    POST /api/public/onboarding/{uuid}/submit/
+    Body:
+        {
+            "submission_data": {...}  # JSON matching form_schema structure
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Look up client by onboarding_link
+        client = Client.objects.get(onboarding_link=onboarding_uuid)
+        
+        # Get active package for client
+        try:
+            client_package = ClientPackage.objects.select_related('package').get(
+                client=client,
+                status='active'
+            )
+        except ClientPackage.DoesNotExist:
+            return Response(
+                {'error': 'No active package found for this client'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get onboarding form for this package
+        try:
+            form = CheckInForm.objects.get(
+                package=client_package.package,
+                form_type='onboarding',
+                is_active=True
+            )
+        except CheckInForm.DoesNotExist:
+            return Response(
+                {'error': 'No onboarding form available for your package'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate submission_data
+        submission_data = request.data.get('submission_data')
+        if not submission_data or not isinstance(submission_data, dict):
+            return Response(
+                {'error': 'submission_data must be a non-empty JSON object'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create submission
+        submission = CheckInSubmission.objects.create(
+            form=form,
+            client=client,
+            account_id=client.account_id,
+            submission_data=submission_data,
+            submitted_at=datetime.utcnow()
+        )
+        
+        logger.info(f"Client {client.id} submitted onboarding form {form.id}")
+        
+        return Response({
+            'status': 'success',
+            'submission_id': str(submission.id),
+            'submitted_at': submission.submitted_at.isoformat()
+        }, status=status.HTTP_201_CREATED)
+    
+    except Client.DoesNotExist:
+        logger.warning(f"Invalid onboarding_link: {onboarding_uuid}")
+        return Response(
+            {'error': 'Invalid onboarding link'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in submit_onboarding_form: {str(e)}")
         return Response(
             {'error': 'Internal server error'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
