@@ -1,3 +1,5 @@
+import { apiFetch } from "./apiClient";
+
 const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 
 export interface Instalment {
@@ -25,23 +27,6 @@ export interface InstalmentsResponse {
   results: Instalment[];
 }
 
-// Get auth token from localStorage
-const getAuthToken = (): string | null => {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("auth_token");
-  }
-  return null;
-};
-
-// Get headers with auth token
-const getHeaders = (): HeadersInit => {
-  const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Token ${token}` }),
-  };
-};
-
 // List all instalments with optional filters
 export const listInstalments = async (params?: {
   status?: string;
@@ -66,72 +51,31 @@ export const listInstalments = async (params?: {
 
   const url = `${API_BASE_URL}/installments/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch instalments: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiFetch(url, { method: "GET" });
 };
 
 // Get a single instalment by ID
 export const getInstalment = async (id: number): Promise<Instalment> => {
-  const response = await fetch(`${API_BASE_URL}/installments/${id}/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch instalment: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/installments/${id}/`, { method: "GET" });
 };
 
 // Create a new instalment
 export const createInstalment = async (instalmentData: Partial<Instalment>): Promise<Instalment> => {
-  const response = await fetch(`${API_BASE_URL}/installments/`, {
+  return apiFetch(`${API_BASE_URL}/installments/`, {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify(instalmentData),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  return response.json();
 };
 
 // Update an instalment
 export const updateInstalment = async (id: number, instalmentData: Partial<Instalment>): Promise<Instalment> => {
-  const response = await fetch(`${API_BASE_URL}/installments/${id}/`, {
+  return apiFetch(`${API_BASE_URL}/installments/${id}/`, {
     method: "PATCH",
-    headers: getHeaders(),
     body: JSON.stringify(instalmentData),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  return response.json();
 };
 
 // Delete an instalment
 export const deleteInstalment = async (id: number): Promise<void> => {
-  const response = await fetch(`${API_BASE_URL}/installments/${id}/`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete instalment: ${response.statusText}`);
-  }
+  await apiFetch(`${API_BASE_URL}/installments/${id}/`, { method: "DELETE" });
 };
