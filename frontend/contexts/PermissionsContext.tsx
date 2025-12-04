@@ -12,6 +12,33 @@ import {
   PagePermission 
 } from "@/lib/config/pagePermissions";
 
+/**
+ * Check if an error is an authentication error (401/unauthorized)
+ */
+function isAuthError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    return message.includes('unauthorized') || 
+           message.includes('401') || 
+           message.includes('invalid token') ||
+           message.includes('please log in');
+  }
+  return false;
+}
+
+/**
+ * Clear auth data and redirect to login
+ */
+function handleAuthFailure(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("accountId");
+    localStorage.removeItem("user");
+    localStorage.removeItem("permissions");
+    window.location.href = "/login";
+  }
+}
+
 interface PermissionsContextType {
   user: UserWithPermissions | null;
   permissions: Permissions | null;
@@ -120,7 +147,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         }
       } catch (error) {
         console.error('[PermissionsContext] Failed to fetch fresh user data:', error);
-        // Continue with localStorage data if backend fetch fails
+        
+        // Check if this is an authentication error (401/invalid token)
+        if (isAuthError(error)) {
+          console.log('[PermissionsContext] Authentication error detected, redirecting to login...');
+          handleAuthFailure();
+          return;
+        }
+        
+        // Continue with localStorage data if backend fetch fails for other reasons
       } finally {
         setIsLoading(false);
       }
@@ -242,7 +277,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       console.log('[PermissionsContext] Permissions refreshed successfully:', freshPermissions);
     } catch (error) {
       console.error('[PermissionsContext] Failed to refresh permissions:', error);
-      // Fall back to loading from localStorage
+      
+      // Check if this is an authentication error (401/invalid token)
+      if (isAuthError(error)) {
+        console.log('[PermissionsContext] Authentication error detected, redirecting to login...');
+        handleAuthFailure();
+        return;
+      }
+      
+      // Fall back to loading from localStorage for other errors
       const storedUser = getStoredUser();
       const storedPermissions = getStoredPermissions();
       if (storedUser) {

@@ -34,6 +34,7 @@ from .permissions import (
     CanManageEmployees, IsSelfOrAdmin, CanViewClients, CanManageClients,
     CanViewPayments, CanManagePayments, CanViewInstallments, CanManageInstallments
 )
+from .mixins import AccountResolutionMixin
 
 
 class AuthViewSet(viewsets.ViewSet):
@@ -233,25 +234,27 @@ class AuthViewSet(viewsets.ViewSet):
         return Response(serializer.data)
 
 
-class AccountViewSet(viewsets.ReadOnlyModelViewSet):
+class AccountViewSet(AccountResolutionMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for viewing Account information.
     Employees can only view their own account.
+    Master token users can view any account specified in X-Account-ID header.
     """
     queryset = Account.objects.all()
     serializer_class = AccountSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
 
     def get_queryset(self):
-        # Users can only see their own account
-        return Account.objects.filter(id=self.request.user.account_id)
+        # Users can only see their own account (or specified account for master token)
+        return Account.objects.filter(id=self.get_resolved_account_id())
 
 
-class EmployeeRoleViewSet(viewsets.ModelViewSet):
+class EmployeeRoleViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing custom Employee Roles.
     - Super Admin and Admin can create/update/delete roles
     - All authenticated users can view roles in their account
+    - Master token users can access any account via X-Account-ID header
     """
     serializer_class = EmployeeRoleSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
@@ -263,7 +266,7 @@ class EmployeeRoleViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Filter roles by account"""
-        return EmployeeRole.objects.filter(account_id=self.request.user.account_id)
+        return EmployeeRole.objects.filter(account_id=self.get_resolved_account_id())
 
     def get_permissions(self):
         """Only admins can create/update/delete roles"""
@@ -273,7 +276,7 @@ class EmployeeRoleViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Automatically set account when creating a role"""
-        serializer.save(account_id=self.request.user.account_id)
+        serializer.save(account_id=self.get_resolved_account_id())
 
     def destroy(self, request, *args, **kwargs):
         """Prevent deletion if employees are assigned to this role"""
@@ -298,16 +301,17 @@ class EmployeeRoleViewSet(viewsets.ModelViewSet):
         GET /api/employee-roles/{id}/employees/
         """
         role = self.get_object()
-        employees = role.employees.filter(account_id=request.user.account_id)
+        employees = role.employees.filter(account_id=self.get_resolved_account_id())
         serializer = EmployeeSerializer(employees, many=True, context={'request': request})
         return Response(serializer.data)
 
 
-class EmployeeViewSet(viewsets.ModelViewSet):
+class EmployeeViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Employees.
     - Super Admin and Admin can create/update/delete employees
     - Employees can view colleagues and update their own profile
+    - Master token users can access any account via X-Account-ID header
     """
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
@@ -319,8 +323,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        # Users can only see employees in their account
-        return Employee.objects.filter(account_id=self.request.user.account_id)
+        # Users can only see employees in their account (or specified account for master token)
+        return Employee.objects.filter(account_id=self.get_resolved_account_id())
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -377,16 +381,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Password changed successfully'})
 
 
-class ClientViewSet(viewsets.ModelViewSet):
+class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Clients.
     Permissions controlled by can_view_all_clients and can_manage_all_clients flags.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated, IsAccountMember, CanViewClients]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'coach', 'closer', 'setter', 'country', 'currency']
+    filterset_fields = ['status', 'coach', 'closer', 'setter', 'country']
     search_fields = ['first_name', 'last_name', 'email', 'instagram_handle']
     ordering_fields = ['first_name', 'last_name', 'email', 'client_start_date']
     ordering = ['first_name']
@@ -400,12 +405,18 @@ class ClientViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter queryset based on permissions:
+        - Master token: sees all clients in specified account
         - Super admin: sees all clients in account
         - Has 'can_view_all_clients': sees all clients in account
         - Otherwise: sees only assigned clients (coach/closer/setter)
         """
         user = self.request.user
-        queryset = Client.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = Client.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('account', 'coach', 'closer', 'setter')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -424,7 +435,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Ensure account is set (permission already checked by CanManageClients)"""
-        serializer.save(account_id=self.request.user.account_id)
+        serializer.save(account_id=self.get_resolved_account_id())
 
     @action(detail=False, methods=['get'])
     def my_clients(self, request):
@@ -445,6 +456,57 @@ class ClientViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsAccountMember, CanManageClients])
+    def upsert(self, request):
+        """
+        Create or update a client based on email uniqueness within account.
+        POST /api/clients/upsert/
+        
+        If a client with the given email exists in this account, updates it.
+        Otherwise, creates a new client.
+        
+        Request body should include 'email' and any other client fields.
+        """
+        email = request.data.get('email')
+        
+        if not email:
+            return Response(
+                {'email': ['Email is required for upsert operation.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        account_id = self.get_resolved_account_id()
+        
+        # Try to find existing client by email in user's account
+        try:
+            client = Client.objects.get(
+                account_id=account_id,
+                email=email
+            )
+            # Update existing client
+            serializer = self.get_serializer(client, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(
+                {
+                    'created': False,
+                    'client': serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        except Client.DoesNotExist:
+            # Create new client
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(account_id=account_id)
+            return Response(
+                {
+                    'created': True,
+                    'client': serializer.data
+                },
+                status=status.HTTP_201_CREATED
+            )
 
     @action(detail=False, methods=['get'])
     def statistics(self, request):
@@ -741,7 +803,7 @@ class ClientViewSet(viewsets.ModelViewSet):
                         
                         # Create client
                         Client.objects.create(
-                            account_id=request.user.account_id,
+                            account_id=self.get_resolved_account_id(),
                             first_name=row.get('first_name', '').strip(),
                             last_name=row.get('last_name', '').strip() or None,
                             email=email,
@@ -834,10 +896,11 @@ class ClientViewSet(viewsets.ModelViewSet):
         return response
 
 
-class PackageViewSet(viewsets.ModelViewSet):
+class PackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Packages.
     All authenticated users can perform CRUD operations on packages in their account.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Package.objects.all()
     serializer_class = PackageSerializer
@@ -848,18 +911,19 @@ class PackageViewSet(viewsets.ModelViewSet):
     ordering = ['package_name']
 
     def get_queryset(self):
-        # Users can only see packages in their account
-        return Package.objects.filter(account_id=self.request.user.account_id)
+        # Users can only see packages in their account (or specified account for master token)
+        return Package.objects.filter(account_id=self.get_resolved_account_id())
 
     def perform_create(self, serializer):
-        # Automatically set the account to the current user's account
-        serializer.save(account_id=self.request.user.account_id)
+        # Automatically set the account to the resolved account
+        serializer.save(account_id=self.get_resolved_account_id())
 
 
-class ClientPackageViewSet(viewsets.ModelViewSet):
+class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Client Packages.
     All authenticated users can perform CRUD operations on client packages in their account.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = ClientPackage.objects.all()
     serializer_class = ClientPackageSerializer
@@ -871,40 +935,44 @@ class ClientPackageViewSet(viewsets.ModelViewSet):
     ordering = ['-start_date']
 
     def get_queryset(self):
-        # Users can only see client packages in their account
+        # Users can only see client packages in their account (or specified account for master token)
         return ClientPackage.objects.filter(
-            client__account_id=self.request.user.account_id
+            client__account_id=self.get_resolved_account_id()
         ).select_related('client', 'package')
 
     def perform_create(self, serializer):
         """
-        When creating a new client package, automatically set all previous
+        When creating a new client package with 'active' status, automatically set all previous
         active packages for the same client to inactive (only 1 active package per client).
+        Pending packages are left untouched and multiple pending packages are allowed.
         """
         client = serializer.validated_data.get('client')
+        new_status = serializer.validated_data.get('status', 'active')
         
-        # Set all existing active packages for this client to inactive
-        ClientPackage.objects.filter(
-            client=client,
-            status='active'
-        ).update(status='inactive')
+        # Only deactivate existing active packages if the new package is being set to 'active'
+        if new_status == 'active':
+            ClientPackage.objects.filter(
+                client=client,
+                status='active'
+            ).update(status='inactive')
         
-        # Create the new package (defaults to active status)
+        # Create the new package
         serializer.save()
 
     # Removed get_permissions - all authenticated account members can CRUD client packages
 
 
-class PaymentViewSet(viewsets.ModelViewSet):
+class PaymentViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Payments.
     Permissions controlled by can_view_all_payments and can_manage_all_payments flags.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated, IsAccountMember, CanViewPayments]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['client', 'status', 'currency']
+    filterset_fields = ['client', 'status', 'paid_currency']
     search_fields = ['client__first_name', 'client__last_name', 'id']
     ordering_fields = ['payment_date', 'amount']
     ordering = ['-payment_date']
@@ -918,12 +986,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter queryset based on permissions:
+        - Master token: sees all payments in specified account
         - Super admin: sees all payments in account
         - Has 'can_view_all_payments': sees all payments in account
         - Otherwise: sees only payments for assigned clients
         """
         user = self.request.user
-        queryset = Payment.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = Payment.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('client', 'client_package', 'account')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -1039,7 +1113,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         try:
                             client = Client.objects.get(
                                 email=client_email,
-                                account_id=request.user.account_id
+                                account_id=self.get_resolved_account_id()
                             )
                         except Client.DoesNotExist:
                             errors.append({'row': row_num, 'error': f'Client with email {client_email} not found in your account'})
@@ -1097,7 +1171,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                         # Create payment
                         Payment.objects.create(
                             id=payment_id,
-                            account_id=request.user.account_id,
+                            account_id=self.get_resolved_account_id(),
                             client=client,
                             amount=amount,
                             currency=row.get('currency', 'USD').strip().upper(),
@@ -1159,7 +1233,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 payment.id,
                 payment.client.email,
                 f'{payment.amount:.2f}',
-                payment.currency or 'USD',
+                payment.paid_currency or 'USD',
                 f'{payment.exchange_rate:.6f}' if payment.exchange_rate else '',
                 payment.native_account_currency or '',
                 payment.status,
@@ -1170,10 +1244,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         return response
 
 
-class InstallmentViewSet(viewsets.ModelViewSet):
+class InstallmentViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Installments.
     Permissions controlled by can_view_all_installments and can_manage_all_installments flags.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = Installment.objects.all()
     serializer_class = InstallmentSerializer
@@ -1193,12 +1268,18 @@ class InstallmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter queryset based on permissions:
+        - Master token: sees all installments in specified account
         - Super admin: sees all installments in account
         - Has 'can_view_all_installments': sees all installments in account
         - Otherwise: sees only installments for assigned clients
         """
         user = self.request.user
-        queryset = Installment.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = Installment.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('client', 'account')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -1226,10 +1307,11 @@ class InstallmentViewSet(viewsets.ModelViewSet):
             serializer.save()
 
 
-class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):
+class StripeCustomerViewSet(AccountResolutionMixin, viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for viewing Stripe Customers.
     Read-only for all authenticated users.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = StripeCustomer.objects.all()
     serializer_class = StripeCustomerSerializer
@@ -1241,54 +1323,77 @@ class StripeCustomerViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['email']
 
     def get_queryset(self):
-        # Users can only see stripe customers in their account
+        # Users can only see stripe customers in their account (or specified account for master token)
         return StripeCustomer.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('client', 'account', 'stripe_account')
 
 
-class CheckInFormViewSet(viewsets.ModelViewSet):
+class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
-    ViewSet for managing Check-In Forms.
-    All authenticated account members can CRUD check-in forms.
+    ViewSet for managing Forms (checkin, onboarding, reviews).
+    All authenticated account members can CRUD forms.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInForm.objects.all()
     serializer_class = CheckInFormSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['package', 'is_active']
+    filterset_fields = ['package', 'form_type', 'is_active']
     search_fields = ['title', 'description', 'package__package_name']
-    ordering_fields = ['created_at', 'title']
+    ordering_fields = ['created_at', 'title', 'form_type']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Filter forms to user's account"""
+        """Filter forms to user's account (or specified account for master token)"""
         return CheckInForm.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('account', 'package', 'schedule')
 
     def perform_create(self, serializer):
-        """Auto-set account and create webhook schedules"""
-        from .utils.webhook_scheduler import create_schedule_webhooks
+        """
+        Auto-set account and create webhook schedules.
+        If no package is assigned, webhooks are created but immediately canceled (inactive).
+        """
+        from .utils.webhook_scheduler import create_schedule_webhooks, cancel_schedule_webhooks
         import logging
         
         logger = logging.getLogger(__name__)
         
         # Save the form with account
-        form = serializer.save(account_id=self.request.user.account_id)
+        form = serializer.save(account_id=self.get_resolved_account_id())
         
         # Create webhook schedules if schedule was provided
         if hasattr(form, 'schedule') and form.schedule:
             try:
                 create_schedule_webhooks(form.schedule)
-                logger.info(f"Created webhooks for CheckInForm {form.id}")
+                logger.info(f"Created webhooks for Form {form.id} (type: {form.form_type})")
+                
+                # If no package is assigned, immediately cancel the webhooks and deactivate schedule
+                # They will be activated when a package is assigned later
+                if form.package is None:
+                    try:
+                        cancel_schedule_webhooks(form.schedule)
+                        # Also set schedule to inactive to keep in sync with webhook state
+                        form.schedule.is_active = False
+                        form.schedule.save(update_fields=['is_active'])
+                        logger.info(f"Canceled webhooks and deactivated schedule for unassigned Form {form.id} (will activate when package assigned)")
+                    except Exception as e:
+                        logger.error(f"Failed to cancel webhooks for unassigned Form {form.id}: {str(e)}")
+                        
             except Exception as e:
-                logger.error(f"Failed to create webhooks for CheckInForm {form.id}: {str(e)}")
+                logger.error(f"Failed to create webhooks for Form {form.id}: {str(e)}")
                 # Don't fail the form creation, just log the error
                 # Admin can manually recreate webhooks later
 
     def perform_update(self, serializer):
-        """Handle is_active changes - cancel/activate webhooks accordingly"""
+        """
+        Handle is_active and package changes - manage webhook states accordingly.
+        - Package null -> assigned: activate webhooks
+        - Package assigned -> null: cancel webhooks  
+        - is_active true -> false: cancel webhooks
+        - is_active false -> true: activate webhooks (only if package assigned)
+        """
         from .utils.webhook_scheduler import cancel_schedule_webhooks, activate_schedule_webhooks
         import logging
         
@@ -1297,28 +1402,67 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
         # Get the current state before update
         instance = self.get_object()
         old_is_active = instance.is_active
+        old_package = instance.package
         
         # Save the updated form
         form = serializer.save()
         new_is_active = form.is_active
+        new_package = form.package
         
-        # Handle is_active changes if form has a schedule
+        # Handle changes if form has a schedule
         if hasattr(form, 'schedule') and form.schedule:
-            if old_is_active and not new_is_active:
-                # Form was deactivated - cancel webhooks
-                try:
-                    cancel_schedule_webhooks(form.schedule)
-                    logger.info(f"Canceled webhooks for deactivated CheckInForm {form.id}")
-                except Exception as e:
-                    logger.error(f"Failed to cancel webhooks for CheckInForm {form.id}: {str(e)}")
+            # Track if package assignment changed
+            package_was_null = old_package is None
+            package_is_null = new_package is None
+            package_assigned = package_was_null and not package_is_null
+            package_removed = not package_was_null and package_is_null
             
-            elif not old_is_active and new_is_active:
-                # Form was reactivated - activate webhooks
+            # Priority 1: Package assignment changes
+            if package_assigned and new_is_active:
+                # Package was assigned to a form that didn't have one - activate webhooks
                 try:
                     activate_schedule_webhooks(form.schedule)
-                    logger.info(f"Activated webhooks for reactivated CheckInForm {form.id}")
+                    # Also update schedule is_active to keep in sync
+                    form.schedule.is_active = True
+                    form.schedule.save(update_fields=['is_active'])
+                    logger.info(f"Activated webhooks and schedule for Form {form.id} after package assignment")
                 except Exception as e:
-                    logger.error(f"Failed to activate webhooks for CheckInForm {form.id}: {str(e)}")
+                    logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
+            
+            elif package_removed:
+                # Package was removed - cancel webhooks and deactivate schedule
+                try:
+                    cancel_schedule_webhooks(form.schedule)
+                    # Also update schedule is_active to keep in sync
+                    form.schedule.is_active = False
+                    form.schedule.save(update_fields=['is_active'])
+                    logger.info(f"Canceled webhooks and deactivated schedule for Form {form.id} after package removal")
+                except Exception as e:
+                    logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
+            
+            # Priority 2: is_active changes (only if package is assigned)
+            elif not package_is_null:
+                if old_is_active and not new_is_active:
+                    # Form was deactivated - cancel webhooks and update schedule status
+                    try:
+                        cancel_schedule_webhooks(form.schedule)
+                        # Also update schedule is_active to keep in sync
+                        form.schedule.is_active = False
+                        form.schedule.save(update_fields=['is_active'])
+                        logger.info(f"Canceled webhooks and deactivated schedule for Form {form.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
+                
+                elif not old_is_active and new_is_active:
+                    # Form was reactivated - activate webhooks and update schedule status
+                    try:
+                        activate_schedule_webhooks(form.schedule)
+                        # Also update schedule is_active to keep in sync
+                        form.schedule.is_active = True
+                        form.schedule.save(update_fields=['is_active'])
+                        logger.info(f"Activated webhooks and reactivated schedule for Form {form.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
 
     def perform_destroy(self, instance):
         """Delete webhook schedules before deleting form"""
@@ -1344,7 +1488,7 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
         form = self.get_object()
         submissions = CheckInSubmission.objects.filter(
             form=form,
-            account_id=request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('client', 'form').order_by('-submitted_at')
         
         from .serializers import CheckInSubmissionSerializer
@@ -1378,10 +1522,11 @@ class CheckInFormViewSet(viewsets.ModelViewSet):
             )
 
 
-class CheckInScheduleViewSet(viewsets.ModelViewSet):
+class CheckInScheduleViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Check-In Schedules.
     All authenticated account members can CRUD schedules.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInSchedule.objects.all()
     serializer_class = CheckInScheduleSerializer
@@ -1392,9 +1537,9 @@ class CheckInScheduleViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Filter schedules to user's account"""
+        """Filter schedules to user's account (or specified account for master token)"""
         return CheckInSchedule.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('form', 'account')
 
     def perform_update(self, serializer):
@@ -1465,10 +1610,11 @@ class CheckInScheduleViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
-class CheckInSubmissionViewSet(viewsets.ModelViewSet):
+class CheckInSubmissionViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Check-In Submissions.
     Permissions controlled by can_view_all_clients flag.
+    Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInSubmission.objects.all()
     serializer_class = CheckInSubmissionSerializer
@@ -1482,12 +1628,18 @@ class CheckInSubmissionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """
         Filter submissions based on permissions:
+        - Master token: sees all submissions in specified account
         - Super admin: sees all submissions in account
         - Has 'can_view_all_clients': sees all submissions in account
         - Otherwise: sees only submissions for assigned clients
         """
         user = self.request.user
-        queryset = CheckInSubmission.objects.filter(account_id=user.account_id)
+        account_id = self.get_resolved_account_id()
+        queryset = CheckInSubmission.objects.filter(account_id=account_id)
+        
+        # Master token sees everything in the specified account
+        if getattr(user, 'is_master_token', False):
+            return queryset.select_related('client', 'form', 'account')
         
         # Super admin sees everything
         if user.is_super_admin:
@@ -2141,6 +2293,263 @@ def delete_domain_config(request):
         
     except Exception as e:
         logger.exception(f"Error deleting domain config: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ==============================================================================
+# Payment Domain Management Views
+# ==============================================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def configure_payment_domain(request):
+    """
+    Configure custom payment domain for the authenticated user's account.
+    
+    Frontend has already verified DNS points to server IP.
+    This endpoint generates SSL certificate and configures Nginx.
+    
+    POST /api/domains/payment/configure/
+    Request Body:
+    {
+        "payment_domain": "pay.gymname.com"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Payment domain configured successfully with SSL and Nginx",
+        "domain": "pay.gymname.com",
+        "configured_at": "2025-11-28T10:30:00Z",
+        "ssl_status": "Active",
+        "nginx_status": "Configured"
+    }
+    """
+    from api.services.domain_service import DomainService
+    logger = logging.getLogger(__name__)
+    
+    try:
+        payment_domain = request.data.get('payment_domain')
+        
+        if not payment_domain:
+            return Response(
+                {'error': 'payment_domain is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get the authenticated user's account
+        account = request.user.account
+        
+        # Check if domain already in use by another account
+        existing = Account.objects.filter(payment_domain=payment_domain).exclude(id=account.id).first()
+        if existing:
+            return Response(
+                {'error': f'This domain is already in use by another account: {existing.name}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Configuring payment domain for account {account.id}: {payment_domain}")
+        
+        # Step 1: Generate SSL certificate
+        ssl_success, ssl_message = DomainService.generate_ssl_certificate(payment_domain)
+        if not ssl_success:
+            logger.error(f"SSL generation failed for {payment_domain}: {ssl_message}")
+            return Response({
+                'success': False,
+                'error': 'SSL certificate generation failed',
+                'details': ssl_message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Step 2: Create Nginx configuration
+        config_success, config_message = DomainService.create_nginx_config(payment_domain)
+        if not config_success:
+            logger.error(f"Nginx config creation failed for {payment_domain}: {config_message}")
+            return Response({
+                'success': False,
+                'error': 'Nginx configuration failed',
+                'details': config_message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Step 3: Test and reload Nginx
+        reload_success, reload_message = DomainService.test_and_reload_nginx()
+        if not reload_success:
+            logger.error(f"Nginx reload failed for {payment_domain}: {reload_message}")
+            return Response({
+                'success': False,
+                'error': 'Nginx reload failed',
+                'details': reload_message
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        # Step 4: Save domain configuration in database
+        # Frontend has verified DNS, SSL and Nginx are now configured
+        account.payment_domain = payment_domain
+        account.payment_domain_verified = True
+        account.payment_domain_configured = True
+        account.payment_domain_added_at = timezone.now()
+        account.save()
+        
+        logger.info(f"Payment domain configured successfully for account {account.id}: {payment_domain}")
+        
+        return Response({
+            'success': True,
+            'message': 'Payment domain configured successfully with SSL and Nginx',
+            'domain': payment_domain,
+            'configured_at': account.payment_domain_added_at.isoformat(),
+            'ssl_status': 'Active',
+            'nginx_status': 'Configured'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error configuring payment domain: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_payment_domain_config(request):
+    """
+    Get current payment domain configuration for the authenticated user's account.
+    
+    GET /api/domains/payment/
+    
+    Response:
+    {
+        "payment_domain": "pay.gymname.com",
+        "payment_domain_verified": true,
+        "payment_domain_configured": true,
+        "payment_domain_added_at": "2025-11-28T10:30:00Z"
+    }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        account = request.user.account
+        
+        return Response({
+            'payment_domain': account.payment_domain,
+            'payment_domain_verified': account.payment_domain_verified,
+            'payment_domain_configured': account.payment_domain_configured,
+            'payment_domain_added_at': account.payment_domain_added_at.isoformat() if account.payment_domain_added_at else None
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error getting payment domain config: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def update_payment_domain(request):
+    """
+    Update payment domain configuration.
+    
+    PATCH /api/domains/payment/update/
+    Request Body:
+    {
+        "payment_domain": "newdomain.gym.com"
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Payment domain updated successfully",
+        "domain": "newdomain.gym.com"
+    }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        account = request.user.account
+        payment_domain = request.data.get('payment_domain')
+        
+        if not payment_domain:
+            return Response(
+                {'error': 'payment_domain is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if domain already in use by another account
+        existing = Account.objects.filter(payment_domain=payment_domain).exclude(id=account.id).first()
+        if existing:
+            return Response(
+                {'error': f'This domain is already in use by another account: {existing.name}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Updating payment domain for account {account.id}: {payment_domain}")
+        
+        account.payment_domain = payment_domain
+        account.payment_domain_verified = True
+        account.payment_domain_configured = True
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Payment domain updated successfully',
+            'domain': payment_domain
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error updating payment domain: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def remove_payment_domain(request):
+    """
+    Remove payment domain configuration and revert to default domain.
+    
+    DELETE /api/domains/payment/delete/
+    
+    Response:
+    {
+        "success": true,
+        "message": "Payment domain removed successfully"
+    }
+    """
+    from api.services.domain_service import DomainService
+    logger = logging.getLogger(__name__)
+    
+    try:
+        account = request.user.account
+        
+        logger.info(f"Removing payment domain for account {account.id}")
+        
+        domain_to_remove = account.payment_domain
+        
+        # Remove SSL certificate and Nginx configuration
+        if domain_to_remove:
+            remove_success, remove_message = DomainService.remove_domain_config(domain_to_remove)
+            if not remove_success:
+                logger.warning(f"Failed to remove domain config for {domain_to_remove}: {remove_message}")
+                # Continue with DB cleanup even if file removal fails
+        
+        account.payment_domain = None
+        account.payment_domain_verified = False
+        account.payment_domain_configured = False
+        account.payment_domain_added_at = None
+        account.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Payment domain removed successfully. Payment links will now use the default domain.'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.exception(f"Error removing payment domain: {str(e)}")
         return Response(
             {'error': f'Internal server error: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

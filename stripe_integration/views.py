@@ -15,6 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import StripeApiKey
 from .serializers import StripeApiKeySerializer
 from api.permissions import IsAccountMember, IsSuperAdmin
+from api.mixins import AccountResolutionMixin
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ class StripeOAuthCallbackView(APIView):
             return redirect(f'https://app.fithq.ai/integrations?error=connection_failed')
 
 
-class StripeAccountViewSet(viewsets.ModelViewSet):
+class StripeAccountViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing Stripe accounts (CRUD operations).
     
@@ -156,15 +157,17 @@ class StripeAccountViewSet(viewsets.ModelViewSet):
     - Update: Admins and SuperAdmins only
     - Delete: SuperAdmins only
     - set_primary action: SuperAdmins only
+    
+    Master token users can access any account via X-Account-ID header.
     """
     
     serializer_class = StripeApiKeySerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
     
     def get_queryset(self):
-        """Filter Stripe accounts by user's account (multi-tenant)"""
+        """Filter Stripe accounts by user's account (or specified account for master token)"""
         return StripeApiKey.objects.filter(
-            account_id=self.request.user.account_id
+            account_id=self.get_resolved_account_id()
         ).select_related('account').order_by('-is_primary', '-created_at')
     
     def get_permissions(self):
@@ -187,19 +190,23 @@ class StripeAccountViewSet(viewsets.ModelViewSet):
         POST /api/stripe/accounts/{id}/set_primary/
         """
         stripe_account = self.get_object()
-        account_id = request.user.account_id
+        account_id = self.get_resolved_account_id()
         
         # Lock all Stripe accounts for this CRM account to prevent race conditions
         StripeApiKey.objects.filter(account_id=account_id).select_for_update()
         
-        # Set all accounts to non-primary
-        StripeApiKey.objects.filter(account_id=account_id).update(is_primary=False)
+        # Set all accounts to non-primary and inactive (only one active/primary account allowed)
+        StripeApiKey.objects.filter(account_id=account_id).update(
+            is_primary=False,
+            is_active=False
+        )
         
-        # Set target account as primary
+        # Set target account as primary and active
         stripe_account.is_primary = True
-        stripe_account.save(update_fields=['is_primary', 'updated_at'])
+        stripe_account.is_active = True
+        stripe_account.save(update_fields=['is_primary', 'is_active', 'updated_at'])
         
-        logger.info(f"Set Stripe account {stripe_account.id} as primary for account {account_id}")
+        logger.info(f"Set Stripe account {stripe_account.id} as primary and active for account {account_id}")
         
         serializer = self.get_serializer(stripe_account)
         return Response({
@@ -211,7 +218,7 @@ class StripeAccountViewSet(viewsets.ModelViewSet):
         """
         Prevent deletion if it's the only Stripe account.
         """
-        account_id = self.request.user.account_id
+        account_id = self.get_resolved_account_id()
         total_accounts = StripeApiKey.objects.filter(account_id=account_id).count()
         
         if total_accounts == 1:

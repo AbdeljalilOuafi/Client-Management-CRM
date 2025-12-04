@@ -36,6 +36,123 @@ class EmployeeToken(models.Model):
         return self.key
 
 
+class MasterToken(models.Model):
+    """
+    Master token for cross-account service authentication.
+    Used for automation (n8n workflows) with full super_admin access to any account.
+    These tokens never expire and require X-Account-ID header to specify target account.
+    """
+    key = models.CharField(max_length=64, primary_key=True)
+    name = models.CharField(max_length=100)
+    description = models.TextField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'master_tokens'
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = self.generate_key()
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def generate_key(cls):
+        """Generate a 64-character hex token"""
+        return binascii.hexlify(os.urandom(32)).decode()
+
+    def __str__(self):
+        return f"{self.name} ({'active' if self.is_active else 'inactive'})"
+
+
+class MasterTokenUser:
+    """
+    Pseudo-user object returned when authenticating with a MasterToken.
+    Mimics the Employee interface but with dynamic account_id from request header.
+    Has full super_admin permissions on any account.
+    """
+    
+    def __init__(self, master_token, account_id=None):
+        self.master_token = master_token
+        self._account_id = account_id
+        self._account = None
+        
+        # Required attributes for DRF compatibility
+        self.pk = None
+        self.id = None
+        self.is_authenticated = True
+        self.is_active = True
+        self.is_staff = True
+        self.is_superuser = True
+        
+        # Master token identifier
+        self.is_master_token = True
+    
+    @property
+    def account_id(self):
+        return self._account_id
+    
+    @account_id.setter
+    def account_id(self, value):
+        self._account_id = value
+        self._account = None  # Reset cached account
+    
+    @property
+    def account(self):
+        """Lazy load the account object"""
+        if self._account is None and self._account_id:
+            from api.models import Account
+            try:
+                self._account = Account.objects.get(id=self._account_id)
+            except Account.DoesNotExist:
+                self._account = None
+        return self._account
+    
+    @property
+    def is_super_admin(self):
+        """Master token always has super_admin privileges"""
+        return True
+    
+    @property
+    def is_admin(self):
+        """Master token always has admin privileges"""
+        return True
+    
+    @property
+    def role(self):
+        return 'super_admin'
+    
+    # Permission flags - master token has all permissions
+    @property
+    def can_view_all_clients(self):
+        return True
+    
+    @property
+    def can_manage_all_clients(self):
+        return True
+    
+    @property
+    def can_view_all_payments(self):
+        return True
+    
+    @property
+    def can_manage_all_payments(self):
+        return True
+    
+    @property
+    def can_view_all_installments(self):
+        return True
+    
+    @property
+    def can_manage_all_installments(self):
+        return True
+    
+    def __str__(self):
+        return f"MasterTokenUser({self.master_token.name})"
+
+
 class Account(models.Model):
     """Account model for multi-tenancy"""
     id = models.AutoField(primary_key=True)
@@ -53,7 +170,6 @@ class Account(models.Model):
     trz_group_id = models.IntegerField(null=True, blank=True, unique=True)
     trz_admin_user_id = models.IntegerField(null=True, blank=True, unique=True)
     ghl_location_id = models.TextField(null=True, blank=True, unique=True)
-    short_url_domain = models.TextField(null=True, blank=True)  # DEPRECATED: Use forms_domain instead
     timezone = models.TextField(null=True, blank=True)
     company_currency = models.TextField(null=True, blank=True, help_text='Default currency for this company (e.g., "gbp", "usd")')
     
@@ -66,6 +182,16 @@ class Account(models.Model):
                                                   help_text='Whether domain is fully configured')
     forms_domain_added_at = models.DateTimeField(null=True, blank=True, 
                                                  help_text='When custom domain was configured')
+    
+    # Custom Payment Domain Fields
+    payment_domain = models.CharField(max_length=255, null=True, blank=True, unique=True,
+                                     help_text='Custom subdomain for payment links (e.g., pay.gymname.com)')
+    payment_domain_verified = models.BooleanField(default=False,
+                                                  help_text='Whether DNS has been verified')
+    payment_domain_configured = models.BooleanField(default=False,
+                                                    help_text='Whether domain is fully configured')
+    payment_domain_added_at = models.DateTimeField(null=True, blank=True,
+                                                   help_text='When custom payment domain was configured')
 
     class Meta:
         managed = False
@@ -252,7 +378,7 @@ class Client(models.Model):
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255, null=True, blank=True)
-    email = models.EmailField(max_length=255, unique=True)
+    email = models.EmailField(max_length=255)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     address = models.TextField(null=True, blank=True)
     instagram_handle = models.CharField(max_length=255, null=True, blank=True)
@@ -270,6 +396,9 @@ class Client(models.Model):
     notice_given = models.BooleanField(default=False)
     no_more_payments = models.BooleanField(default=False)
     timezone = models.TextField(null=True, blank=True)
+    phone = models.CharField(max_length=255, null=True, blank=True)
+    assigned_coach = models.TextField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
     checkin_link = models.UUIDField(
         default=uuid.uuid4, 
         unique=True, 
@@ -301,6 +430,7 @@ class Client(models.Model):
     class Meta:
         managed = False
         db_table = 'clients'
+        unique_together = [['account', 'email']]
 
     def __str__(self):
         return f"{self.first_name} {self.last_name or ''} ({self.email})".strip()
@@ -327,13 +457,14 @@ class ClientPackage(models.Model):
     """ClientPackage model for client-package relationships"""
     
     PAYMENT_SCHEDULE_CHOICES = [
-        ('PIF', 'PIF'),
-        ('Monthly', 'Monthly'),
-        ('Quarterly', 'Quarterly'),
-        ('Yearly', 'Yearly'),
+        ('one_time', 'One Time'),
+        ('instalments', 'Instalments'),
+        ('subscription', 'Subscription'),
+        ('deposit', 'Deposit'),
     ]
     
     STATUS_CHOICES = [
+        ('pending', 'Pending'),
         ('active', 'Active'),
         ('inactive', 'Inactive'),
     ]
@@ -451,6 +582,7 @@ class Installment(models.Model):
     id = models.AutoField(primary_key=True)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     client = models.ForeignKey(Client, on_delete=models.CASCADE, db_column='client_id')
+    client_package = models.ForeignKey('ClientPackage', on_delete=models.SET_NULL, null=True, blank=True, db_column='client_package_id')
     invoice_id = models.CharField(max_length=255, null=True, blank=True)
     stripe_customer_id = models.CharField(max_length=255, null=True, blank=True)
     stripe_account = models.CharField(max_length=255, null=True, blank=True)
@@ -471,15 +603,30 @@ class Installment(models.Model):
 
 
 class CheckInForm(models.Model):
-    """Check-in form template assigned to packages (1:1 relationship)"""
+    """Form template that can be assigned to packages. Supports multiple form types."""
+    
+    FORM_TYPE_CHOICES = [
+        ('checkins', 'Check-in'),
+        ('onboarding', 'Onboarding'),
+        ('reviews', 'Reviews'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
-    package = models.OneToOneField(
+    package = models.ForeignKey(
         Package, 
         on_delete=models.CASCADE, 
         db_column='package_id',
-        related_name='checkin_form'
+        related_name='forms',
+        null=True,
+        blank=True,
+        help_text='Package this form is assigned to (can be null for unassigned forms)'
+    )
+    form_type = models.CharField(
+        max_length=20, 
+        choices=FORM_TYPE_CHOICES, 
+        default='checkins',
+        help_text='Type of form: checkins, onboarding, or reviews'
     )
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
@@ -491,10 +638,13 @@ class CheckInForm(models.Model):
     class Meta:
         managed = False
         db_table = 'check_in_forms'
-        unique_together = [['account', 'package']]
+        # Each package can have at most one form of each type
+        # Note: PostgreSQL allows multiple NULL values in unique constraints
+        unique_together = [['account', 'package', 'form_type']]
 
     def __str__(self):
-        return f"{self.title} ({self.package.package_name})"
+        package_name = self.package.package_name if self.package else 'Unassigned'
+        return f"{self.title} ({self.get_form_type_display()}) - {package_name}"
 
 
 class CheckInSchedule(models.Model):

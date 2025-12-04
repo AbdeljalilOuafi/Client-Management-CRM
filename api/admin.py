@@ -61,9 +61,8 @@ class ClientPackageAdmin(admin.ModelAdmin):
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ['id', 'client', 'amount', 'currency', 'status', 'payment_date'
-]
-    list_filter = ['status', 'currency']
+    list_display = ['id', 'client', 'amount', 'paid_currency', 'status', 'payment_date']
+    list_filter = ['status', 'paid_currency']
     search_fields = ['id', 'client__email', 'client__first_name']
     raw_id_fields = ['client', 'client_package']
     readonly_fields = ['payment_date']

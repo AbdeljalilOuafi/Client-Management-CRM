@@ -7,14 +7,40 @@ from .models import (
 from stripe_integration.models import StripeApiKey
 
 
+def get_request_account_id(request):
+    """
+    Helper function to get account_id from request for both regular employees
+    and master token users. For master token users, reads from X-Account-ID header.
+    """
+    user = request.user
+    if getattr(user, 'is_master_token', False):
+        # For master token users, get account_id from header
+        account_id_header = request.headers.get('X-Account-ID')
+        if account_id_header:
+            try:
+                return int(account_id_header)
+            except ValueError:
+                pass
+        # If account_id was already set on the user (by mixin), use that
+        if hasattr(user, '_account_id') and user._account_id is not None:
+            return user._account_id
+        return None
+    else:
+        # Regular employee
+        return getattr(user, 'account_id', None)
+
+
 class AccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = Account
         fields = ['id', 'name', 'email', 'ceo_name', 'niche', 'location', 'website_url',
                   'date_joined', 'created_at', 'updated_at', 'timezone', 'forms_domain',
-                  'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at']
+                  'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at',
+                  'payment_domain', 'payment_domain_verified', 'payment_domain_configured', 
+                  'payment_domain_added_at']
         read_only_fields = ['id', 'date_joined', 'created_at', 'updated_at', 
-                           'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at']
+                           'forms_domain_verified', 'forms_domain_configured', 'forms_domain_added_at',
+                           'payment_domain_verified', 'payment_domain_configured', 'payment_domain_added_at']
     
     def validate_forms_domain(self, value):
         """Validate custom forms domain format"""
@@ -34,6 +60,28 @@ class AccountSerializer(serializers.ModelSerializer):
         if value.startswith('http://') or value.startswith('https://'):
             raise serializers.ValidationError(
                 "Domain should not include protocol (http:// or https://). Use format: check.gymname.com"
+            )
+        
+        return value.lower()  # Normalize to lowercase
+    
+    def validate_payment_domain(self, value):
+        """Validate custom payment domain format"""
+        if not value:
+            return value
+        
+        # Basic domain format validation (subdomain.domain.tld)
+        import re
+        domain_pattern = r'^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}$'
+        
+        if not re.match(domain_pattern, value):
+            raise serializers.ValidationError(
+                "Invalid domain format. Expected format: subdomain.domain.com (e.g., pay.gymname.com)"
+            )
+        
+        # Ensure no protocol prefix
+        if value.startswith('http://') or value.startswith('https://'):
+            raise serializers.ValidationError(
+                "Domain should not include protocol (http:// or https://). Use format: pay.gymname.com"
             )
         
         return value.lower()  # Normalize to lowercase
@@ -93,11 +141,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'can_view_all_payments', 'can_manage_all_payments',
             'can_view_all_installments', 'can_manage_all_installments'
         ]
-        read_only_fields = ['id', 'last_login', 'account_name', 'custom_role_names', 
+        read_only_fields = ['id', 'account', 'last_login', 'account_name', 'custom_role_names', 
                             'custom_role_colors', 'display_role']
         extra_kwargs = {
             'password': {'write_only': True},
-            'account': {'required': False}
         }
     
     def get_custom_role_names(self, obj):
@@ -112,10 +159,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password', None)
         custom_roles = validated_data.pop('custom_roles', [])
         
-        # Set account from request user if not provided
-        if 'account' not in validated_data:
-            validated_data['account'] = self.context['request'].user.account
-        
+        # Account is set by the ViewSet via perform_create() using account_id kwarg
+        # This supports both regular employees and master token users
         employee = Employee(**validated_data)
         if password:
             employee.set_password(password)
@@ -179,9 +224,8 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password')
         custom_roles = validated_data.pop('custom_roles', [])
         
-        # Set account from request user
-        validated_data['account'] = self.context['request'].user.account
-        
+        # Account is set by the ViewSet via perform_create() using account_id kwarg
+        # This supports both regular employees and master token users
         employee = Employee(**validated_data)
         employee.set_password(password)
         employee.save()
@@ -242,32 +286,34 @@ class ClientSerializer(serializers.ModelSerializer):
             'status', 'address', 'instagram_handle', 'ghl_id', 'coaching_app_id',
             'trz_id', 'client_start_date', 'client_end_date', 'dob', 'country',
             'state', 'currency', 'gender', 'lead_origin', 'notice_given',
-            'no_more_payments', 'timezone', 'coach', 'coach_name', 'closer',
-            'closer_name', 'setter', 'setter_name', 'checkin_link', 'short_checkin_link'
+            'no_more_payments', 'timezone', 'phone', 'assigned_coach', 'notes',
+            'coach', 'coach_name', 'closer', 'closer_name', 'setter', 'setter_name',
+            'checkin_link', 'short_checkin_link'
         ]
-        read_only_fields = ['id', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
+        read_only_fields = ['id', 'account', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
                            'checkin_link', 'short_checkin_link']
-        extra_kwargs = {
-            'account': {'required': False}
-        }
 
     def create(self, validated_data):
-        # Set account from request user
-        validated_data['account'] = self.context['request'].user.account
+        # Account is set by the ViewSet via perform_create() using account_id kwarg
+        # This is especially important for master token users where account is resolved dynamically
+        # Note: account_id kwarg from save() is added to validated_data by DRF automatically
         return super().create(validated_data)
 
     def validate_coach(self, value):
-        if value and value.account_id != self.context['request'].user.account_id:
+        account_id = get_request_account_id(self.context['request'])
+        if value and account_id and value.account_id != account_id:
             raise serializers.ValidationError("Coach must belong to your account.")
         return value
 
     def validate_closer(self, value):
-        if value and value.account_id != self.context['request'].user.account_id:
+        account_id = get_request_account_id(self.context['request'])
+        if value and account_id and value.account_id != account_id:
             raise serializers.ValidationError("Closer must belong to your account.")
         return value
 
     def validate_setter(self, value):
-        if value and value.account_id != self.context['request'].user.account_id:
+        account_id = get_request_account_id(self.context['request'])
+        if value and account_id and value.account_id != account_id:
             raise serializers.ValidationError("Setter must belong to your account.")
         return value
 
@@ -278,7 +324,7 @@ class PackageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Package
         fields = ['id', 'account', 'account_name', 'package_name', 'description']
-        read_only_fields = ['id', 'account_name']
+        read_only_fields = ['id', 'account', 'account_name']
 
 
 class ClientPackageSerializer(serializers.ModelSerializer):
@@ -298,7 +344,8 @@ class ClientPackageSerializer(serializers.ModelSerializer):
 
     def validate_client(self, value):
         # Ensure client belongs to user's account
-        if value.account_id != self.context['request'].user.account_id:
+        account_id = get_request_account_id(self.context['request'])
+        if account_id and value.account_id != account_id:
             raise serializers.ValidationError("Client must belong to your account.")
         return value
 
@@ -314,19 +361,10 @@ class PaymentSerializer(serializers.ModelSerializer):
             'stripe_customer_id', 'amount', 'paid_currency', 'company_currency_amount',
             'exchange_rate', 'native_account_currency', 'status', 'failure_reason', 'payment_date'
         ]
-        read_only_fields = ['id', 'account_name', 'client_name']
-        extra_kwargs = {
-            'account': {'required': False}
-        }
+        read_only_fields = ['id', 'account', 'account_name', 'client_name']
 
     def get_client_name(self, obj):
         return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()
-    
-    def create(self, validated_data):
-        # Automatically set account from client if not provided
-        if 'account' not in validated_data and 'client' in validated_data:
-            validated_data['account'] = validated_data['client'].account
-        return super().create(validated_data)
 
 
 class InstallmentSerializer(serializers.ModelSerializer):
@@ -336,23 +374,14 @@ class InstallmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Installment
         fields = [
-            'id', 'account', 'account_name', 'client', 'client_name', 'invoice_id',
-            'stripe_customer_id', 'stripe_account', 'amount', 'currency', 'status',
-            'instalment_number', 'schedule_date', 'date_created', 'date_updated'
+            'id', 'account', 'account_name', 'client', 'client_name', 'client_package',
+            'invoice_id', 'stripe_customer_id', 'stripe_account', 'amount', 'currency',
+            'status', 'instalment_number', 'schedule_date', 'date_created', 'date_updated'
         ]
-        read_only_fields = ['id', 'account_name', 'client_name', 'date_created', 'date_updated']
-        extra_kwargs = {
-            'account': {'required': False}
-        }
+        read_only_fields = ['id', 'account', 'account_name', 'client_name', 'date_created', 'date_updated']
 
     def get_client_name(self, obj):
         return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()
-    
-    def create(self, validated_data):
-        # Automatically set account from client if not provided
-        if 'account' not in validated_data and 'client' in validated_data:
-            validated_data['account'] = validated_data['client'].account
-        return super().create(validated_data)
 
 
 class StripeCustomerSerializer(serializers.ModelSerializer):
@@ -365,7 +394,7 @@ class StripeCustomerSerializer(serializers.ModelSerializer):
             'stripe_customer_id', 'account', 'stripe_account', 'stripe_account_name',
             'client', 'client_name', 'email', 'status'
         ]
-        read_only_fields = ['stripe_customer_id', 'stripe_account_name', 'client_name']
+        read_only_fields = ['stripe_customer_id', 'account', 'stripe_account_name', 'client_name']
 
     def get_client_name(self, obj):
         return f"{obj.client.first_name} {obj.client.last_name or ''}".strip()
@@ -420,11 +449,15 @@ class CheckInScheduleSerializer(serializers.ModelSerializer):
 
 
 class CheckInFormSerializer(serializers.ModelSerializer):
-    """Serializer for check-in forms"""
-    package_name = serializers.CharField(source='package.package_name', read_only=True)
+    """Serializer for forms (checkin, onboarding, reviews)"""
+    package_name = serializers.SerializerMethodField()
     account_name = serializers.CharField(source='account.name', read_only=True)
     schedule = CheckInScheduleSerializer(read_only=True)
     submission_count = serializers.SerializerMethodField()
+    form_type_display = serializers.CharField(source='get_form_type_display', read_only=True)
+    
+    # Explicitly declare form_type to override model's default and make it required
+    form_type = serializers.ChoiceField(choices=CheckInForm.FORM_TYPE_CHOICES, required=True)
     
     # Nested write for schedule creation
     schedule_data = CheckInScheduleSerializer(write_only=True, required=False)
@@ -433,35 +466,86 @@ class CheckInFormSerializer(serializers.ModelSerializer):
         model = CheckInForm
         fields = [
             'id', 'account', 'account_name', 'package', 'package_name',
+            'form_type', 'form_type_display',
             'title', 'description', 'form_schema', 'is_active',
             'schedule', 'schedule_data', 'submission_count',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'account', 'account_name', 'package_name', 
-                           'schedule', 'submission_count', 'created_at', 'updated_at']
+                           'form_type_display', 'schedule', 'submission_count', 
+                           'created_at', 'updated_at']
+        extra_kwargs = {
+            'package': {'required': False, 'allow_null': True},
+        }
+    
+    def get_package_name(self, obj):
+        """Return package name or None if unassigned"""
+        return obj.package.package_name if obj.package else None
     
     def get_submission_count(self, obj):
         """Return total number of submissions for this form"""
         return obj.submissions.count()
     
     def validate_package(self, value):
-        """Ensure package belongs to user's account and doesn't have existing form"""
+        """Ensure package belongs to user's account"""
+        if value is None:
+            return value
+            
         request = self.context.get('request')
         if not request:
             return value
         
         # Check package belongs to same account
-        if value.account_id != request.user.account_id:
+        account_id = get_request_account_id(request)
+        if account_id and value.account_id != account_id:
             raise serializers.ValidationError("Package must belong to your account.")
         
-        # Check if form already exists for this package (for create only)
-        if not self.instance and hasattr(value, 'checkin_form'):
-            raise serializers.ValidationError(
-                f"A check-in form already exists for package '{value.package_name}'. "
-                "Each package can only have one form."
-            )
-        
         return value
+    
+    def validate_form_type(self, value):
+        """Validate form_type is one of the allowed choices"""
+        valid_types = ['checkins', 'onboarding', 'reviews']
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                f"Invalid form type '{value}'. Must be one of: {', '.join(valid_types)}"
+            )
+        return value
+    
+    def validate(self, data):
+        """
+        Cross-field validation to ensure:
+        - Package doesn't already have a form of this type (for create/update)
+        """
+        package = data.get('package')
+        form_type = data.get('form_type')
+        
+        # Skip validation if no package is assigned
+        if package is None:
+            return data
+        
+        # Get account_id for the query
+        request = self.context.get('request')
+        account_id = get_request_account_id(request) if request else None
+        
+        # Build query to check for existing form of same type on this package
+        existing_query = CheckInForm.objects.filter(
+            package=package,
+            form_type=form_type
+        )
+        
+        # If updating, exclude current instance from check
+        if self.instance:
+            existing_query = existing_query.exclude(id=self.instance.id)
+        
+        if existing_query.exists():
+            existing_form = existing_query.first()
+            form_type_display = dict(CheckInForm.FORM_TYPE_CHOICES).get(form_type, form_type)
+            raise serializers.ValidationError({
+                'package': f"Package '{package.package_name}' already has a {form_type_display} form "
+                          f"('{existing_form.title}'). Each package can only have one form of each type."
+            })
+        
+        return data
     
     def validate_form_schema(self, value):
         """Validate form schema is valid JSON and has required structure"""
@@ -478,8 +562,8 @@ class CheckInFormSerializer(serializers.ModelSerializer):
         """Create form and optionally create schedule"""
         schedule_data = validated_data.pop('schedule_data', None)
         
-        # Set account from request user
-        validated_data['account'] = self.context['request'].user.account
+        # Account is set by the ViewSet via perform_create() using account_id kwarg
+        # This supports both regular employees and master token users
         
         # Create form
         form = super().create(validated_data)

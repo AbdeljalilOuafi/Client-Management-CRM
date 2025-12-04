@@ -19,7 +19,7 @@ class StripeApiKeySerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'account_name', 
-                           'stripe_account', 'stripe_client_id', 'api_key']
+                           'stripe_account', 'stripe_client_id']
         extra_kwargs = {
             'api_key': {'write_only': True},  # Don't expose in responses
         }
@@ -37,3 +37,21 @@ class StripeApiKeySerializer(serializers.ModelSerializer):
                 )
         
         return value
+    
+    def validate(self, attrs):
+        """
+        Cross-field validation to prevent deactivating primary accounts.
+        Business rule: Primary accounts must remain active.
+        """
+        # Check if we're updating an existing instance
+        if self.instance:
+            is_active = attrs.get('is_active', self.instance.is_active)
+            is_primary = attrs.get('is_primary', self.instance.is_primary)
+            
+            # Prevent setting is_active=False if is_primary=True
+            if is_primary and not is_active:
+                raise serializers.ValidationError({
+                    'is_active': 'Cannot deactivate primary Stripe account. Set another account as primary first.'
+                })
+        
+        return attrs
