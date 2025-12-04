@@ -625,8 +625,8 @@ class CheckInForm(models.Model):
     form_type = models.CharField(
         max_length=20, 
         choices=FORM_TYPE_CHOICES, 
-        default='checkin',
-        help_text='Type of form: checkin, onboarding, or reviews'
+        default='checkins',
+        help_text='Type of form: checkins, onboarding, or reviews'
     )
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
