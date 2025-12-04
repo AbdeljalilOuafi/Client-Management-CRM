@@ -1369,12 +1369,15 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                 create_schedule_webhooks(form.schedule)
                 logger.info(f"Created webhooks for Form {form.id} (type: {form.form_type})")
                 
-                # If no package is assigned, immediately cancel the webhooks
+                # If no package is assigned, immediately cancel the webhooks and deactivate schedule
                 # They will be activated when a package is assigned later
                 if form.package is None:
                     try:
                         cancel_schedule_webhooks(form.schedule)
-                        logger.info(f"Canceled webhooks for unassigned Form {form.id} (will activate when package assigned)")
+                        # Also set schedule to inactive to keep in sync with webhook state
+                        form.schedule.is_active = False
+                        form.schedule.save(update_fields=['is_active'])
+                        logger.info(f"Canceled webhooks and deactivated schedule for unassigned Form {form.id} (will activate when package assigned)")
                     except Exception as e:
                         logger.error(f"Failed to cancel webhooks for unassigned Form {form.id}: {str(e)}")
                         
@@ -1419,33 +1422,45 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                 # Package was assigned to a form that didn't have one - activate webhooks
                 try:
                     activate_schedule_webhooks(form.schedule)
-                    logger.info(f"Activated webhooks for Form {form.id} after package assignment")
+                    # Also update schedule is_active to keep in sync
+                    form.schedule.is_active = True
+                    form.schedule.save(update_fields=['is_active'])
+                    logger.info(f"Activated webhooks and schedule for Form {form.id} after package assignment")
                 except Exception as e:
                     logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
             
             elif package_removed:
-                # Package was removed - cancel webhooks
+                # Package was removed - cancel webhooks and deactivate schedule
                 try:
                     cancel_schedule_webhooks(form.schedule)
-                    logger.info(f"Canceled webhooks for Form {form.id} after package removal")
+                    # Also update schedule is_active to keep in sync
+                    form.schedule.is_active = False
+                    form.schedule.save(update_fields=['is_active'])
+                    logger.info(f"Canceled webhooks and deactivated schedule for Form {form.id} after package removal")
                 except Exception as e:
                     logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
             
             # Priority 2: is_active changes (only if package is assigned)
             elif not package_is_null:
                 if old_is_active and not new_is_active:
-                    # Form was deactivated - cancel webhooks
+                    # Form was deactivated - cancel webhooks and update schedule status
                     try:
                         cancel_schedule_webhooks(form.schedule)
-                        logger.info(f"Canceled webhooks for deactivated Form {form.id}")
+                        # Also update schedule is_active to keep in sync
+                        form.schedule.is_active = False
+                        form.schedule.save(update_fields=['is_active'])
+                        logger.info(f"Canceled webhooks and deactivated schedule for Form {form.id}")
                     except Exception as e:
                         logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
                 
                 elif not old_is_active and new_is_active:
-                    # Form was reactivated - activate webhooks
+                    # Form was reactivated - activate webhooks and update schedule status
                     try:
                         activate_schedule_webhooks(form.schedule)
-                        logger.info(f"Activated webhooks for reactivated Form {form.id}")
+                        # Also update schedule is_active to keep in sync
+                        form.schedule.is_active = True
+                        form.schedule.save(update_fields=['is_active'])
+                        logger.info(f"Activated webhooks and reactivated schedule for Form {form.id}")
                     except Exception as e:
                         logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
 
