@@ -7,6 +7,7 @@ from .views import (
     CheckInFormViewSet, CheckInScheduleViewSet, CheckInSubmissionViewSet,
     checkin_trigger_webhook, get_checkin_form, submit_checkin_form,
     get_onboarding_form, submit_onboarding_form,
+    reviews_trigger_webhook, get_reviews_form, submit_reviews_form,
     configure_custom_domain, regenerate_client_links, get_domain_config,
     update_domain_config, delete_domain_config,
     configure_payment_domain, get_payment_domain_config,
@@ -30,14 +31,18 @@ router.register(r'checkin-submissions', CheckInSubmissionViewSet, basename='chec
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Internal webhook trigger endpoint
+    # Internal webhook trigger endpoints
     path('internal/checkin-trigger/', checkin_trigger_webhook, name='checkin-trigger'),
+    path('internal/reviews-trigger/', reviews_trigger_webhook, name='reviews-trigger'),
     # Public check-in endpoints
     path('public/checkin/<uuid:checkin_uuid>/', get_checkin_form, name='public-checkin-form'),
     path('public/checkin/<uuid:checkin_uuid>/submit/', submit_checkin_form, name='public-checkin-submit'),
     # Public onboarding endpoints
     path('public/onboarding/<uuid:onboarding_uuid>/', get_onboarding_form, name='public-onboarding-form'),
     path('public/onboarding/<uuid:onboarding_uuid>/submit/', submit_onboarding_form, name='public-onboarding-submit'),
+    # Public reviews endpoints
+    path('public/reviews/<uuid:reviews_uuid>/', get_reviews_form, name='public-reviews-form'),
+    path('public/reviews/<uuid:reviews_uuid>/submit/', submit_reviews_form, name='public-reviews-submit'),
     # Custom domain management endpoints
     path('domains/configure/', configure_custom_domain, name='configure-domain'),
     path('domains/regenerate-links/', regenerate_client_links, name='regenerate-links'),

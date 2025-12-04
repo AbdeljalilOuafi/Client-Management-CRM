@@ -435,22 +435,25 @@ class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        Ensure account is set and generate onboarding link if applicable.
+        Ensure account is set and generate form links if applicable.
         
         After client creation:
         1. Check if client has an active ClientPackage
-        2. If yes, check if there's an active onboarding form for that package
-        3. If yes, generate the onboarding short link
+        2. If yes, check for active onboarding/reviews forms for that package
+        3. If forms exist, generate the appropriate short links
         """
         from api.models import ClientPackage, CheckInForm
-        from api.utils.client_link_service import get_or_generate_onboarding_short_link
+        from api.utils.client_link_service import (
+            get_or_generate_onboarding_short_link,
+            get_or_generate_reviews_short_link
+        )
         import logging
         
         logger = logging.getLogger(__name__)
         
         client = serializer.save(account_id=self.get_resolved_account_id())
         
-        # Try to generate onboarding link if applicable
+        # Try to generate form links if applicable
         try:
             # Check if client has an active package
             client_package = ClientPackage.objects.filter(
@@ -459,7 +462,7 @@ class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
             ).select_related('package').first()
             
             if client_package:
-                # Check if there's an active onboarding form for this package
+                # Check for active onboarding form
                 onboarding_form = CheckInForm.objects.filter(
                     package=client_package.package,
                     form_type='onboarding',
@@ -467,16 +470,24 @@ class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                 ).first()
                 
                 if onboarding_form:
-                    # Generate onboarding link
                     get_or_generate_onboarding_short_link(client)
                     logger.info(f"Generated onboarding link for new client {client.id}")
-                else:
-                    logger.debug(f"No active onboarding form for client {client.id}'s package, skipping link generation")
+                
+                # Check for active reviews form
+                reviews_form = CheckInForm.objects.filter(
+                    package=client_package.package,
+                    form_type='reviews',
+                    is_active=True
+                ).first()
+                
+                if reviews_form:
+                    get_or_generate_reviews_short_link(client)
+                    logger.info(f"Generated reviews link for new client {client.id}")
             else:
-                logger.debug(f"No active package for client {client.id}, skipping onboarding link generation")
+                logger.debug(f"No active package for client {client.id}, skipping form link generation")
         except Exception as e:
-            # Don't fail client creation if onboarding link generation fails
-            logger.error(f"Failed to generate onboarding link for client {client.id}: {str(e)}")
+            # Don't fail client creation if link generation fails
+            logger.error(f"Failed to generate form links for client {client.id}: {str(e)}")
 
     @action(detail=False, methods=['get'])
     def my_clients(self, request):
@@ -1437,6 +1448,17 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
             except Exception as e:
                 logger.error(f"Failed to populate onboarding links for package {form.package.id}: {str(e)}")
                 # Don't fail form creation
+        
+        # If this is a reviews form with a package, populate reviews links for existing clients
+        if form.form_type == 'reviews' and form.package is not None:
+            from .utils.client_link_service import populate_reviews_links_for_package
+            try:
+                stats = populate_reviews_links_for_package(form.package)
+                logger.info(f"Populated reviews links for package {form.package.id}: "
+                           f"{stats['success_count']}/{stats['total_count']} clients")
+            except Exception as e:
+                logger.error(f"Failed to populate reviews links for package {form.package.id}: {str(e)}")
+                # Don't fail form creation
 
     def perform_update(self, serializer):
         """
@@ -1868,6 +1890,164 @@ def checkin_trigger_webhook(request):
         )
 
 
+# ===================== Internal Reviews Webhook Trigger =====================
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reviews_trigger_webhook(request):
+    """
+    Internal webhook endpoint that receives triggers from external scheduler for reviews.
+    Validates X-Webhook-Secret header, queries clients based on schedule_id,
+    and pushes client batch to n8n for email sending.
+    
+    For weekly schedules, checks if enough weeks have passed since last trigger.
+    
+    POST /api/internal/reviews-trigger/
+    Headers:
+        X-Webhook-Secret: <webhook_secret>
+    Body:
+        {
+            "schedule_id": "uuid"
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Validate webhook secret
+    webhook_secret = request.headers.get('X-Webhook-Secret') or request.data.get('webhook_secret')
+    if webhook_secret != settings.WEBHOOK_SECRET:
+        logger.warning(f"Invalid webhook secret received from {request.META.get('REMOTE_ADDR')}")
+        return Response(
+            {'error': 'Invalid webhook secret'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    schedule_id = request.data.get('schedule_id')
+    
+    if not schedule_id:
+        return Response(
+            {'error': 'schedule_id is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Get the schedule
+        schedule = CheckInSchedule.objects.select_related('form', 'form__package', 'account').get(id=schedule_id)
+        
+        # Verify schedule is active
+        if not schedule.is_active or not schedule.form.is_active:
+            logger.info(f"Skipping inactive reviews schedule {schedule_id}")
+            return Response({'status': 'Schedule is inactive, no emails sent'})
+        
+        # For weekly schedules, check if enough weeks have passed
+        if schedule.interval_type == 'weekly' and schedule.last_triggered_at:
+            from django.utils import timezone as dj_timezone
+            now = dj_timezone.now()
+            weeks_since = (now - schedule.last_triggered_at).days // 7
+            
+            if weeks_since < schedule.interval_count:
+                logger.info(f"Skipping weekly reviews schedule {schedule_id}: "
+                           f"only {weeks_since} weeks since last trigger, need {schedule.interval_count}")
+                return Response({
+                    'status': 'Skipped - interval not reached',
+                    'weeks_since_last': weeks_since,
+                    'interval_required': schedule.interval_count
+                })
+        
+        # Query clients with active packages matching the form's package
+        client_packages = ClientPackage.objects.filter(
+            package=schedule.form.package,
+            status='active',
+            client__account_id=schedule.account_id
+        ).select_related('client')
+        
+        # Build client list for n8n
+        from .utils.client_link_service import get_or_generate_reviews_short_link
+        
+        clients_data = []
+        for cp in client_packages:
+            client = cp.client
+            
+            # Get or generate shortened reviews link with custom domain support
+            reviews_url = get_or_generate_reviews_short_link(client)
+            
+            clients_data.append({
+                'email': client.email,
+                'first_name': client.first_name,
+                'last_name': client.last_name,
+                'reviews_link': reviews_url,
+                'form_title': schedule.form.title,
+                'form_description': schedule.form.description or ''
+            })
+        
+        if not clients_data:
+            logger.info(f"No clients found for reviews schedule {schedule_id}")
+            return Response({
+                'status': 'No clients found',
+                'schedule_id': str(schedule_id),
+                'clients_count': 0
+            })
+        
+        # Push to n8n webhook (use reviews-specific URL if configured, else fallback)
+        n8n_url = getattr(settings, 'N8N_REVIEWS_WEBHOOK_URL', None) or settings.N8N_CHECKIN_WEBHOOK_URL
+        if not n8n_url:
+            logger.error("N8N webhook URL not configured")
+            return Response(
+                {'error': 'n8n webhook URL not configured'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        n8n_headers = {
+            'Content-Type': 'application/json',
+            'X-N8N-Secret': settings.N8N_WEBHOOK_SECRET
+        }
+        
+        n8n_payload = {
+            'clients': clients_data,
+            'schedule_id': str(schedule_id),
+            'form_type': 'reviews',
+            'triggered_at': datetime.utcnow().isoformat()
+        }
+        
+        try:
+            n8n_response = requests.post(n8n_url, json=n8n_payload, headers=n8n_headers, timeout=10)
+            n8n_response.raise_for_status()
+            
+            # Update last_triggered_at for weekly interval tracking
+            from django.utils import timezone as dj_timezone
+            schedule.last_triggered_at = dj_timezone.now()
+            schedule.save(update_fields=['last_triggered_at'])
+            
+            logger.info(f"Successfully pushed {len(clients_data)} clients to n8n for reviews schedule {schedule_id}")
+            
+            return Response({
+                'status': 'success',
+                'schedule_id': str(schedule_id),
+                'clients_count': len(clients_data),
+                'n8n_status': n8n_response.status_code
+            })
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to push to n8n: {str(e)}")
+            return Response(
+                {'error': f'Failed to push to n8n: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    except CheckInSchedule.DoesNotExist:
+        logger.error(f"Reviews schedule {schedule_id} not found")
+        return Response(
+            {'error': 'Schedule not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in reviews_trigger_webhook: {str(e)}")
+        return Response(
+            {'error': f'Internal server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 # ===================== Public Check-In Endpoints =====================
 
 @api_view(['GET'])
@@ -2210,6 +2390,181 @@ def submit_onboarding_form(request, onboarding_uuid):
     
     except Exception as e:
         logger.error(f"Error in submit_onboarding_form: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ===================== Public Reviews Endpoints =====================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_reviews_form(request, reviews_uuid):
+    """
+    Public endpoint to retrieve reviews form by client's reviews_link UUID.
+    
+    GET /api/public/reviews/{uuid}/
+    
+    Returns:
+        {
+            "client": {
+                "first_name": "John",
+                "last_name": "Doe",
+                "email": "john@example.com"
+            },
+            "form": {
+                "id": "uuid",
+                "title": "Customer Satisfaction Review",
+                "description": "...",
+                "form_schema": {...}
+            },
+            "package": {
+                "package_name": "Premium Package"
+            }
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Look up client by reviews_link
+        client = Client.objects.get(reviews_link=reviews_uuid)
+        
+        # Get active package for client
+        try:
+            client_package = ClientPackage.objects.select_related('package').get(
+                client=client,
+                status='active'
+            )
+        except ClientPackage.DoesNotExist:
+            return Response(
+                {'error': 'No active package found for this client'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get reviews form for this package
+        try:
+            form = CheckInForm.objects.get(
+                package=client_package.package,
+                form_type='reviews',
+                is_active=True
+            )
+        except CheckInForm.DoesNotExist:
+            return Response(
+                {'error': 'No reviews form available for your package'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Return form data
+        return Response({
+            'client': {
+                'first_name': client.first_name,
+                'last_name': client.last_name,
+                'email': client.email
+            },
+            'form': {
+                'id': str(form.id),
+                'title': form.title,
+                'description': form.description or '',
+                'form_schema': form.form_schema
+            },
+            'package': {
+                'package_name': client_package.package.package_name
+            }
+        })
+    
+    except Client.DoesNotExist:
+        logger.warning(f"Invalid reviews_link: {reviews_uuid}")
+        return Response(
+            {'error': 'Invalid reviews link'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in get_reviews_form: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def submit_reviews_form(request, reviews_uuid):
+    """
+    Public endpoint to submit reviews form response.
+    
+    POST /api/public/reviews/{uuid}/submit/
+    Body:
+        {
+            "submission_data": {...}  # JSON matching form_schema structure
+        }
+    """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Look up client by reviews_link
+        client = Client.objects.get(reviews_link=reviews_uuid)
+        
+        # Get active package for client
+        try:
+            client_package = ClientPackage.objects.select_related('package').get(
+                client=client,
+                status='active'
+            )
+        except ClientPackage.DoesNotExist:
+            return Response(
+                {'error': 'No active package found for this client'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Get reviews form for this package
+        try:
+            form = CheckInForm.objects.get(
+                package=client_package.package,
+                form_type='reviews',
+                is_active=True
+            )
+        except CheckInForm.DoesNotExist:
+            return Response(
+                {'error': 'No reviews form available for your package'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate submission_data
+        submission_data = request.data.get('submission_data')
+        if not submission_data or not isinstance(submission_data, dict):
+            return Response(
+                {'error': 'submission_data must be a non-empty JSON object'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create submission
+        submission = CheckInSubmission.objects.create(
+            form=form,
+            client=client,
+            account_id=client.account_id,
+            submission_data=submission_data,
+            submitted_at=datetime.utcnow()
+        )
+        
+        logger.info(f"Client {client.id} submitted reviews form {form.id}")
+        
+        return Response({
+            'status': 'success',
+            'submission_id': str(submission.id),
+            'submitted_at': submission.submitted_at.isoformat()
+        }, status=status.HTTP_201_CREATED)
+    
+    except Client.DoesNotExist:
+        logger.warning(f"Invalid reviews_link: {reviews_uuid}")
+        return Response(
+            {'error': 'Invalid reviews link'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    
+    except Exception as e:
+        logger.error(f"Error in submit_reviews_form: {str(e)}")
         return Response(
             {'error': 'Internal server error'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
