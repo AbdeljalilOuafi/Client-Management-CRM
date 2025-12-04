@@ -1331,17 +1331,17 @@ class StripeCustomerViewSet(AccountResolutionMixin, viewsets.ReadOnlyModelViewSe
 
 class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
-    ViewSet for managing Check-In Forms.
-    All authenticated account members can CRUD check-in forms.
+    ViewSet for managing Forms (checkin, onboarding, reviews).
+    All authenticated account members can CRUD forms.
     Master token users can access any account via X-Account-ID header.
     """
     queryset = CheckInForm.objects.all()
     serializer_class = CheckInFormSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['package', 'is_active']
+    filterset_fields = ['package', 'form_type', 'is_active']
     search_fields = ['title', 'description', 'package__package_name']
-    ordering_fields = ['created_at', 'title']
+    ordering_fields = ['created_at', 'title', 'form_type']
     ordering = ['-created_at']
 
     def get_queryset(self):
@@ -1351,8 +1351,11 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         ).select_related('account', 'package', 'schedule')
 
     def perform_create(self, serializer):
-        """Auto-set account and create webhook schedules"""
-        from .utils.webhook_scheduler import create_schedule_webhooks
+        """
+        Auto-set account and create webhook schedules.
+        If no package is assigned, webhooks are created but immediately canceled (inactive).
+        """
+        from .utils.webhook_scheduler import create_schedule_webhooks, cancel_schedule_webhooks
         import logging
         
         logger = logging.getLogger(__name__)
@@ -1364,14 +1367,30 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         if hasattr(form, 'schedule') and form.schedule:
             try:
                 create_schedule_webhooks(form.schedule)
-                logger.info(f"Created webhooks for CheckInForm {form.id}")
+                logger.info(f"Created webhooks for Form {form.id} (type: {form.form_type})")
+                
+                # If no package is assigned, immediately cancel the webhooks
+                # They will be activated when a package is assigned later
+                if form.package is None:
+                    try:
+                        cancel_schedule_webhooks(form.schedule)
+                        logger.info(f"Canceled webhooks for unassigned Form {form.id} (will activate when package assigned)")
+                    except Exception as e:
+                        logger.error(f"Failed to cancel webhooks for unassigned Form {form.id}: {str(e)}")
+                        
             except Exception as e:
-                logger.error(f"Failed to create webhooks for CheckInForm {form.id}: {str(e)}")
+                logger.error(f"Failed to create webhooks for Form {form.id}: {str(e)}")
                 # Don't fail the form creation, just log the error
                 # Admin can manually recreate webhooks later
 
     def perform_update(self, serializer):
-        """Handle is_active changes - cancel/activate webhooks accordingly"""
+        """
+        Handle is_active and package changes - manage webhook states accordingly.
+        - Package null -> assigned: activate webhooks
+        - Package assigned -> null: cancel webhooks  
+        - is_active true -> false: cancel webhooks
+        - is_active false -> true: activate webhooks (only if package assigned)
+        """
         from .utils.webhook_scheduler import cancel_schedule_webhooks, activate_schedule_webhooks
         import logging
         
@@ -1380,28 +1399,55 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         # Get the current state before update
         instance = self.get_object()
         old_is_active = instance.is_active
+        old_package = instance.package
         
         # Save the updated form
         form = serializer.save()
         new_is_active = form.is_active
+        new_package = form.package
         
-        # Handle is_active changes if form has a schedule
+        # Handle changes if form has a schedule
         if hasattr(form, 'schedule') and form.schedule:
-            if old_is_active and not new_is_active:
-                # Form was deactivated - cancel webhooks
-                try:
-                    cancel_schedule_webhooks(form.schedule)
-                    logger.info(f"Canceled webhooks for deactivated CheckInForm {form.id}")
-                except Exception as e:
-                    logger.error(f"Failed to cancel webhooks for CheckInForm {form.id}: {str(e)}")
+            # Track if package assignment changed
+            package_was_null = old_package is None
+            package_is_null = new_package is None
+            package_assigned = package_was_null and not package_is_null
+            package_removed = not package_was_null and package_is_null
             
-            elif not old_is_active and new_is_active:
-                # Form was reactivated - activate webhooks
+            # Priority 1: Package assignment changes
+            if package_assigned and new_is_active:
+                # Package was assigned to a form that didn't have one - activate webhooks
                 try:
                     activate_schedule_webhooks(form.schedule)
-                    logger.info(f"Activated webhooks for reactivated CheckInForm {form.id}")
+                    logger.info(f"Activated webhooks for Form {form.id} after package assignment")
                 except Exception as e:
-                    logger.error(f"Failed to activate webhooks for CheckInForm {form.id}: {str(e)}")
+                    logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
+            
+            elif package_removed:
+                # Package was removed - cancel webhooks
+                try:
+                    cancel_schedule_webhooks(form.schedule)
+                    logger.info(f"Canceled webhooks for Form {form.id} after package removal")
+                except Exception as e:
+                    logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
+            
+            # Priority 2: is_active changes (only if package is assigned)
+            elif not package_is_null:
+                if old_is_active and not new_is_active:
+                    # Form was deactivated - cancel webhooks
+                    try:
+                        cancel_schedule_webhooks(form.schedule)
+                        logger.info(f"Canceled webhooks for deactivated Form {form.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
+                
+                elif not old_is_active and new_is_active:
+                    # Form was reactivated - activate webhooks
+                    try:
+                        activate_schedule_webhooks(form.schedule)
+                        logger.info(f"Activated webhooks for reactivated Form {form.id}")
+                    except Exception as e:
+                        logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
 
     def perform_destroy(self, instance):
         """Delete webhook schedules before deleting form"""
