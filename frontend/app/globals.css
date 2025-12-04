@@ -42,6 +42,10 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
+    /* Hover states - Global FitHQ hover colors */
+    --hover-primary: 20 45% 97%; /* Very light copper for primary hover */
+    --hover-secondary: 20 40% 95%; /* Light beige for secondary hover */
+
     /* Sidebar with FitHQ branding */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 0 0% 23.5%;
@@ -84,6 +88,10 @@ All colors MUST be HSL.
     --border: 20 20% 25%; /* Copper-tinted border for dark mode */
     --input: 0 0% 20%;
     --ring: 20 60% 70%;
+
+    /* Hover states - Global FitHQ hover colors for dark mode */
+    --hover-primary: 20 60% 15%; /* Subtle copper for dark mode hover */
+    --hover-secondary: 20 40% 18%; /* Light copper-tinted hover */
     
     /* Sidebar dark mode with copper accents */
     --sidebar-background: 0 0% 8%;
@@ -118,6 +126,15 @@ All colors MUST be HSL.
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  /* Global Hover Utilities */
+  .hover-primary {
+    @apply hover:bg-[hsl(var(--hover-primary))] transition-colors;
+  }
+
+  .hover-secondary {
+    @apply hover:bg-[hsl(var(--hover-secondary))] transition-colors;
   }
 
   /* Hide scrollbar for Chrome, Safari and Opera */

@@ -155,7 +155,6 @@ export default function PublicCheckInPage() {
                 type="number"
                 value={value}
                 onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                onWheel={(e) => e.currentTarget.blur()}
                 placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 min={field.min}
                 max={field.max}

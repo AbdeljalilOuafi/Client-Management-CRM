@@ -7,6 +7,9 @@ import { apiFetch } from "./apiClient";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://backend.onsync-test.xyz";
 
+// Form type options - matches backend FORM_TYPE_CHOICES
+export type FormType = "checkins" | "onboarding" | "reviews";
+
 // Types based on API documentation
 export interface CheckInFormField {
   id: string;
@@ -36,21 +39,23 @@ export interface CheckInForm {
   id: string;
   title: string;
   description: string | null;
-  form_type?: "onboarding" | "checkins" | "reviews";
-  package: number;
-  package_name: string;
+  form_type: FormType;
+  form_type_display: string;
+  package: number | null;
+  package_name: string | null;
   form_schema: CheckInFormSchema;
   is_active: boolean;
   created_at: string;
   updated_at: string;
   schedule?: CheckInSchedule;
+  submission_count?: number;
 }
 
 export interface CreateCheckInFormData {
-  package?: number;
   title: string;
+  form_type: FormType;
+  package?: number | null;
   description?: string;
-  form_type?: "onboarding" | "checkins" | "reviews";
   form_schema?: CheckInFormSchema;
   is_active?: boolean;
   schedule_data?: {
@@ -65,6 +70,7 @@ export interface CreateCheckInFormData {
 export interface UpdateCheckInFormData {
   title?: string;
   description?: string;
+  package?: number | null;
   form_schema?: CheckInFormSchema;
   is_active?: boolean;
 }
@@ -76,21 +82,26 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
-/**
- * List all check-in forms with optional filters
- */
-export async function listCheckInForms(params?: {
+// Parameters for listing forms
+export interface ListFormsParams {
   package?: number;
+  form_type?: FormType;
   is_active?: boolean;
   search?: string;
   ordering?: string;
   page?: number;
   page_size?: number;
-}): Promise<PaginatedResponse<CheckInForm>> {
+}
+
+/**
+ * List all check-in forms with optional filters
+ */
+export async function listCheckInForms(params?: ListFormsParams): Promise<PaginatedResponse<CheckInForm>> {
   const queryParams = new URLSearchParams();
   
   if (params) {
     if (params.package !== undefined) queryParams.append("package", params.package.toString());
+    if (params.form_type) queryParams.append("form_type", params.form_type);
     if (params.is_active !== undefined) queryParams.append("is_active", params.is_active.toString());
     if (params.search) queryParams.append("search", params.search);
     if (params.ordering) queryParams.append("ordering", params.ordering);
@@ -151,16 +162,15 @@ export async function toggleFormStatus(formId: string, isActive: boolean): Promi
  * Duplicate a form
  */
 export async function duplicateCheckInForm(formId: string): Promise<CheckInForm> {
-  // First get the form
   const originalForm = await getCheckInForm(formId);
   
-  // Create new form with same data but new title
   const newFormData: CreateCheckInFormData = {
-    package: originalForm.package,
     title: `${originalForm.title} (Copy)`,
+    form_type: originalForm.form_type,
+    package: originalForm.package,
     description: originalForm.description || undefined,
     form_schema: originalForm.form_schema,
-    is_active: false, // Start as inactive
+    is_active: false,
     schedule_data: {
       schedule_type: originalForm.schedule?.schedule_type || "SAME_DAY",
       day_of_week: originalForm.schedule?.schedule_day,

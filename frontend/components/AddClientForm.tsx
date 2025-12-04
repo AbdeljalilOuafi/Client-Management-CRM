@@ -399,6 +399,8 @@ export const AddClientForm = ({ onSuccess }: AddClientFormProps) => {
         generateContract: Boolean(data.generateContract),
         // Include closer ID
         closerId: data.closerId,
+        // Include assigned coach ID
+        coachId: coachId,
         // Include package ID as integer from packages table
         packageId: packageId,
       };

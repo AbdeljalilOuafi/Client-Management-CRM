@@ -11,7 +11,7 @@ interface DeleteFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   formTitle: string;
-  packageName: string;
+  packageName: string | null;
   onConfirmDelete: () => Promise<void>;
 }
 
@@ -75,7 +75,7 @@ export function DeleteFormDialog({
             </div>
             <div className="pt-2 border-t border-border/50">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Package</p>
-              <p className="text-base font-bold text-primary mt-1">{packageName}</p>
+              <p className="text-base font-bold text-primary mt-1">{packageName || "Unassigned"}</p>
             </div>
           </div>
 

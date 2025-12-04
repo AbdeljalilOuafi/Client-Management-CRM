@@ -93,8 +93,10 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
   const [formDescription, setFormDescription] = useState(initialMetadata?.description || "Standard weekly progress check-in");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
+  const [draftQuestion, setDraftQuestion] = useState<Question | null>(null); // Draft state for editing
   const [isLoading, setIsLoading] = useState(mode === "edit");
   const [isSaving, setIsSaving] = useState(false);
+  const sidebarRef = React.useRef<HTMLDivElement>(null);
   
   // Initialize sidebar state from localStorage
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -117,6 +119,35 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
     if (typeof window !== 'undefined') {
       localStorage.setItem('formBuilderSidebarOpen', JSON.stringify(sidebarOpen));
     }
+  }, [sidebarOpen]);
+
+  // Initialize draft question when selecting a question
+  useEffect(() => {
+    if (selectedQuestion) {
+      const question = questions.find(q => q.id === selectedQuestion);
+      if (question) {
+        setDraftQuestion({ ...question });
+      }
+    } else {
+      setDraftQuestion(null);
+    }
+  }, [selectedQuestion]);
+
+  // Handle click outside sidebar to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        // Close sidebar and discard changes
+        setSidebarOpen(false);
+        setSelectedQuestion(null);
+        setDraftQuestion(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [sidebarOpen]);
 
   const fetchFormData = async () => {
@@ -251,10 +282,10 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
           form_schema: { fields },
         });
 
-        toast({
-          title: "Success",
-          description: "Form updated successfully",
-        });
+    toast({
+      title: "Success",
+      description: "Form updated successfully",
+    });
       }
     } catch (error: any) {
       console.error("Failed to save form:", error);
@@ -321,12 +352,34 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
     });
   };
 
-  const handleUpdateQuestion = (updatedQuestion: Question) => {
-    setQuestions(questions.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
+  // Update draft question (not the main state)
+  const handleUpdateDraftQuestion = (updatedQuestion: Question) => {
+    setDraftQuestion(updatedQuestion);
+  };
+
+  // Save the draft to main state
+  const handleSaveEdit = () => {
+    if (draftQuestion) {
+      setQuestions(questions.map(q => q.id === draftQuestion.id ? draftQuestion : q));
+      toast({
+        title: "Success",
+        description: "Question updated successfully",
+      });
+    }
+    setSidebarOpen(false);
+    setSelectedQuestion(null);
+    setDraftQuestion(null);
+  };
+
+  // Cancel editing and discard changes
+  const handleCancelEdit = () => {
+    setSidebarOpen(false);
+    setSelectedQuestion(null);
+    setDraftQuestion(null);
   };
 
   if (isLoading) {
-    return (
+  return (
       <div className="h-full flex flex-col">
         <div className="px-6 py-8 shrink-0 border-b border-border/50">
           <Button variant="outline" onClick={onBack} className="hover:bg-muted transition-colors">
@@ -460,7 +513,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                                 className={`group p-4 border rounded-xl flex items-center gap-3 transition-all duration-200 ${
                                   selectedQuestion === question.id 
                                     ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-md ring-2 ring-primary/20" 
-                                    : "hover:border-primary/50 hover:shadow-md hover:bg-accent/30"
+                                    : "hover:border-primary/50 hover:shadow-md hover:bg-primary/5"
                                 } ${
                                   snapshot.isDragging ? "shadow-xl ring-2 ring-primary/30 scale-105" : ""
                                 }`}
@@ -526,7 +579,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("short_text")}
-                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
+                      className="hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Short Text
@@ -535,7 +588,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("long_text")}
-                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
+                      className="hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Long Text
@@ -544,7 +597,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("multiple_choice")}
-                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
+                      className="hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Multiple Choice
@@ -553,7 +606,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("number")}
-                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
+                      className="hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       Number
@@ -562,7 +615,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                       variant="outline" 
                       size="sm" 
                       onClick={() => handleAddQuestion("file_upload")}
-                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all"
+                      className="hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all"
                     >
                       <Plus className="h-4 w-4 mr-1" />
                       File Upload
@@ -585,29 +638,60 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
           )}
 
           {/* Right Sidebar - Question Editor */}
-          {selectedQuestion && (
-            <div className={`fixed right-0 top-0 h-screen w-full lg:w-96 bg-background border-l shadow-2xl z-50 overflow-y-auto transition-transform duration-300 ${
+          {selectedQuestion && draftQuestion && (
+            <div 
+              ref={sidebarRef}
+              className={`fixed right-0 top-0 h-screen w-full lg:w-96 bg-background border-l shadow-2xl z-50 flex flex-col transition-transform duration-300 ${
               sidebarOpen ? 'translate-x-0' : 'translate-x-full'
-            }`}>
-              <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between z-10">
+              }`}
+            >
+              {/* Header */}
+              <div className="shrink-0 bg-background border-b p-4 flex items-center justify-between">
                 <h3 className="font-semibold text-lg">Question Settings</h3>
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setSidebarOpen(false)}
+                  onClick={handleCancelEdit}
                   className="hover:bg-destructive/10 hover:text-destructive"
                 >
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-              <div className="p-4">
+              
+              {/* Content - Scrollable */}
+              <div className="flex-1 overflow-y-auto p-4">
                 <QuestionEditor
-                  question={questions.find(q => q.id === selectedQuestion)!}
+                  question={draftQuestion}
                   questions={questions}
-                  onUpdate={handleUpdateQuestion}
+                  onUpdate={handleUpdateDraftQuestion}
                 />
               </div>
+              
+              {/* Footer - Action Buttons */}
+              <div className="shrink-0 border-t bg-background p-4 flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  className="flex-1 hover:bg-muted transition-colors"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEdit}
+                  className="flex-1 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80 shadow-lg shadow-primary/20 transition-all"
+                >
+                  Save Changes
+                </Button>
+              </div>
             </div>
+          )}
+          
+          {/* Backdrop overlay when sidebar is open */}
+          {sidebarOpen && selectedQuestion && (
+            <div 
+              className="fixed inset-0 bg-black/20 z-40 lg:hidden"
+              onClick={handleCancelEdit}
+            />
           )}
         </div>
       </div>
