@@ -3,6 +3,8 @@
  * Handles all API calls for check-in forms management
  */
 
+import { apiFetch } from "./apiClient";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://backend.onsync-test.xyz";
 
 // Types based on API documentation
@@ -75,27 +77,6 @@ export interface PaginatedResponse<T> {
 }
 
 /**
- * Get auth token from localStorage
- */
-function getAuthToken(): string | null {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("auth_token");
-  }
-  return null;
-}
-
-/**
- * Build headers for API requests
- */
-function getHeaders(): HeadersInit {
-  const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Token ${token}` }),
-  };
-}
-
-/**
  * List all check-in forms with optional filters
  */
 export async function listCheckInForms(params?: {
@@ -119,53 +100,24 @@ export async function listCheckInForms(params?: {
 
   const url = `${API_BASE_URL}/api/checkin-forms/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to fetch forms" }));
-    throw new Error(error.detail || error.message || "Failed to fetch forms");
-  }
-
-  return response.json();
+  return apiFetch(url, { method: "GET" });
 }
 
 /**
  * Get a single check-in form by ID
  */
 export async function getCheckInForm(formId: string): Promise<CheckInForm> {
-  const response = await fetch(`${API_BASE_URL}/api/checkin-forms/${formId}/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to fetch form" }));
-    throw new Error(error.detail || error.message || "Failed to fetch form");
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/api/checkin-forms/${formId}/`, { method: "GET" });
 }
 
 /**
  * Create a new check-in form
  */
 export async function createCheckInForm(data: CreateCheckInFormData): Promise<CheckInForm> {
-  const response = await fetch(`${API_BASE_URL}/api/checkin-forms/`, {
+  return apiFetch(`${API_BASE_URL}/api/checkin-forms/`, {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to create form" }));
-    console.error("Backend error response:", error);
-    throw new Error(JSON.stringify(error) || "Failed to create form");
-  }
-
-  return response.json();
 }
 
 /**
@@ -175,33 +127,17 @@ export async function updateCheckInForm(
   formId: string,
   data: UpdateCheckInFormData
 ): Promise<CheckInForm> {
-  const response = await fetch(`${API_BASE_URL}/api/checkin-forms/${formId}/`, {
+  return apiFetch(`${API_BASE_URL}/api/checkin-forms/${formId}/`, {
     method: "PATCH",
-    headers: getHeaders(),
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to update form" }));
-    throw new Error(error.detail || error.message || "Failed to update form");
-  }
-
-  return response.json();
 }
 
 /**
  * Delete a check-in form
  */
 export async function deleteCheckInForm(formId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/checkin-forms/${formId}/`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to delete form" }));
-    throw new Error(error.detail || error.message || "Failed to delete form");
-  }
+  await apiFetch(`${API_BASE_URL}/api/checkin-forms/${formId}/`, { method: "DELETE" });
 }
 
 /**

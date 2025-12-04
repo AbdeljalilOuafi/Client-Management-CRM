@@ -3,28 +3,9 @@
  * Handles API calls for client package management
  */
 
+import { apiFetch } from "./apiClient";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://backend.onsync-test.xyz";
-
-/**
- * Get auth token from localStorage
- */
-function getAuthToken(): string | null {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("auth_token");
-  }
-  return null;
-}
-
-/**
- * Build headers for API requests
- */
-function getHeaders(): HeadersInit {
-  const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Token ${token}` }),
-  };
-}
 
 export interface ClientPackage {
   id: number;
@@ -84,17 +65,7 @@ export async function listClientPackages(
     ? `${API_BASE_URL}/api/client-packages/?${queryString}` 
     : `${API_BASE_URL}/api/client-packages/`;
   
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to fetch client packages" }));
-    throw new Error(error.detail || error.message || "Failed to fetch client packages");
-  }
-
-  const data = await response.json();
+  const data = await apiFetch(url, { method: "GET" });
   
   // Handle both paginated response (with results array) and direct array
   if (Array.isArray(data)) {
@@ -111,17 +82,7 @@ export async function listClientPackages(
  * GET /api/client-packages/{id}/
  */
 export async function getClientPackage(id: number): Promise<ClientPackage> {
-  const response = await fetch(`${API_BASE_URL}/api/client-packages/${id}/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to fetch client package" }));
-    throw new Error(error.detail || error.message || "Failed to fetch client package");
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/api/client-packages/${id}/`, { method: "GET" });
 }
 
 /**
@@ -131,18 +92,10 @@ export async function getClientPackage(id: number): Promise<ClientPackage> {
 export async function createClientPackage(
   data: CreateClientPackageData
 ): Promise<ClientPackage> {
-  const response = await fetch(`${API_BASE_URL}/api/client-packages/`, {
+  return apiFetch(`${API_BASE_URL}/api/client-packages/`, {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to create client package" }));
-    throw new Error(error.detail || error.message || "Failed to create client package");
-  }
-
-  return response.json();
 }
 
 /**
@@ -153,18 +106,10 @@ export async function updateClientPackage(
   id: number,
   data: UpdateClientPackageData
 ): Promise<ClientPackage> {
-  const response = await fetch(`${API_BASE_URL}/api/client-packages/${id}/`, {
+  return apiFetch(`${API_BASE_URL}/api/client-packages/${id}/`, {
     method: "PATCH",
-    headers: getHeaders(),
     body: JSON.stringify(data),
   });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to update client package" }));
-    throw new Error(error.detail || error.message || "Failed to update client package");
-  }
-
-  return response.json();
 }
 
 /**
@@ -172,15 +117,7 @@ export async function updateClientPackage(
  * DELETE /api/client-packages/{id}/
  */
 export async function deleteClientPackage(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/client-packages/${id}/`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Failed to delete client package" }));
-    throw new Error(error.detail || error.message || "Failed to delete client package");
-  }
+  await apiFetch(`${API_BASE_URL}/api/client-packages/${id}/`, { method: "DELETE" });
 }
 
 /**

@@ -1,4 +1,5 @@
 import { EmployeeWithPermissions, UserRole, PermissionString } from "@/lib/types/permissions";
+import { apiFetch } from "./apiClient";
 
 const API_BASE_URL = "https://backend.onsync-test.xyz/api";
 
@@ -72,23 +73,6 @@ export interface EmployeeStatistics {
   inactive_employees: number;
 }
 
-// Get auth token from localStorage
-const getAuthToken = (): string | null => {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("auth_token");
-  }
-  return null;
-};
-
-// Get headers with auth token
-const getHeaders = (): HeadersInit => {
-  const token = getAuthToken();
-  return {
-    "Content-Type": "application/json",
-    ...(token && { Authorization: `Token ${token}` }),
-  };
-};
-
 // List all employees with optional filters
 export const listEmployees = async (params?: {
   status?: string;
@@ -117,16 +101,7 @@ export const listEmployees = async (params?: {
 
   const url = `${API_BASE_URL}/employees/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch employees: ${response.statusText}`);
-  }
-
-  const data = await response.json();
+  const data = await apiFetch(url, { method: "GET" });
   
   // Log the first employee to check if permissions and app_access are included
   if (data.results && data.results.length > 0) {
@@ -146,16 +121,7 @@ export const listEmployees = async (params?: {
 
 // Get employee statistics
 export const getEmployeeStatistics = async (): Promise<EmployeeStatistics> => {
-  const response = await fetch(`${API_BASE_URL}/employees/statistics/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch employee statistics");
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/employees/statistics/`, { method: "GET" });
 };
 
 // Get all active coaches (employees with "coach" in role or custom roles)
@@ -196,65 +162,33 @@ export const listSetters = async (): Promise<Employee[]> => {
 
 // Get a single employee by ID
 export const getEmployee = async (id: number): Promise<Employee> => {
-  const response = await fetch(`${API_BASE_URL}/employees/${id}/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch employee: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/employees/${id}/`, { method: "GET" });
 };
 
 // Create a new employee
 export const createEmployee = async (employeeData: any): Promise<Employee> => {
   console.log("[API createEmployee] Sending data:", employeeData);
   
-  const response = await fetch(`${API_BASE_URL}/employees/`, {
+  const result = await apiFetch(`${API_BASE_URL}/employees/`, {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify(employeeData),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error("[API createEmployee] Error:", errorData);
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  const result = await response.json();
   console.log("[API createEmployee] Response:", result);
   return result;
 };
 
 // Update an employee
 export const updateEmployee = async (id: number, employeeData: Partial<Employee>): Promise<Employee> => {
-  const response = await fetch(`${API_BASE_URL}/employees/${id}/`, {
+  return apiFetch(`${API_BASE_URL}/employees/${id}/`, {
     method: "PATCH",
-    headers: getHeaders(),
     body: JSON.stringify(employeeData),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  return response.json();
 };
 
 // Delete an employee
 export const deleteEmployee = async (id: number): Promise<void> => {
-  const response = await fetch(`${API_BASE_URL}/employees/${id}/`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to delete employee: ${response.statusText}`);
-  }
+  await apiFetch(`${API_BASE_URL}/employees/${id}/`, { method: "DELETE" });
 };
 
 // Update employee permissions
@@ -263,51 +197,30 @@ export const updateEmployeePermissions = async (
   permissions: PermissionString[]
 ): Promise<{ message: string }> => {
   const payload = { permissions };
-  const headers = getHeaders();
   
   console.log("[API] ========== UPDATE PERMISSIONS REQUEST ==========");
   console.log("[API] Employee ID:", id);
   console.log("[API] Request URL:", `${API_BASE_URL}/employees/${id}/update_permissions/`);
   console.log("[API] Request Method: POST");
-  console.log("[API] Request Headers:", headers);
   console.log("[API] Request payload:", JSON.stringify(payload, null, 2));
   console.log("[API] Permissions array:", permissions);
   console.log("[API] Raw body string:", JSON.stringify(payload));
   
-  const response = await fetch(`${API_BASE_URL}/employees/${id}/update_permissions/`, {
+  const result = await apiFetch(`${API_BASE_URL}/employees/${id}/update_permissions/`, {
     method: "POST",
-    headers: headers,
     body: JSON.stringify(payload),
   });
 
-  console.log("[API] Response status:", response.status, response.statusText);
-  console.log("[API] Response headers:", Object.fromEntries(response.headers.entries()));
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    console.error("[API] Permission update failed:", errorData);
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  const result = await response.json();
   console.log("[API] Permission update SUCCESS:", result);
   return result;
 };
 
 // Change employee password
 export const changeEmployeePassword = async (id: number, oldPassword: string, newPassword: string): Promise<{ message: string }> => {
-  const response = await fetch(`${API_BASE_URL}/employees/${id}/change_password/`, {
+  return apiFetch(`${API_BASE_URL}/employees/${id}/change_password/`, {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  return response.json();
 };
 
 // ==================== EMPLOYEE ROLES API ====================
@@ -340,30 +253,12 @@ export const listEmployeeRoles = async (params?: {
 
   const url = `${API_BASE_URL}/employee-roles/${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   
-  const response = await fetch(url, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch employee roles: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiFetch(url, { method: "GET" });
 };
 
 // Get a single employee role by ID
 export const getEmployeeRole = async (id: string): Promise<EmployeeRole> => {
-  const response = await fetch(`${API_BASE_URL}/employee-roles/${id}/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch employee role: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/employee-roles/${id}/`, { method: "GET" });
 };
 
 // Create a new employee role
@@ -373,18 +268,10 @@ export const createEmployeeRole = async (roleData: {
   color?: string;
   is_active?: boolean;
 }): Promise<EmployeeRole> => {
-  const response = await fetch(`${API_BASE_URL}/employee-roles/`, {
+  return apiFetch(`${API_BASE_URL}/employee-roles/`, {
     method: "POST",
-    headers: getHeaders(),
     body: JSON.stringify(roleData),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  return response.json();
 };
 
 // Update an employee role (partial update)
@@ -394,43 +281,18 @@ export const updateEmployeeRole = async (id: string, roleData: Partial<{
   color: string;
   is_active: boolean;
 }>): Promise<EmployeeRole> => {
-  const response = await fetch(`${API_BASE_URL}/employee-roles/${id}/`, {
+  return apiFetch(`${API_BASE_URL}/employee-roles/${id}/`, {
     method: "PATCH",
-    headers: getHeaders(),
     body: JSON.stringify(roleData),
   });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
-
-  return response.json();
 };
 
 // Delete an employee role
 export const deleteEmployeeRole = async (id: string): Promise<void> => {
-  const response = await fetch(`${API_BASE_URL}/employee-roles/${id}/`, {
-    method: "DELETE",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(JSON.stringify(errorData));
-  }
+  await apiFetch(`${API_BASE_URL}/employee-roles/${id}/`, { method: "DELETE" });
 };
 
 // Get employees with a specific role
 export const getEmployeesWithRole = async (roleId: string): Promise<Employee[]> => {
-  const response = await fetch(`${API_BASE_URL}/employee-roles/${roleId}/employees/`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch employees with role: ${response.statusText}`);
-  }
-
-  return response.json();
+  return apiFetch(`${API_BASE_URL}/employee-roles/${roleId}/employees/`, { method: "GET" });
 };
