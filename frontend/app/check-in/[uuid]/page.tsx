@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle2, AlertCircle, Send, Scale, Zap, Dumbbell, MessageSquare, Target, User, Mail, Package } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   getPublicCheckInForm,
   submitPublicCheckIn,
@@ -139,13 +140,13 @@ export default function PublicCheckInPage() {
       case "number":
         return (
           <div key={field.id} className="space-y-2.5">
-            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-card-foreground">
               {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
+              {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <div className="relative">
               {FieldIcon && (
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
                   <FieldIcon className="h-5 w-5" />
                 </div>
               )}
@@ -154,27 +155,28 @@ export default function PublicCheckInPage() {
                 type="number"
                 value={value}
                 onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 min={field.min}
                 max={field.max}
-                className={`rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] ${hasError ? "border-red-500" : ""}`}
+                className={`rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent ${hasError ? "border-destructive" : ""}`}
                 disabled={isSubmitting}
               />
             </div>
-            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+            {hasError && <p className="text-sm text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
           </div>
         );
 
       case "select":
         return (
           <div key={field.id} className="space-y-2.5">
-            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-card-foreground">
               {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
+              {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <div className="relative">
               {FieldIcon && (
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground z-10 pointer-events-none">
                   <FieldIcon className="h-5 w-5" />
                 </div>
               )}
@@ -185,7 +187,7 @@ export default function PublicCheckInPage() {
               >
                 <SelectTrigger 
                   id={field.id} 
-                  className={`rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 h-14 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] ${hasError ? "border-red-500" : ""}`}
+                  className={`rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 h-14 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent ${hasError ? "border-destructive" : ""}`}
                 >
                   <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
                 </SelectTrigger>
@@ -198,20 +200,20 @@ export default function PublicCheckInPage() {
                 </SelectContent>
               </Select>
             </div>
-            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+            {hasError && <p className="text-sm text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
           </div>
         );
 
       case "textarea":
         return (
           <div key={field.id} className="space-y-2.5">
-            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-card-foreground">
               {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
+              {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <div className="relative">
               {FieldIcon && (
-                <div className="absolute left-4 top-4 text-gray-400">
+                <div className="absolute left-4 top-4 text-muted-foreground">
                   <FieldIcon className="h-5 w-5" />
                 </div>
               )}
@@ -220,11 +222,11 @@ export default function PublicCheckInPage() {
                 value={value}
                 onChange={(e) => handleFieldChange(field.id, e.target.value)}
                 placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                className={`min-h-[120px] rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-4 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] resize-none ${hasError ? "border-red-500" : ""}`}
+                className={`min-h-[120px] rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-4 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent resize-none ${hasError ? "border-destructive" : ""}`}
                 disabled={isSubmitting}
               />
             </div>
-            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+            {hasError && <p className="text-sm text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
           </div>
         );
 
@@ -232,13 +234,13 @@ export default function PublicCheckInPage() {
       default:
         return (
           <div key={field.id} className="space-y-2.5">
-            <Label htmlFor={field.id} className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            <Label htmlFor={field.id} className="text-sm font-semibold text-card-foreground">
               {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
+              {field.required && <span className="text-destructive ml-1">*</span>}
             </Label>
             <div className="relative">
               {FieldIcon && (
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">
                   <FieldIcon className="h-5 w-5" />
                 </div>
               )}
@@ -248,11 +250,11 @@ export default function PublicCheckInPage() {
                 value={value}
                 onChange={(e) => handleFieldChange(field.id, e.target.value)}
                 placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
-                className={`rounded-xl border-gray-300 ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent focus:shadow-[0_0_0_3px_rgba(99,102,241,0.15)] ${hasError ? "border-red-500" : ""}`}
+                className={`rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent ${hasError ? "border-destructive" : ""}`}
                 disabled={isSubmitting}
               />
             </div>
-            {hasError && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
+            {hasError && <p className="text-sm text-destructive flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" />{errors[field.id]}</p>}
           </div>
         );
     }
@@ -261,7 +263,7 @@ export default function PublicCheckInPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-2xl shadow-2xl border-0">
           <CardContent className="flex flex-col items-center justify-center py-16 px-6">
             <div className="relative">
@@ -279,7 +281,7 @@ export default function PublicCheckInPage() {
   // Error state
   if (error && !checkInData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-2xl shadow-2xl border-0">
           <CardContent className="py-16 px-6">
             <div className="flex flex-col items-center text-center space-y-6">
@@ -307,18 +309,18 @@ export default function PublicCheckInPage() {
   // Success state
   if (submitSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-2xl shadow-2xl border-0">
           <CardContent className="py-16 px-6">
             <div className="flex flex-col items-center text-center space-y-6">
               <div className="relative">
-                <div className="absolute inset-0 bg-green-500/20 blur-2xl rounded-full animate-pulse"></div>
-                <div className="relative bg-green-500/10 p-6 rounded-full">
-                  <CheckCircle2 className="h-20 w-20 text-green-500 animate-in zoom-in duration-500" />
+                <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full animate-pulse"></div>
+                <div className="relative bg-primary/10 p-6 rounded-full">
+                  <CheckCircle2 className="h-20 w-20 text-primary animate-in zoom-in duration-500" />
                 </div>
               </div>
               <div className="space-y-3">
-                <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                <h2 className="text-4xl font-bold tracking-tight text-primary">
                   Check-In Submitted!
                 </h2>
                 <p className="text-muted-foreground max-w-md text-lg">
@@ -357,50 +359,53 @@ export default function PublicCheckInPage() {
 
   // Form state
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-900">
+    <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-6 py-8 space-y-8">
         
         {/* Header Section */}
         <div className="space-y-4">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
-              {checkInData?.form.title}
-            </h1>
-            {checkInData?.form.description && (
-              <p className="text-lg text-gray-500 dark:text-gray-400">
-                {checkInData.form.description}
-              </p>
-            )}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <h1 className="text-4xl font-bold tracking-tight text-foreground">
+                {checkInData?.form.title}
+              </h1>
+              {checkInData?.form.description && (
+                <p className="text-lg text-muted-foreground">
+                  {checkInData.form.description}
+                </p>
+              )}
+            </div>
+            <ThemeToggle />
           </div>
-          <div className="h-px bg-gray-200 dark:bg-gray-800"></div>
+          <div className="h-px bg-border"></div>
         </div>
 
         {/* Client Info Card */}
-        <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-4">
+        <div className="rounded-2xl bg-card border border-border shadow-sm p-6 space-y-4">
           <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-              <span className="text-white font-bold text-xl">
+            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center shadow-lg">
+              <span className="text-primary-foreground font-bold text-xl">
                 {checkInData?.client.first_name?.charAt(0) || ''}{checkInData?.client.last_name?.charAt(0) || ''}
               </span>
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-gray-400" />
-                <span className="font-semibold text-gray-900 dark:text-white">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <span className="font-semibold text-foreground">
                   {checkInData?.client.first_name || ''} {checkInData?.client.last_name || ''}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
                   {checkInData?.client.email || ''}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-            <Package className="h-4 w-4 text-indigo-500" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+          <div className="flex items-center gap-2 pt-2 border-t border-border">
+            <Package className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-card-foreground">
               {checkInData?.package.package_name || 'Package'}
             </span>
           </div>
@@ -419,14 +424,14 @@ export default function PublicCheckInPage() {
           
           {/* Progress Recap Section */}
           {recap.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-6">
+            <div className="rounded-2xl bg-card border border-border shadow-sm p-6 space-y-6">
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Progress Recap</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <h2 className="text-xl font-semibold text-foreground">Progress Recap</h2>
+                <p className="text-sm text-muted-foreground">
                   Let's track your key metrics for this week.
                 </p>
               </div>
-              <div className="h-px bg-gray-200 dark:bg-gray-800"></div>
+              <div className="h-px bg-border"></div>
               <div className="space-y-6">
                 {recap.map((field) => renderField(field))}
               </div>
@@ -435,14 +440,14 @@ export default function PublicCheckInPage() {
 
           {/* Feedback Section */}
           {feedback.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-6">
+            <div className="rounded-2xl bg-card border border-border shadow-sm p-6 space-y-6">
               <div className="space-y-2">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Your Feedback</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <h2 className="text-xl font-semibold text-foreground">Your Feedback</h2>
+                <p className="text-sm text-muted-foreground">
                   Share your thoughts, challenges, and goals for the upcoming week.
                 </p>
               </div>
-              <div className="h-px bg-gray-200 dark:bg-gray-800"></div>
+              <div className="h-px bg-border"></div>
               <div className="space-y-6">
                 {feedback.map((field) => renderField(field))}
               </div>
@@ -451,7 +456,7 @@ export default function PublicCheckInPage() {
 
           {/* Other Fields */}
           {other.length > 0 && (
-            <div className="rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm p-6 space-y-6">
+            <div className="rounded-2xl bg-card border border-border shadow-sm p-6 space-y-6">
               <div className="space-y-6">
                 {other.map((field) => renderField(field))}
               </div>
@@ -462,18 +467,18 @@ export default function PublicCheckInPage() {
       </div>
 
       {/* Sticky Submit Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-t border-gray-200 dark:border-gray-800 shadow-2xl z-50">
+      <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-lg border-t border-border shadow-2xl z-50">
         <div className="max-w-2xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
-              All fields marked with <span className="text-red-500 font-medium">*</span> are required
+            <p className="text-sm text-muted-foreground hidden sm:block">
+              All fields marked with <span className="text-destructive font-medium">*</span> are required
             </p>
             <Button 
               type="submit"
               onClick={handleSubmit}
               size="lg" 
               disabled={isSubmitting}
-              className="w-full sm:w-auto rounded-xl py-6 px-8 text-lg font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
+              className="w-full sm:w-auto rounded-xl py-6 px-8 text-lg font-semibold bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all duration-200"
             >
               {isSubmitting ? (
                 <>

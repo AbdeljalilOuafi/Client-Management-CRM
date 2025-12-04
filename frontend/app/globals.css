@@ -81,7 +81,7 @@ All colors MUST be HSL.
     --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 20%;
+    --border: 20 20% 25%; /* Copper-tinted border for dark mode */
     --input: 0 0% 20%;
     --ring: 20 60% 70%;
     

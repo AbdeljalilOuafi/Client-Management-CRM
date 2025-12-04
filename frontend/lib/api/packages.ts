@@ -10,6 +10,12 @@ export interface Package {
   package_name: string;
   description?: string;
   is_active?: boolean;
+  checkin_form?: string | null; // UUID of the assigned check-in form
+  checkin_form_title?: string; // Title of the assigned check-in form (from backend)
+  onboarding_form?: string | null; // UUID of the assigned onboarding form
+  onboarding_form_title?: string; // Title of the assigned onboarding form (from backend)
+  review_form?: string | null; // UUID of the assigned review form
+  review_form_title?: string; // Title of the assigned review form (from backend)
   created_at?: string;
   updated_at?: string;
 }
@@ -84,16 +90,17 @@ export async function getPackage(packageId: number): Promise<Package> {
 export async function createPackage(packageData: {
   package_name: string;
   description?: string;
+  checkin_form?: string | null;
+  onboarding_form?: string | null;
+  review_form?: string | null;
 }): Promise<Package> {
-  // Get account ID from localStorage
-  const userDataString = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-  const userData = userDataString ? JSON.parse(userDataString) : null;
-  const accountId = userData?.account_id;
+  // Get account ID from localStorage (stored separately during login)
+  const accountIdString = typeof window !== "undefined" ? localStorage.getItem("accountId") : null;
+  const accountId = accountIdString ? parseInt(accountIdString, 10) : null;
 
-  console.log('[createPackage] User data:', userData);
   console.log('[createPackage] Account ID:', accountId);
 
-  if (!accountId) {
+  if (!accountId || isNaN(accountId)) {
     throw new Error("Account ID not found. Please log in again.");
   }
 
@@ -147,6 +154,9 @@ export async function updatePackage(
     package_name: string;
     description?: string;
     is_active?: boolean;
+    checkin_form?: string | null;
+    onboarding_form?: string | null;
+    review_form?: string | null;
   }>
 ): Promise<Package> {
   const response = await fetch(`${API_BASE_URL}/api/packages/${packageId}/`, {
