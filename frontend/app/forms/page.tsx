@@ -98,7 +98,7 @@ function CheckinFormsContent() {
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
   const [newFormMetadata, setNewFormMetadata] = useState<FormMetadata | null>(null);
   const [previewFormId, setPreviewFormId] = useState<string | null>(null);
-  const [deleteFormData, setDeleteFormData] = useState<{ id: string; title: string; packageName: string } | null>(null);
+  const [deleteFormData, setDeleteFormData] = useState<{ id: string; title: string; packageName: string | null } | null>(null);
   const [sortBy, setSortBy] = useState<"updated_date">("updated_date");
   const [filterPackage, setFilterPackage] = useState<string>("all");
   const [availablePackages, setAvailablePackages] = useState<Array<{ id: number; name: string }>>([]);
@@ -220,11 +220,13 @@ function CheckinFormsContent() {
     return "No schedule";
   };
 
-  // Extract unique packages from forms
+  // Extract unique packages from forms (exclude forms without packages)
   useEffect(() => {
     const uniquePackages = Array.from(
       new Map(
-        forms.map(f => [f.package, { id: f.package, name: f.package_name }])
+        forms
+          .filter(f => f.package !== null && f.package_name !== null)
+          .map(f => [f.package, { id: f.package as number, name: f.package_name as string }])
       ).values()
     );
     setAvailablePackages(uniquePackages);
@@ -235,7 +237,7 @@ function CheckinFormsContent() {
     // Apply package filter
     let filtered = formsList;
     if (filterPackage !== "all") {
-      filtered = formsList.filter(f => f.package.toString() === filterPackage);
+      filtered = formsList.filter(f => f.package !== null && f.package.toString() === filterPackage);
     }
     
     // Apply sorting
@@ -272,7 +274,7 @@ function CheckinFormsContent() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-all duration-200"
+              className="h-8 w-8 hover:bg-primary/5 hover:text-primary transition-all duration-200"
               onClick={() => setSelectedFormId(form.id)}
               title="Edit form"
             >
@@ -301,7 +303,7 @@ function CheckinFormsContent() {
         {/* Package Badge and Status Toggle */}
         <div className="flex items-center justify-between gap-2">
           <Badge variant="secondary" className="text-xs font-medium px-3 py-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
-            {form.package_name}
+            {form.package_name || "Unassigned"}
           </Badge>
           <Button
             variant="ghost"
@@ -345,7 +347,7 @@ function CheckinFormsContent() {
           <Button
             variant="outline"
             size="sm"
-            className="h-9 w-full hover:bg-primary/10 hover:text-primary hover:border-primary/50 transition-all duration-200 group"
+            className="h-9 w-full hover:bg-primary/5 hover:text-primary hover:border-primary/50 transition-all duration-200 group"
             onClick={() => handlePreview(form.id)}
           >
             <ExternalLink className="h-4 w-4 mr-2 group-hover:rotate-12 transition-transform" />

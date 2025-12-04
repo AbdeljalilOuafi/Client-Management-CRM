@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth Token Checker</title>
+</head>
+<body>
+    <h1>Local Storage Auth Status</h1>
+    <div id="output"></div>
+    <script>
+        const output = document.getElementById('output');
+        const token = localStorage.getItem('auth_token');
+        const accountId = localStorage.getItem('accountId');
+        const user = localStorage.getItem('user');
+        
+        output.innerHTML = `
+            <p><strong>Token exists:</strong> ${token ? 'YES ✓' : 'NO ✗'}</p>
+            <p><strong>Token value:</strong> ${token ? token.substring(0, 20) + '...' : 'N/A'}</p>
+            <p><strong>Account ID:</strong> ${accountId || 'N/A'}</p>
+            <p><strong>User data:</strong> ${user ? 'YES ✓' : 'NO ✗'}</p>
+            <hr>
+            <h2>Actions:</h2>
+            <button onclick="localStorage.clear(); alert('Cleared! Please login again.'); location.reload();">Clear All & Force Re-login</button>
+        `;
+    </script>
+</body>
+</html>

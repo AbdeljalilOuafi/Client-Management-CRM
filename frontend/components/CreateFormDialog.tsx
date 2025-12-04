@@ -9,10 +9,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { X, Plus, Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createCheckInForm, CreateCheckInFormData } from "@/lib/api/checkin-forms";
+import { createCheckInForm, CreateCheckInFormData, listCheckInForms, CheckInForm, FormType } from "@/lib/api/checkin-forms";
 import { listPackages, Package } from "@/lib/api/packages";
+
+// Track which packages have which form types assigned
+type PackageFormTypeMap = Record<FormType, Set<number>>;
 
 export interface FormMetadata {
   title: string;
@@ -73,7 +78,14 @@ export function CreateFormDialog({
 
   // State
   const [packages, setPackages] = useState<Package[]>([]);
+  // Track which packages have which form types assigned (each package can have up to 3 forms - one of each type)
+  const [packageFormTypeMap, setPackageFormTypeMap] = useState<PackageFormTypeMap>({
+    checkins: new Set(),
+    onboarding: new Set(),
+    reviews: new Set(),
+  });
   const [isCreating, setIsCreating] = useState(false);
+  const [packagePopoverOpen, setPackagePopoverOpen] = useState(false);
 
   // Form fields
   const [formTitle, setFormTitle] = useState("");
@@ -93,29 +105,73 @@ export function CreateFormDialog({
     if (open && !hidePackageField) {
       fetchPackages();
     }
-    if (defaultPackageId) {
-      setSelectedPackages([defaultPackageId.toString()]);
-    }
-  }, [open, defaultPackageId, hidePackageField]);
+    // Don't auto-select defaultPackageId - user must manually select
+  }, [open, hidePackageField]);
 
   const fetchPackages = async () => {
     try {
-      const packagesData = await listPackages();
+      // Fetch packages and forms in parallel
+      const [packagesData, formsResponse] = await Promise.all([
+        listPackages(),
+        listCheckInForms()
+      ]);
+      
       setPackages(packagesData);
+      
+      // Build a map of form_type -> set of package IDs that have that form type
+      const formTypeMap: PackageFormTypeMap = {
+        checkins: new Set(),
+        onboarding: new Set(),
+        reviews: new Set(),
+      };
+      
+      formsResponse.results.forEach((form: CheckInForm) => {
+        if (form.package && form.form_type) {
+          formTypeMap[form.form_type].add(form.package);
+        }
+      });
+      
+      setPackageFormTypeMap(formTypeMap);
+      
+      console.log("[CreateFormDialog] Package form type map:", {
+        checkins: Array.from(formTypeMap.checkins),
+        onboarding: Array.from(formTypeMap.onboarding),
+        reviews: Array.from(formTypeMap.reviews),
+      });
     } catch (error: any) {
       console.error("Failed to load packages:", error);
     }
   };
 
+  // Filter packages - only show packages that don't have the SELECTED form_type assigned
+  // Each package can have one form of each type (up to 3 total)
+  const getAvailablePackages = () => {
+    if (!formType) return [];
+    
+    // Get the set of package IDs that already have this form_type
+    const assignedForThisType = packageFormTypeMap[formType as FormType] || new Set();
+    
+    // Filter out packages that already have this specific form_type assigned
+    const available = packages.filter(pkg => !assignedForThisType.has(pkg.id));
+    
+    console.log(`[CreateFormDialog] Available packages for ${formType}:`, available.map(p => p.package_name));
+    console.log(`[CreateFormDialog] Packages with ${formType} forms:`, Array.from(assignedForThisType));
+    
+    return available;
+  };
+
+  const availablePackages = getAvailablePackages();
+
   const resetForm = () => {
     setFormTitle("");
     setFormDescription("");
     setFormType("");
-    setSelectedPackages(defaultPackageId ? [defaultPackageId.toString()] : []);
+    setSelectedPackages([]); // Default to no selection
     setScheduleType("");
     setDayOfWeek("monday");
     setTime("09:00");
     setTimezone("Africa/Casablanca");
+    setPackagePopoverOpen(false);
   };
 
   const handleSubmit = async () => {
@@ -138,20 +194,10 @@ export function CreateFormDialog({
       return;
     }
 
-    // Validate packages
+    // Validate packages (now optional)
     const finalPackages = defaultPackageId 
       ? [defaultPackageId] 
       : selectedPackages.map(id => parseInt(id));
-    
-    // Only validate package if the field is visible
-    if (!hidePackageField && finalPackages.length === 0) {
-      toast({
-        title: "Error",
-        description: "At least one package is required",
-        variant: "destructive",
-      });
-      return;
-    }
 
     if (!scheduleType) {
       toast({
@@ -294,19 +340,19 @@ export function CreateFormDialog({
                 <SelectValue placeholder="Select form type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="onboarding" className="cursor-pointer">
+                <SelectItem value="onboarding" className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-blue-500"></div>
                     <span>Onboarding</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="checkins" className="cursor-pointer">
+                <SelectItem value="checkins" className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-primary"></div>
                     <span>Check-ins</span>
                   </div>
                 </SelectItem>
-                <SelectItem value="reviews" className="cursor-pointer">
+                <SelectItem value="reviews" className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
                   <div className="flex items-center gap-2">
                     <div className="h-2 w-2 rounded-full bg-purple-500"></div>
                     <span>Reviews</span>
@@ -316,178 +362,213 @@ export function CreateFormDialog({
             </Select>
           </div>
 
-          {/* Package Types - Multi-Select */}
-          {!hidePackageField && (
+          {/* Package Types - Dropdown Multi-Select */}
+          {!hidePackageField && formType && (
             <div>
-              <Label className="text-sm font-semibold text-foreground/90">Packages * (Select one or more)</Label>
+              <Label className="text-sm font-semibold text-foreground/90">
+                Packages (Optional)
+              </Label>
               
-              {/* Selected Packages Display */}
-              {selectedPackages.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-3 mb-2">
-                  {selectedPackages.map((pkgId) => {
-                    const pkg = packages.find(p => p.id.toString() === pkgId);
-                    return pkg ? (
-                      <Badge 
-                        key={pkgId} 
-                        variant="secondary" 
-                        className="pl-3 pr-2 py-1.5 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors"
-                      >
-                        {pkg.package_name}
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPackages(prev => prev.filter(id => id !== pkgId))}
-                          className="ml-2 hover:bg-destructive/30 rounded-full p-1 transition-colors"
-                          disabled={isCreating}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ) : null;
-                  })}
-                </div>
-              )}
-
-              {/* Package Checkboxes */}
-              <div className="border border-border/60 rounded-xl p-4 mt-2 space-y-3 max-h-48 overflow-y-auto bg-muted/20">
-                {packages.length > 0 ? (
-                  packages.map((pkg) => (
-                    <div 
-                      key={pkg.id} 
-                      className="flex items-center space-x-3 p-2 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                      onClick={() => {
-                        const pkgIdStr = pkg.id.toString();
-                        if (selectedPackages.includes(pkgIdStr)) {
-                          setSelectedPackages(prev => prev.filter(id => id !== pkgIdStr));
-                        } else {
-                          setSelectedPackages(prev => [...prev, pkgIdStr]);
-                        }
-                      }}
-                    >
-                      <Checkbox
-                        id={`package-${pkg.id}`}
-                        checked={selectedPackages.includes(pkg.id.toString())}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedPackages(prev => [...prev, pkg.id.toString()]);
-                          } else {
-                            setSelectedPackages(prev => prev.filter(id => id !== pkg.id.toString()));
-                          }
-                        }}
-                        disabled={isCreating}
-                      />
-                      <label
-                        htmlFor={`package-${pkg.id}`}
-                        className="text-sm font-medium leading-none cursor-pointer flex-1"
-                      >
-                        {pkg.package_name}
-                      </label>
+              <Popover open={packagePopoverOpen} onOpenChange={setPackagePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={packagePopoverOpen}
+                    className={`w-full justify-between mt-2 h-auto min-h-[44px] border-border/60 hover:border-primary/50 hover:bg-hover-primary transition-colors bg-background ${
+                      packagePopoverOpen ? "ring-2 ring-primary/20 border-primary/50" : ""
+                    }`}
+                    disabled={isCreating || availablePackages.length === 0}
+                  >
+                    <div className="flex flex-wrap gap-1.5 flex-1">
+                      {selectedPackages.length > 0 ? (
+                        selectedPackages.map((pkgId) => {
+                          const pkg = packages.find(p => p.id.toString() === pkgId);
+                          return pkg ? (
+                            <Badge 
+                              key={pkgId}
+                              variant="secondary" 
+                              className="px-2 py-0.5 bg-primary/10 text-primary border-primary/20 hover:bg-hover-primary transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPackages(prev => prev.filter(id => id !== pkgId));
+                              }}
+                            >
+                              {pkg.package_name}
+                              <X className="h-3 w-3 ml-1" />
+                            </Badge>
+                          ) : null;
+                        })
+                      ) : (
+                        <span className="text-muted-foreground">
+                          {availablePackages.length === 0 
+                            ? `No packages available for ${formType === "checkins" ? "check-in" : formType} forms` 
+                            : "Select package(s)"}
+                        </span>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" />
-                    <p className="text-sm text-muted-foreground">Loading packages...</p>
-                  </div>
-                )}
-              </div>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search packages..." className="h-9" />
+                    <CommandEmpty>No packages found.</CommandEmpty>
+                    <CommandGroup className="max-h-64 overflow-auto">
+                      {availablePackages.map((pkg) => {
+                        const isSelected = selectedPackages.includes(pkg.id.toString());
+                        return (
+                          <CommandItem
+                            key={pkg.id}
+                            value={pkg.package_name}
+                            onSelect={() => {
+                              const pkgIdStr = pkg.id.toString();
+                              if (isSelected) {
+                                setSelectedPackages(prev => prev.filter(id => id !== pkgIdStr));
+                              } else {
+                                setSelectedPackages(prev => [...prev, pkgIdStr]);
+                              }
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 flex-1">
+                              <div className={`h-4 w-4 border rounded flex items-center justify-center ${
+                                isSelected ? 'bg-primary border-primary' : 'border-input'
+                              }`}>
+                                {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                              </div>
+                              <span>{pkg.package_name}</span>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {availablePackages.length === 0 && formType && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  ℹ️ All packages already have a {formType === "checkins" ? "check-in" : formType} form assigned.
+                </p>
+              )}
             </div>
           )}
 
           {/* Form Schedule Section */}
           {formType && (
-            <div className="space-y-4 border-t border-border/50 pt-5 mt-2">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-1 w-1 rounded-full bg-primary animate-pulse"></div>
-                <h3 className="font-bold text-foreground/90">Form Schedule *</h3>
-              </div>
+            <div className="space-y-5 border-t border-border/50 pt-5 mt-2">
+              <div className="rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-border/60 p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-2 w-2 rounded-full bg-primary"></div>
+                  <h3 className="text-lg font-bold text-foreground">Form Schedule *</h3>
+                </div>
             
-            {/* Schedule Type */}
-            <div>
-              <Label htmlFor="schedule-type" className="text-sm font-semibold text-foreground/90">Schedule Type</Label>
-              <Select 
-                value={scheduleType} 
-                onValueChange={setScheduleType}
-                disabled={isCreating}
-              >
-                <SelectTrigger id="schedule-type" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors">
-                  <SelectValue placeholder="Select schedule type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="same_time" className="cursor-pointer">
-                    <div className="py-1">
-                      <div className="font-medium">Same Day</div>
-                      <div className="text-xs text-muted-foreground">All clients get emails on the same day/time</div>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="designated_day" className="cursor-pointer">
-                    <div className="py-1">
-                      <div className="font-medium">Individual Days</div>
-                      <div className="text-xs text-muted-foreground">Each client has their own designated day</div>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Day of Week (only for same_time) */}
-            {scheduleType === "same_time" && (
-              <div>
-                <Label htmlFor="day-of-week">Day of Week</Label>
-                <Select 
-                  value={dayOfWeek} 
-                  onValueChange={setDayOfWeek}
-                  disabled={isCreating}
-                >
-                  <SelectTrigger id="day-of-week" className="mt-1.5">
-                    <SelectValue placeholder="Select day" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DAYS_OF_WEEK.map((day) => (
-                      <SelectItem key={day.value} value={day.value}>
-                        {day.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Time and Timezone */}
-            {scheduleType && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="time">Time (24hr format)</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                    placeholder="14:00"
-                    className="mt-1.5"
-                    disabled={isCreating}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select 
-                    value={timezone} 
-                    onValueChange={setTimezone}
-                    disabled={isCreating}
-                  >
-                    <SelectTrigger id="timezone" className="mt-1.5">
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz} value={tz}>
-                          {tz}
+                {/* Schedule Type */}
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="schedule-type" className="text-sm font-semibold text-foreground/90 mb-2 block">
+                      Schedule Type
+                    </Label>
+                    <Select 
+                      value={scheduleType} 
+                      onValueChange={setScheduleType}
+                      disabled={isCreating}
+                    >
+                      <SelectTrigger id="schedule-type" className="h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                        <SelectValue placeholder="Select schedule type">
+                          {scheduleType === "same_time" && "Same Day"}
+                          {scheduleType === "designated_day" && "Individual Days"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="same_time" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-foreground">Same Day</div>
+                            <div className="text-xs text-muted-foreground leading-relaxed">All clients receive forms on the same day/time</div>
+                          </div>
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        <SelectItem value="designated_day" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                          <div className="space-y-1">
+                            <div className="font-semibold text-foreground">Individual Days</div>
+                            <div className="text-xs text-muted-foreground leading-relaxed">Each client has their own designated day</div>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {scheduleType && (
+                      <div className="mt-2 rounded-lg bg-muted/30 border border-border/50 p-3">
+                        <p className="text-xs text-muted-foreground">
+                          {scheduleType === "same_time" && "📅 Forms will be sent to all clients at the same time"}
+                          {scheduleType === "designated_day" && "📅 Forms will be sent based on each client's check-in day"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Day of Week (only for same_time) */}
+                  {scheduleType === "same_time" && (
+                    <div>
+                      <Label htmlFor="day-of-week" className="text-sm font-semibold text-foreground/90">Day of Week</Label>
+                      <Select 
+                        value={dayOfWeek} 
+                        onValueChange={setDayOfWeek}
+                        disabled={isCreating}
+                      >
+                        <SelectTrigger id="day-of-week" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                          <SelectValue placeholder="Select day" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {DAYS_OF_WEEK.map((day) => (
+                            <SelectItem key={day.value} value={day.value} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                              {day.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Time and Timezone */}
+                  {scheduleType && (
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                      <div>
+                        <Label htmlFor="time" className="text-sm font-semibold text-foreground/90">
+                          Time <span className="text-xs text-muted-foreground font-normal">(24hr)</span>
+                        </Label>
+                        <Input
+                          id="time"
+                          type="time"
+                          value={time}
+                          onChange={(e) => setTime(e.target.value)}
+                          placeholder="14:00"
+                          className="mt-2 h-11 border-border/60 focus:border-primary/50 transition-colors bg-background"
+                          disabled={isCreating}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="timezone" className="text-sm font-semibold text-foreground/90">Timezone</Label>
+                        <Select 
+                          value={timezone} 
+                          onValueChange={setTimezone}
+                          disabled={isCreating}
+                        >
+                          <SelectTrigger id="timezone" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                            <SelectValue placeholder="Select timezone" />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px]">
+                            {TIMEZONES.map((tz) => (
+                              <SelectItem key={tz} value={tz} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                                {tz}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
             </div>
           )}
         </div>
