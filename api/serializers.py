@@ -456,6 +456,9 @@ class CheckInFormSerializer(serializers.ModelSerializer):
     submission_count = serializers.SerializerMethodField()
     form_type_display = serializers.CharField(source='get_form_type_display', read_only=True)
     
+    # Explicitly declare form_type to override model's default and make it required
+    form_type = serializers.ChoiceField(choices=CheckInForm.FORM_TYPE_CHOICES, required=True)
+    
     # Nested write for schedule creation
     schedule_data = CheckInScheduleSerializer(write_only=True, required=False)
     
@@ -473,7 +476,6 @@ class CheckInFormSerializer(serializers.ModelSerializer):
                            'created_at', 'updated_at']
         extra_kwargs = {
             'package': {'required': False, 'allow_null': True},
-            'form_type': {'required': True},
         }
     
     def get_package_name(self, obj):
