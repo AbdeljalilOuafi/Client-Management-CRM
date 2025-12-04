@@ -6,6 +6,7 @@ from .views import (
     InstallmentViewSet, StripeCustomerViewSet,
     CheckInFormViewSet, CheckInScheduleViewSet, CheckInSubmissionViewSet,
     checkin_trigger_webhook, get_checkin_form, submit_checkin_form,
+    get_onboarding_form, submit_onboarding_form,
     configure_custom_domain, regenerate_client_links, get_domain_config,
     update_domain_config, delete_domain_config,
     configure_payment_domain, get_payment_domain_config,
@@ -34,6 +35,9 @@ urlpatterns = [
     # Public check-in endpoints
     path('public/checkin/<uuid:checkin_uuid>/', get_checkin_form, name='public-checkin-form'),
     path('public/checkin/<uuid:checkin_uuid>/submit/', submit_checkin_form, name='public-checkin-submit'),
+    # Public onboarding endpoints
+    path('public/onboarding/<uuid:onboarding_uuid>/', get_onboarding_form, name='public-onboarding-form'),
+    path('public/onboarding/<uuid:onboarding_uuid>/submit/', submit_onboarding_form, name='public-onboarding-submit'),
     # Custom domain management endpoints
     path('domains/configure/', configure_custom_domain, name='configure-domain'),
     path('domains/regenerate-links/', regenerate_client_links, name='regenerate-links'),

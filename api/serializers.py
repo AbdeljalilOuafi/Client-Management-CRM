@@ -288,10 +288,10 @@ class ClientSerializer(serializers.ModelSerializer):
             'state', 'currency', 'gender', 'lead_origin', 'notice_given',
             'no_more_payments', 'timezone', 'phone', 'assigned_coach', 'notes',
             'coach', 'coach_name', 'closer', 'closer_name', 'setter', 'setter_name',
-            'checkin_link', 'short_checkin_link'
+            'checkin_link', 'short_checkin_link', 'onboarding_link', 'short_onboarding_link'
         ]
         read_only_fields = ['id', 'account', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
-                           'checkin_link', 'short_checkin_link']
+                           'checkin_link', 'short_checkin_link', 'onboarding_link', 'short_onboarding_link']
 
     def create(self, validated_data):
         # Account is set by the ViewSet via perform_create() using account_id kwarg
