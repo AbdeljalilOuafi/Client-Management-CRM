@@ -288,10 +288,12 @@ class ClientSerializer(serializers.ModelSerializer):
             'state', 'currency', 'gender', 'lead_origin', 'notice_given',
             'no_more_payments', 'timezone', 'phone', 'assigned_coach', 'notes',
             'coach', 'coach_name', 'closer', 'closer_name', 'setter', 'setter_name',
-            'checkin_link', 'short_checkin_link', 'onboarding_link', 'short_onboarding_link'
+            'checkin_link', 'short_checkin_link', 'onboarding_link', 'short_onboarding_link',
+            'reviews_link', 'short_reviews_link'
         ]
         read_only_fields = ['id', 'account', 'account_name', 'coach_name', 'closer_name', 'setter_name', 
-                           'checkin_link', 'short_checkin_link', 'onboarding_link', 'short_onboarding_link']
+                           'checkin_link', 'short_checkin_link', 'onboarding_link', 'short_onboarding_link',
+                           'reviews_link', 'short_reviews_link']
 
     def create(self, validated_data):
         # Account is set by the ViewSet via perform_create() using account_id kwarg
@@ -419,30 +421,51 @@ class ChangePasswordSerializer(serializers.Serializer):
 # Check-In Forms Serializers
 
 class CheckInScheduleSerializer(serializers.ModelSerializer):
-    """Serializer for check-in schedules"""
+    """Serializer for check-in and reviews schedules"""
     
     class Meta:
         model = CheckInSchedule
         fields = [
             'id', 'form', 'account', 'schedule_type', 'day_of_week',
             'time', 'timezone', 'webhook_job_ids', 'is_active',
+            'interval_type', 'interval_count', 'last_triggered_at',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'form', 'account', 'webhook_job_ids', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'form', 'account', 'webhook_job_ids', 'last_triggered_at', 'created_at', 'updated_at']
     
     def validate(self, data):
-        """Validate schedule configuration"""
+        """Validate schedule configuration based on form type"""
         schedule_type = data.get('schedule_type')
         day_of_week = data.get('day_of_week')
+        interval_type = data.get('interval_type')
+        interval_count = data.get('interval_count')
         
-        if schedule_type == 'SAME_DAY' and not day_of_week:
-            raise serializers.ValidationError({
-                'day_of_week': 'This field is required for SAME_DAY schedule type.'
-            })
+        # Validation for check-in forms (schedule_type based)
+        if schedule_type:
+            if schedule_type == 'SAME_DAY' and not day_of_week:
+                raise serializers.ValidationError({
+                    'day_of_week': 'This field is required for SAME_DAY schedule type.'
+                })
+            
+            if schedule_type == 'INDIVIDUAL_DAYS' and day_of_week:
+                raise serializers.ValidationError({
+                    'day_of_week': 'This field should be null for INDIVIDUAL_DAYS schedule type.'
+                })
         
-        if schedule_type == 'INDIVIDUAL_DAYS' and day_of_week:
+        # Validation for reviews forms (interval based)
+        if interval_type:
+            if not interval_count:
+                raise serializers.ValidationError({
+                    'interval_count': 'This field is required when interval_type is set.'
+                })
+            if interval_count < 1 or interval_count > 12:
+                raise serializers.ValidationError({
+                    'interval_count': 'Must be between 1 and 12.'
+                })
+        
+        if interval_count and not interval_type:
             raise serializers.ValidationError({
-                'day_of_week': 'This field should be null for INDIVIDUAL_DAYS schedule type.'
+                'interval_type': 'This field is required when interval_count is set.'
             })
         
         return data

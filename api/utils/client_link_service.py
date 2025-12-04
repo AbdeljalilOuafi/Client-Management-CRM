@@ -293,3 +293,145 @@ def get_onboarding_url_without_saving(client):
     # Always use frontend URL for the actual onboarding page
     frontend_url = settings.FRONTEND_URL.rstrip('/')
     return f"{frontend_url}/onboarding/{client.onboarding_link}/"
+
+
+# =============================================================================
+# Reviews Link Functions
+# =============================================================================
+
+def get_or_generate_reviews_short_link(client, force_regenerate=False):
+    """
+    Get or generate a shortened reviews link for a client.
+    
+    This function implements a lazy generation strategy:
+    1. If short link already exists and force_regenerate=False, return it (links are permanent)
+    2. Otherwise, generate a new short link
+    
+    Domain selection priority:
+    1. Account's custom forms_domain (if configured)
+    2. Fallback to DEFAULT_FORMS_DOMAIN (form.fithq.ai)
+    
+    URL shortening with graceful fallback:
+    1. Try to shorten via URL shortener service
+    2. If shortening fails, return full URL with selected domain
+    
+    Args:
+        client: Client model instance
+        force_regenerate (bool): If True, regenerate even if short_reviews_link exists
+    
+    Returns:
+        str: Reviews URL (shortened if possible, full URL otherwise)
+    
+    Example:
+        >>> from api.models import Client
+        >>> client = Client.objects.get(id=1)
+        >>> link = get_or_generate_reviews_short_link(client)
+        >>> print(link)
+        'https://check.gymname.com/rev123'  # or full URL if shortening failed
+    """
+    # Return existing link if present and not forcing regeneration
+    if client.short_reviews_link and not force_regenerate:
+        logger.info(f"Using existing reviews short link for client {client.id}: {client.short_reviews_link}")
+        return client.short_reviews_link
+    
+    # Determine which domain to use for the SHORT URL
+    account = client.account
+    if account.forms_domain and account.forms_domain_configured:
+        short_domain = account.forms_domain
+        logger.info(f"Using custom domain for reviews link, client {client.id}: {short_domain}")
+    else:
+        short_domain = settings.DEFAULT_FORMS_DOMAIN
+        logger.info(f"Using default domain for reviews link, client {client.id}: {short_domain}")
+    
+    # Construct original full URL (always uses FRONTEND_URL for the actual reviews page)
+    frontend_url = settings.FRONTEND_URL.rstrip('/')
+    original_url = f"{frontend_url}/reviews/{client.reviews_link}/"
+    
+    # Try to shorten the URL
+    client_name = f"{client.first_name} {client.last_name or ''}".strip()
+    title = f"Reviews: {client_name}"
+    
+    short_url = shorten_checkin_url(original_url, short_domain, title)
+    
+    # Fallback to full URL if shortening failed
+    if short_url:
+        final_url = short_url
+        logger.info(f"Successfully shortened reviews URL for client {client.id}")
+    else:
+        final_url = original_url
+        logger.warning(f"Reviews URL shortening failed for client {client.id}, using full URL")
+    
+    # Save the link (whether shortened or full)
+    client.short_reviews_link = final_url
+    client.save(update_fields=['short_reviews_link'])
+    
+    logger.info(f"Generated and saved reviews link for client {client.id}: {final_url}")
+    return final_url
+
+
+def populate_reviews_links_for_package(package):
+    """
+    Generate reviews links for all clients with an active client_package 
+    matching the given package.
+    
+    Used when a new reviews form is created for a package - this updates
+    all existing clients who should have access to that form.
+    
+    Args:
+        package: Package model instance
+    
+    Returns:
+        dict: {
+            'success_count': int,
+            'fail_count': int,
+            'total_count': int
+        }
+    """
+    from api.models import ClientPackage
+    
+    logger.info(f"Populating reviews links for package {package.id} ({package.package_name})")
+    
+    # Get all clients with an active client_package for this package
+    client_packages = ClientPackage.objects.filter(
+        package=package,
+        status='active'
+    ).select_related('client')
+    
+    total_count = client_packages.count()
+    success_count = 0
+    fail_count = 0
+    
+    for cp in client_packages:
+        try:
+            # Generate reviews link for this client
+            get_or_generate_reviews_short_link(cp.client, force_regenerate=False)
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Failed to generate reviews link for client {cp.client.id}: {str(e)}")
+            fail_count += 1
+    
+    logger.info(f"Reviews link population complete for package {package.id}: "
+                f"{success_count}/{total_count} successful, {fail_count} failed")
+    
+    return {
+        'success_count': success_count,
+        'fail_count': fail_count,
+        'total_count': total_count
+    }
+
+
+def get_reviews_url_without_saving(client):
+    """
+    Get the reviews URL for a client without saving to database.
+    
+    Useful for previewing URLs or one-time use cases.
+    
+    Args:
+        client: Client model instance
+    
+    Returns:
+        str: Reviews URL (full URL, not shortened)
+    """
+    # Always use frontend URL for the actual reviews page
+    frontend_url = settings.FRONTEND_URL.rstrip('/')
+    return f"{frontend_url}/reviews/{client.reviews_link}/"

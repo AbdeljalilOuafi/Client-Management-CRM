@@ -24,6 +24,7 @@ DAY_TO_CRON = {
 def create_schedule_webhooks(schedule):
     """
     Creates webhooks with external scheduler for a CheckInSchedule.
+    Handles both check-in forms (SAME_DAY/INDIVIDUAL_DAYS) and reviews forms (weekly/monthly intervals).
     Returns list of webhook IDs created.
     
     Args:
@@ -36,32 +37,18 @@ def create_schedule_webhooks(schedule):
         requests.RequestException: If webhook creation fails
     """
     webhook_ids = []
-    crm_webhook_url = f"{settings.BACKEND_URL}/api/internal/checkin-trigger/"
     
     try:
-        if schedule.schedule_type == 'SAME_DAY':
-            # Create single webhook for all clients on same day
-            webhook_id = _create_single_webhook(
-                schedule=schedule,
-                day_name=schedule.day_of_week,
-                crm_url=crm_webhook_url,
-                day_filter=None  # No filter - send to all clients
-            )
-            webhook_ids.append(webhook_id)
-            logger.info(f"Created SAME_DAY webhook {webhook_id} for schedule {schedule.id}")
-        
-        elif schedule.schedule_type == 'INDIVIDUAL_DAYS':
-            # Create 7 webhooks (one per day of week)
-            for day_name, day_num in DAY_TO_CRON.items():
-                webhook_id = _create_single_webhook(
-                    schedule=schedule,
-                    day_name=day_name,
-                    crm_url=crm_webhook_url,
-                    day_filter=day_name  # Filter clients by their checkin_day
-                )
-                webhook_ids.append(webhook_id)
-            
-            logger.info(f"Created {len(webhook_ids)} INDIVIDUAL_DAYS webhooks for schedule {schedule.id}")
+        # Determine if this is a reviews schedule (has interval_type) or check-in schedule
+        if schedule.interval_type:
+            # Reviews form - use interval-based scheduling
+            webhook_ids = _create_reviews_webhooks(schedule)
+        elif schedule.schedule_type:
+            # Check-in form - use day-based scheduling
+            webhook_ids = _create_checkin_webhooks(schedule)
+        else:
+            logger.warning(f"Schedule {schedule.id} has neither schedule_type nor interval_type set")
+            return []
         
         # Store webhook IDs on schedule
         schedule.webhook_job_ids = webhook_ids
@@ -78,6 +65,130 @@ def create_schedule_webhooks(schedule):
             except:
                 pass
         raise
+
+
+def _create_checkin_webhooks(schedule):
+    """
+    Creates webhooks for check-in forms (SAME_DAY or INDIVIDUAL_DAYS schedule types).
+    
+    Args:
+        schedule: CheckInSchedule instance with schedule_type set
+    
+    Returns:
+        list: Webhook IDs created
+    """
+    webhook_ids = []
+    crm_webhook_url = f"{settings.BACKEND_URL}/api/internal/checkin-trigger/"
+    
+    if schedule.schedule_type == 'SAME_DAY':
+        # Create single webhook for all clients on same day
+        webhook_id = _create_single_webhook(
+            schedule=schedule,
+            day_name=schedule.day_of_week,
+            crm_url=crm_webhook_url,
+            day_filter=None  # No filter - send to all clients
+        )
+        webhook_ids.append(webhook_id)
+        logger.info(f"Created SAME_DAY webhook {webhook_id} for schedule {schedule.id}")
+    
+    elif schedule.schedule_type == 'INDIVIDUAL_DAYS':
+        # Create 7 webhooks (one per day of week)
+        for day_name, day_num in DAY_TO_CRON.items():
+            webhook_id = _create_single_webhook(
+                schedule=schedule,
+                day_name=day_name,
+                crm_url=crm_webhook_url,
+                day_filter=day_name  # Filter clients by their checkin_day
+            )
+            webhook_ids.append(webhook_id)
+        
+        logger.info(f"Created {len(webhook_ids)} INDIVIDUAL_DAYS webhooks for schedule {schedule.id}")
+    
+    return webhook_ids
+
+
+def _create_reviews_webhooks(schedule):
+    """
+    Creates webhooks for reviews forms (weekly or monthly intervals).
+    
+    Args:
+        schedule: CheckInSchedule instance with interval_type and interval_count set
+    
+    Returns:
+        list: Webhook IDs created
+    """
+    webhook_ids = []
+    crm_webhook_url = f"{settings.BACKEND_URL}/api/internal/reviews-trigger/"
+    
+    # Build cron expression based on interval type
+    if schedule.interval_type == 'weekly':
+        # Weekly: runs every Monday at specified time
+        # Backend will track last_triggered_at to handle interval_count
+        cron_expression = f"{schedule.time.minute} {schedule.time.hour} * * 1"
+        webhook_name = f"Reviews: {schedule.form.title} (Every {schedule.interval_count} week(s))"
+    
+    elif schedule.interval_type == 'monthly':
+        # Monthly: runs on 1st of every Nth month
+        cron_expression = f"{schedule.time.minute} {schedule.time.hour} 1 */{schedule.interval_count} *"
+        webhook_name = f"Reviews: {schedule.form.title} (Every {schedule.interval_count} month(s))"
+    
+    else:
+        logger.error(f"Unknown interval_type '{schedule.interval_type}' for schedule {schedule.id}")
+        return []
+    
+    # Payload to send to CRM when webhook triggers
+    webhook_payload = {
+        'schedule_id': str(schedule.id),
+        'webhook_secret': settings.WEBHOOK_SECRET
+    }
+    
+    # Create webhook via external API
+    webhook_create_url = f"{settings.WEBHOOK_SCHEDULER_URL}/api/webhooks/"
+    webhook_request_data = {
+        'name': webhook_name,
+        'url': crm_webhook_url,
+        'http_method': 'POST',
+        'schedule_type': 'recurring',
+        'cron_expression': cron_expression,
+        'timezone': schedule.timezone,
+        'payload': webhook_payload
+    }
+    
+    logger.info(f"Creating reviews webhook at {webhook_create_url}")
+    logger.debug(f"Webhook request data: {webhook_request_data}")
+    
+    try:
+        response = requests.post(
+            webhook_create_url,
+            headers={
+                'Authorization': f'Token {settings.WEBHOOK_SCHEDULER_TOKEN}',
+                'Content-Type': 'application/json'
+            },
+            json=webhook_request_data,
+            timeout=30
+        )
+        
+        response.raise_for_status()
+        webhook_data = response.json()
+        
+        logger.info(f"Reviews webhook creation response: {webhook_data}")
+        
+        webhook_id = webhook_data.get('id')
+        if not webhook_id:
+            logger.error(f"No 'id' field in webhook creation response: {webhook_data}")
+            raise ValueError(f"CronHooks did not return webhook ID in response. Response: {webhook_data}")
+        
+        webhook_ids.append(webhook_id)
+        logger.info(f"Successfully created reviews webhook {webhook_id} for schedule {schedule.id}")
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to create reviews webhook: {str(e)}")
+        if hasattr(e, 'response') and e.response is not None:
+            logger.error(f"Response status: {e.response.status_code}")
+            logger.error(f"Response body: {e.response.text}")
+        raise
+    
+    return webhook_ids
 
 
 def _create_single_webhook(schedule, day_name, crm_url, day_filter):
