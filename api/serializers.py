@@ -449,11 +449,12 @@ class CheckInScheduleSerializer(serializers.ModelSerializer):
 
 
 class CheckInFormSerializer(serializers.ModelSerializer):
-    """Serializer for check-in forms"""
-    package_name = serializers.CharField(source='package.package_name', read_only=True)
+    """Serializer for forms (checkin, onboarding, reviews)"""
+    package_name = serializers.SerializerMethodField()
     account_name = serializers.CharField(source='account.name', read_only=True)
     schedule = CheckInScheduleSerializer(read_only=True)
     submission_count = serializers.SerializerMethodField()
+    form_type_display = serializers.CharField(source='get_form_type_display', read_only=True)
     
     # Nested write for schedule creation
     schedule_data = CheckInScheduleSerializer(write_only=True, required=False)
@@ -462,19 +463,32 @@ class CheckInFormSerializer(serializers.ModelSerializer):
         model = CheckInForm
         fields = [
             'id', 'account', 'account_name', 'package', 'package_name',
+            'form_type', 'form_type_display',
             'title', 'description', 'form_schema', 'is_active',
             'schedule', 'schedule_data', 'submission_count',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'account', 'account_name', 'package_name', 
-                           'schedule', 'submission_count', 'created_at', 'updated_at']
+                           'form_type_display', 'schedule', 'submission_count', 
+                           'created_at', 'updated_at']
+        extra_kwargs = {
+            'package': {'required': False, 'allow_null': True},
+            'form_type': {'required': True},
+        }
+    
+    def get_package_name(self, obj):
+        """Return package name or None if unassigned"""
+        return obj.package.package_name if obj.package else None
     
     def get_submission_count(self, obj):
         """Return total number of submissions for this form"""
         return obj.submissions.count()
     
     def validate_package(self, value):
-        """Ensure package belongs to user's account and doesn't have existing form"""
+        """Ensure package belongs to user's account"""
+        if value is None:
+            return value
+            
         request = self.context.get('request')
         if not request:
             return value
@@ -484,14 +498,52 @@ class CheckInFormSerializer(serializers.ModelSerializer):
         if account_id and value.account_id != account_id:
             raise serializers.ValidationError("Package must belong to your account.")
         
-        # Check if form already exists for this package (for create only)
-        if not self.instance and hasattr(value, 'checkin_form'):
-            raise serializers.ValidationError(
-                f"A check-in form already exists for package '{value.package_name}'. "
-                "Each package can only have one form."
-            )
-        
         return value
+    
+    def validate_form_type(self, value):
+        """Validate form_type is one of the allowed choices"""
+        valid_types = ['checkins', 'onboarding', 'reviews']
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                f"Invalid form type '{value}'. Must be one of: {', '.join(valid_types)}"
+            )
+        return value
+    
+    def validate(self, data):
+        """
+        Cross-field validation to ensure:
+        - Package doesn't already have a form of this type (for create/update)
+        """
+        package = data.get('package')
+        form_type = data.get('form_type')
+        
+        # Skip validation if no package is assigned
+        if package is None:
+            return data
+        
+        # Get account_id for the query
+        request = self.context.get('request')
+        account_id = get_request_account_id(request) if request else None
+        
+        # Build query to check for existing form of same type on this package
+        existing_query = CheckInForm.objects.filter(
+            package=package,
+            form_type=form_type
+        )
+        
+        # If updating, exclude current instance from check
+        if self.instance:
+            existing_query = existing_query.exclude(id=self.instance.id)
+        
+        if existing_query.exists():
+            existing_form = existing_query.first()
+            form_type_display = dict(CheckInForm.FORM_TYPE_CHOICES).get(form_type, form_type)
+            raise serializers.ValidationError({
+                'package': f"Package '{package.package_name}' already has a {form_type_display} form "
+                          f"('{existing_form.title}'). Each package can only have one form of each type."
+            })
+        
+        return data
     
     def validate_form_schema(self, value):
         """Validate form schema is valid JSON and has required structure"""

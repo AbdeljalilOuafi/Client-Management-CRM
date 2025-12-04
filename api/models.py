@@ -603,15 +603,30 @@ class Installment(models.Model):
 
 
 class CheckInForm(models.Model):
-    """Check-in form template assigned to packages (1:1 relationship)"""
+    """Form template that can be assigned to packages. Supports multiple form types."""
+    
+    FORM_TYPE_CHOICES = [
+        ('checkins', 'Check-in'),
+        ('onboarding', 'Onboarding'),
+        ('reviews', 'Reviews'),
+    ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
-    package = models.OneToOneField(
+    package = models.ForeignKey(
         Package, 
         on_delete=models.CASCADE, 
         db_column='package_id',
-        related_name='checkin_form'
+        related_name='forms',
+        null=True,
+        blank=True,
+        help_text='Package this form is assigned to (can be null for unassigned forms)'
+    )
+    form_type = models.CharField(
+        max_length=20, 
+        choices=FORM_TYPE_CHOICES, 
+        default='checkin',
+        help_text='Type of form: checkin, onboarding, or reviews'
     )
     title = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
@@ -623,10 +638,13 @@ class CheckInForm(models.Model):
     class Meta:
         managed = False
         db_table = 'check_in_forms'
-        unique_together = [['account', 'package']]
+        # Each package can have at most one form of each type
+        # Note: PostgreSQL allows multiple NULL values in unique constraints
+        unique_together = [['account', 'package', 'form_type']]
 
     def __str__(self):
-        return f"{self.title} ({self.package.package_name})"
+        package_name = self.package.package_name if self.package else 'Unassigned'
+        return f"{self.title} ({self.get_form_type_display()}) - {package_name}"
 
 
 class CheckInSchedule(models.Model):
