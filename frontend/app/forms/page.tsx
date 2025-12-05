@@ -209,12 +209,19 @@ function CheckinFormsContent() {
       return "No schedule";
     }
     
-    const { schedule_type, schedule_day, schedule_time, timezone } = form.schedule;
-    
-    if (schedule_type === "SAME_DAY" && schedule_day) {
-      return `Every ${schedule_day} at ${schedule_time} (${timezone})`;
-    } else if (schedule_type === "INDIVIDUAL_DAYS") {
-      return `Individual days at ${schedule_time} (${timezone})`;
+    // Check if it's a CheckInSchedule (has schedule_type) or ReviewsSchedule (has interval_type)
+    if ("schedule_type" in form.schedule) {
+      const { schedule_type, schedule_day, schedule_time, timezone } = form.schedule;
+      
+      if (schedule_type === "SAME_DAY" && schedule_day) {
+        return `Every ${schedule_day} at ${schedule_time} (${timezone})`;
+      } else if (schedule_type === "INDIVIDUAL_DAYS") {
+        return `Individual days at ${schedule_time} (${timezone})`;
+      }
+    } else if ("interval_type" in form.schedule) {
+      const { interval_type, interval_count, time, timezone } = form.schedule;
+      const unit = interval_type === "weekly" ? (interval_count === 1 ? "week" : "weeks") : (interval_count === 1 ? "month" : "months");
+      return `Every ${interval_count} ${unit} at ${time} (${timezone})`;
     }
     
     return "No schedule";

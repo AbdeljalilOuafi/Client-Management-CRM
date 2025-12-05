@@ -19,19 +19,30 @@ import { listPackages, Package } from "@/lib/api/packages";
 // Track which packages have which form types assigned
 type PackageFormTypeMap = Record<FormType, Set<number>>;
 
+// Schedule data for check-in forms
+export interface CheckinScheduleData {
+  schedule_type: "SAME_DAY" | "INDIVIDUAL_DAYS";
+  day_of_week?: string;
+  time: string;
+  timezone: string;
+  is_active: boolean;
+}
+
+// Schedule data for reviews forms (interval-based)
+export interface ReviewsScheduleData {
+  interval_type: "weekly" | "monthly";
+  interval_count: number;
+  time: string;
+  timezone: string;
+}
+
 export interface FormMetadata {
   title: string;
   description?: string;
   form_type: "onboarding" | "checkins" | "reviews";
   packages?: number[];
   package_names?: string[];
-  schedule_data: {
-    schedule_type: "SAME_DAY" | "INDIVIDUAL_DAYS";
-    day_of_week?: string;
-    time: string;
-    timezone: string;
-    is_active: boolean;
-  };
+  schedule_data?: CheckinScheduleData | ReviewsScheduleData;
 }
 
 interface CreateFormDialogProps {
@@ -92,8 +103,16 @@ export function CreateFormDialog({
   const [formDescription, setFormDescription] = useState("");
   const [formType, setFormType] = useState<string>("");
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
+  
+  // Check-in schedule fields
   const [scheduleType, setScheduleType] = useState<string>("");
   const [dayOfWeek, setDayOfWeek] = useState<string>("monday");
+  
+  // Reviews schedule fields
+  const [intervalType, setIntervalType] = useState<string>("weekly");
+  const [intervalCount, setIntervalCount] = useState<number>(1);
+  
+  // Shared schedule fields
   const [time, setTime] = useState<string>(() => {
     const now = new Date();
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -169,6 +188,8 @@ export function CreateFormDialog({
     setSelectedPackages([]); // Default to no selection
     setScheduleType("");
     setDayOfWeek("monday");
+    setIntervalType("weekly");
+    setIntervalCount(1);
     setTime("09:00");
     setTimezone("Africa/Casablanca");
     setPackagePopoverOpen(false);
@@ -199,14 +220,50 @@ export function CreateFormDialog({
       ? [defaultPackageId] 
       : selectedPackages.map(id => parseInt(id));
 
-    if (!scheduleType) {
+    // Validate schedule based on form type (onboarding forms don't need schedules)
+    if (formType === "checkins" && !scheduleType) {
       toast({
         title: "Error",
-        description: "Schedule type is required",
+        description: "Schedule type is required for check-in forms",
         variant: "destructive",
       });
       return;
     }
+
+    if (formType === "reviews" && !intervalType) {
+      toast({
+        title: "Error",
+        description: "Interval type is required for reviews forms",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Build schedule_data based on form_type
+    const buildScheduleData = (): CheckinScheduleData | ReviewsScheduleData | undefined => {
+      // Onboarding forms are one-time questionnaires - no schedule needed
+      if (formType === "onboarding") {
+        return undefined;
+      }
+      
+      if (formType === "reviews") {
+        return {
+          interval_type: intervalType as "weekly" | "monthly",
+          interval_count: intervalCount,
+          time: time, // HH:MM format without seconds for reviews
+          timezone: timezone,
+        };
+      }
+      
+      // Check-in forms
+      return {
+        schedule_type: scheduleType === "same_time" ? "SAME_DAY" : "INDIVIDUAL_DAYS",
+        day_of_week: scheduleType === "same_time" ? dayOfWeek : undefined,
+        time: `${time}:00`,
+        timezone: timezone,
+        is_active: true,
+      };
+    };
 
     // If onFormMetadataReady is provided, use new workflow (pass to FormBuilder)
     if (onFormMetadataReady) {
@@ -220,13 +277,7 @@ export function CreateFormDialog({
         form_type: formType as "onboarding" | "checkins" | "reviews",
         packages: finalPackages,
         package_names: packageNames,
-        schedule_data: {
-          schedule_type: scheduleType === "same_time" ? "SAME_DAY" : "INDIVIDUAL_DAYS",
-          day_of_week: scheduleType === "same_time" ? dayOfWeek : undefined,
-          time: `${time}:00`,
-          timezone: timezone,
-          is_active: true,
-        },
+        schedule_data: buildScheduleData(),
       };
 
       resetForm();
@@ -239,6 +290,7 @@ export function CreateFormDialog({
     setIsCreating(true);
 
     try {
+      const scheduleData = buildScheduleData();
       const formData: CreateCheckInFormData = {
         title: formTitle.trim(),
         description: formDescription.trim() || undefined,
@@ -255,13 +307,7 @@ export function CreateFormDialog({
           ],
         },
         is_active: true,
-        schedule_data: {
-          schedule_type: scheduleType === "same_time" ? "SAME_DAY" : "INDIVIDUAL_DAYS",
-          day_of_week: scheduleType === "same_time" ? dayOfWeek : undefined,
-          time: `${time}:00`,
-          timezone: timezone,
-          is_active: true,
-        },
+        ...(scheduleData && { schedule_data: scheduleData }),
       };
 
       const newForm = await createCheckInForm(formData);
@@ -455,8 +501,8 @@ export function CreateFormDialog({
             </div>
           )}
 
-          {/* Form Schedule Section */}
-          {formType && (
+          {/* Form Schedule Section - Only for checkins and reviews (not onboarding) */}
+          {formType && formType !== "onboarding" && (
             <div className="space-y-5 border-t border-border/50 pt-5 mt-2">
               <div className="rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-border/60 p-5 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
@@ -464,113 +510,231 @@ export function CreateFormDialog({
                   <h3 className="text-lg font-bold text-foreground">Form Schedule *</h3>
                 </div>
             
-                {/* Schedule Type */}
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="schedule-type" className="text-sm font-semibold text-foreground/90 mb-2 block">
-                      Schedule Type
-                    </Label>
-                    <Select 
-                      value={scheduleType} 
-                      onValueChange={setScheduleType}
-                      disabled={isCreating}
-                    >
-                      <SelectTrigger id="schedule-type" className="h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
-                        <SelectValue placeholder="Select schedule type">
-                          {scheduleType === "same_time" && "Same Day"}
-                          {scheduleType === "designated_day" && "Individual Days"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="same_time" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
-                          <div className="space-y-1">
-                            <div className="font-semibold text-foreground">Same Day</div>
-                            <div className="text-xs text-muted-foreground leading-relaxed">All clients receive forms on the same day/time</div>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="designated_day" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
-                          <div className="space-y-1">
-                            <div className="font-semibold text-foreground">Individual Days</div>
-                            <div className="text-xs text-muted-foreground leading-relaxed">Each client has their own designated day</div>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {scheduleType && (
-                      <div className="mt-2 rounded-lg bg-muted/30 border border-border/50 p-3">
-                        <p className="text-xs text-muted-foreground">
-                          {scheduleType === "same_time" && "📅 Forms will be sent to all clients at the same time"}
-                          {scheduleType === "designated_day" && "📅 Forms will be sent based on each client's check-in day"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Day of Week (only for same_time) */}
-                  {scheduleType === "same_time" && (
-                    <div>
-                      <Label htmlFor="day-of-week" className="text-sm font-semibold text-foreground/90">Day of Week</Label>
-                      <Select 
-                        value={dayOfWeek} 
-                        onValueChange={setDayOfWeek}
-                        disabled={isCreating}
-                      >
-                        <SelectTrigger id="day-of-week" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
-                          <SelectValue placeholder="Select day" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {DAYS_OF_WEEK.map((day) => (
-                            <SelectItem key={day.value} value={day.value} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
-                              {day.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  {/* Time and Timezone */}
-                  {scheduleType && (
-                    <div className="grid grid-cols-2 gap-4 pt-2">
+                  {/* CHECK-IN SCHEDULE FIELDS */}
+                  {formType === "checkins" && (
+                    <>
+                      {/* Schedule Type */}
                       <div>
-                        <Label htmlFor="time" className="text-sm font-semibold text-foreground/90">
-                          Time <span className="text-xs text-muted-foreground font-normal">(24hr)</span>
+                        <Label htmlFor="schedule-type" className="text-sm font-semibold text-foreground/90 mb-2 block">
+                          Schedule Type
                         </Label>
-                        <Input
-                          id="time"
-                          type="time"
-                          value={time}
-                          onChange={(e) => setTime(e.target.value)}
-                          placeholder="14:00"
-                          className="mt-2 h-11 border-border/60 focus:border-primary/50 transition-colors bg-background"
-                          disabled={isCreating}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="timezone" className="text-sm font-semibold text-foreground/90">Timezone</Label>
                         <Select 
-                          value={timezone} 
-                          onValueChange={setTimezone}
+                          value={scheduleType} 
+                          onValueChange={setScheduleType}
                           disabled={isCreating}
                         >
-                          <SelectTrigger id="timezone" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
-                            <SelectValue placeholder="Select timezone" />
+                          <SelectTrigger id="schedule-type" className="h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                            <SelectValue placeholder="Select schedule type">
+                              {scheduleType === "same_time" && "Same Day"}
+                              {scheduleType === "designated_day" && "Individual Days"}
+                            </SelectValue>
                           </SelectTrigger>
-                          <SelectContent className="max-h-[300px]">
-                            {TIMEZONES.map((tz) => (
-                              <SelectItem key={tz} value={tz} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
-                                {tz}
+                          <SelectContent>
+                            <SelectItem value="same_time" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-foreground">Same Day</div>
+                                <div className="text-xs text-muted-foreground leading-relaxed">All clients receive forms on the same day/time</div>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="designated_day" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-foreground">Individual Days</div>
+                                <div className="text-xs text-muted-foreground leading-relaxed">Each client has their own designated day</div>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {scheduleType && (
+                          <div className="mt-2 rounded-lg bg-muted/30 border border-border/50 p-3">
+                            <p className="text-xs text-muted-foreground">
+                              {scheduleType === "same_time" && "📅 Forms will be sent to all clients at the same day/time"}
+                              {scheduleType === "designated_day" && "📅 Forms will be sent based on each client's designated day"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Day of Week (only for same_time) */}
+                      {scheduleType === "same_time" && (
+                        <div>
+                          <Label htmlFor="day-of-week" className="text-sm font-semibold text-foreground/90">Day of Week</Label>
+                          <Select 
+                            value={dayOfWeek} 
+                            onValueChange={setDayOfWeek}
+                            disabled={isCreating}
+                          >
+                            <SelectTrigger id="day-of-week" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                              <SelectValue placeholder="Select day" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DAYS_OF_WEEK.map((day) => (
+                                <SelectItem key={day.value} value={day.value} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                                  {day.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Time and Timezone for Check-ins */}
+                      {scheduleType && (
+                        <div className="grid grid-cols-2 gap-4 pt-2">
+                          <div>
+                            <Label htmlFor="time" className="text-sm font-semibold text-foreground/90">
+                              Time <span className="text-xs text-muted-foreground font-normal">(24hr)</span>
+                            </Label>
+                            <Input
+                              id="time"
+                              type="time"
+                              value={time}
+                              onChange={(e) => setTime(e.target.value)}
+                              placeholder="14:00"
+                              className="mt-2 h-11 border-border/60 focus:border-primary/50 transition-colors bg-background"
+                              disabled={isCreating}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="timezone" className="text-sm font-semibold text-foreground/90">Timezone</Label>
+                            <Select 
+                              value={timezone} 
+                              onValueChange={setTimezone}
+                              disabled={isCreating}
+                            >
+                              <SelectTrigger id="timezone" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                                <SelectValue placeholder="Select timezone" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px]">
+                                {TIMEZONES.map((tz) => (
+                                  <SelectItem key={tz} value={tz} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                                    {tz}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* REVIEWS SCHEDULE FIELDS */}
+                  {formType === "reviews" && (
+                    <>
+                      {/* Interval Type */}
+                      <div>
+                        <Label htmlFor="interval-type" className="text-sm font-semibold text-foreground/90 mb-2 block">
+                          Review Frequency
+                        </Label>
+                        <Select 
+                          value={intervalType} 
+                          onValueChange={setIntervalType}
+                          disabled={isCreating}
+                        >
+                          <SelectTrigger id="interval-type" className="h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                            <SelectValue placeholder="Select frequency">
+                              {intervalType === "weekly" && "Weekly"}
+                              {intervalType === "monthly" && "Monthly"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-foreground">Weekly</div>
+                                <div className="text-xs text-muted-foreground leading-relaxed">Send reviews every N weeks</div>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="monthly" className="cursor-pointer py-3 focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                              <div className="space-y-1">
+                                <div className="font-semibold text-foreground">Monthly</div>
+                                <div className="text-xs text-muted-foreground leading-relaxed">Send reviews every N months</div>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Interval Count */}
+                      <div>
+                        <Label htmlFor="interval-count" className="text-sm font-semibold text-foreground/90">
+                          Every {intervalType === "weekly" ? "N Weeks" : "N Months"}
+                        </Label>
+                        <Select 
+                          value={intervalCount.toString()} 
+                          onValueChange={(val) => setIntervalCount(parseInt(val))}
+                          disabled={isCreating}
+                        >
+                          <SelectTrigger id="interval-count" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                            <SelectValue placeholder="Select interval" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
+                              <SelectItem key={num} value={num.toString()} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                                Every {num} {intervalType === "weekly" ? (num === 1 ? "week" : "weeks") : (num === 1 ? "month" : "months")}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <div className="mt-2 rounded-lg bg-muted/30 border border-border/50 p-3">
+                          <p className="text-xs text-muted-foreground">
+                            📅 Reviews will be sent every {intervalCount} {intervalType === "weekly" ? (intervalCount === 1 ? "week" : "weeks") : (intervalCount === 1 ? "month" : "months")}
+                          </p>
+                        </div>
                       </div>
-                    </div>
+
+                      {/* Time and Timezone for Reviews */}
+                      <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div>
+                          <Label htmlFor="time-reviews" className="text-sm font-semibold text-foreground/90">
+                            Send Time <span className="text-xs text-muted-foreground font-normal">(24hr)</span>
+                          </Label>
+                          <Input
+                            id="time-reviews"
+                            type="time"
+                            value={time}
+                            onChange={(e) => setTime(e.target.value)}
+                            placeholder="14:00"
+                            className="mt-2 h-11 border-border/60 focus:border-primary/50 transition-colors bg-background"
+                            disabled={isCreating}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="timezone-reviews" className="text-sm font-semibold text-foreground/90">Timezone</Label>
+                          <Select 
+                            value={timezone} 
+                            onValueChange={setTimezone}
+                            disabled={isCreating}
+                          >
+                            <SelectTrigger id="timezone-reviews" className="mt-2 h-11 border-border/60 hover:border-primary/50 transition-colors bg-background">
+                              <SelectValue placeholder="Select timezone" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[300px]">
+                              {TIMEZONES.map((tz) => (
+                                <SelectItem key={tz} value={tz} className="cursor-pointer focus:bg-hover-primary data-[highlighted]:bg-hover-primary">
+                                  {tz}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
             </div>
           )}
+
+          {/* Onboarding info - no schedule needed */}
+          {formType === "onboarding" && (
+            <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-4 mt-4">
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                ℹ️ Onboarding forms are one-time questionnaires and don't require a schedule. Clients will receive their onboarding link when assigned to a package.
+              </p>
+            </div>
+          )}
+
         </div>
 
         {/* Action Buttons */}

@@ -479,16 +479,21 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                         )}
                       </div>
                     </div>
-                    <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
-                      <p className="text-sm">
-                        <span className="font-semibold text-foreground/90">📅 Schedule:</span>{" "}
-                        <span className="text-muted-foreground">
-                          {initialMetadata.schedule_data.schedule_type === "SAME_DAY" 
-                            ? `Every ${initialMetadata.schedule_data.day_of_week} at ${initialMetadata.schedule_data.time}` 
-                            : `Individual days at ${initialMetadata.schedule_data.time}`}
-                        </span>
-                      </p>
-                    </div>
+                    {initialMetadata.schedule_data && (
+                      <div className="rounded-lg bg-muted/30 p-3 border border-border/50">
+                        <p className="text-sm">
+                          <span className="font-semibold text-foreground/90">📅 Schedule:</span>{" "}
+                          <span className="text-muted-foreground">
+                            {"schedule_type" in initialMetadata.schedule_data
+                              ? (initialMetadata.schedule_data.schedule_type === "SAME_DAY" 
+                                  ? `Every ${initialMetadata.schedule_data.day_of_week} at ${initialMetadata.schedule_data.time}` 
+                                  : `Individual days at ${initialMetadata.schedule_data.time}`)
+                              : `Every ${initialMetadata.schedule_data.interval_count} ${initialMetadata.schedule_data.interval_type === "weekly" ? "week(s)" : "month(s)"} at ${initialMetadata.schedule_data.time}`
+                            }
+                          </span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
