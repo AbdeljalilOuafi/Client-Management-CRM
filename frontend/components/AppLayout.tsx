@@ -31,7 +31,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
       <Sidebar />
       <main 
         className={cn(
-          "flex-1 overflow-hidden bg-background transition-all duration-300 ease-in-out",
+          "flex-1 overflow-y-auto bg-background transition-all duration-300 ease-in-out",
           isExpanded ? "ml-64" : "ml-16"
         )}
       >

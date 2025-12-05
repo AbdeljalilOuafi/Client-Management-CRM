@@ -26,6 +26,7 @@ export interface CheckInFormSchema {
   fields: CheckInFormField[];
 }
 
+// Schedule for check-in forms (day-based)
 export interface CheckInSchedule {
   id: string;
   schedule_type: "SAME_DAY" | "INDIVIDUAL_DAYS";
@@ -33,6 +34,37 @@ export interface CheckInSchedule {
   schedule_time: string;
   timezone: string;
   is_active: boolean;
+}
+
+// Schedule for reviews forms (interval-based)
+export interface ReviewsSchedule {
+  id: string;
+  interval_type: "weekly" | "monthly";
+  interval_count: number;
+  time: string;
+  timezone: string;
+  is_active: boolean;
+  last_triggered_at?: string | null;
+  webhook_job_ids?: number[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Schedule data for creating check-in forms
+export interface CheckinScheduleInput {
+  schedule_type: "SAME_DAY" | "INDIVIDUAL_DAYS";
+  day_of_week?: string;
+  time: string;
+  timezone: string;
+  is_active: boolean;
+}
+
+// Schedule data for creating reviews forms
+export interface ReviewsScheduleInput {
+  interval_type: "weekly" | "monthly";
+  interval_count: number;
+  time: string;
+  timezone: string;
 }
 
 export interface CheckInForm {
@@ -47,7 +79,7 @@ export interface CheckInForm {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  schedule?: CheckInSchedule;
+  schedule?: CheckInSchedule | ReviewsSchedule;
   submission_count?: number;
 }
 
@@ -58,13 +90,7 @@ export interface CreateCheckInFormData {
   description?: string;
   form_schema?: CheckInFormSchema;
   is_active?: boolean;
-  schedule_data?: {
-    schedule_type: "SAME_DAY" | "INDIVIDUAL_DAYS";
-    day_of_week?: string;
-    time: string;
-    timezone: string;
-    is_active: boolean;
-  };
+  schedule_data?: CheckinScheduleInput | ReviewsScheduleInput;
 }
 
 export interface UpdateCheckInFormData {
@@ -162,22 +188,41 @@ export async function toggleFormStatus(formId: string, isActive: boolean): Promi
  * Duplicate a form
  */
 export async function duplicateCheckInForm(formId: string): Promise<CheckInForm> {
+  // First get the form
   const originalForm = await getCheckInForm(formId);
   
+  // Build schedule_data based on form type
+  let scheduleData: CheckinScheduleInput | ReviewsScheduleInput | undefined;
+  
+  if (originalForm.form_type === "reviews" && originalForm.schedule) {
+    const reviewsSchedule = originalForm.schedule as ReviewsSchedule;
+    scheduleData = {
+      interval_type: reviewsSchedule.interval_type || "monthly",
+      interval_count: reviewsSchedule.interval_count || 1,
+      time: reviewsSchedule.time || "09:00:00",
+      timezone: reviewsSchedule.timezone || "UTC",
+    };
+  } else if (originalForm.form_type === "checkins" && originalForm.schedule) {
+    const checkinSchedule = originalForm.schedule as CheckInSchedule;
+    scheduleData = {
+      schedule_type: checkinSchedule.schedule_type || "SAME_DAY",
+      day_of_week: checkinSchedule.schedule_day,
+      time: checkinSchedule.schedule_time || "09:00:00",
+      timezone: checkinSchedule.timezone || "UTC",
+      is_active: false,
+    };
+  }
+  // Onboarding forms don't have schedules
+  
+  // Create new form with same data but new title
   const newFormData: CreateCheckInFormData = {
     title: `${originalForm.title} (Copy)`,
     form_type: originalForm.form_type,
     package: originalForm.package,
     description: originalForm.description || undefined,
     form_schema: originalForm.form_schema,
-    is_active: false,
-    schedule_data: {
-      schedule_type: originalForm.schedule?.schedule_type || "SAME_DAY",
-      day_of_week: originalForm.schedule?.schedule_day,
-      time: originalForm.schedule?.schedule_time || "09:00:00",
-      timezone: originalForm.schedule?.timezone || "UTC",
-      is_active: false,
-    },
+    is_active: false, // Start as inactive
+    ...(scheduleData && { schedule_data: scheduleData }),
   };
 
   return createCheckInForm(newFormData);

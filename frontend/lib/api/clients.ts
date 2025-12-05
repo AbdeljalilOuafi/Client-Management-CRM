@@ -54,6 +54,18 @@ export interface Client {
   mamo_pay_id?: string;
   created_at?: string; // Auto-generated timestamp (read-only)
   updated_at?: string; // Auto-updated timestamp (read-only)
+  
+  // Check-in links
+  checkin_link?: string;           // UUID for check-in form access
+  short_checkin_link?: string | null;  // Shortened URL (may be null)
+  
+  // Onboarding links
+  onboarding_link?: string;        // UUID for onboarding form access
+  short_onboarding_link?: string | null;  // Shortened URL (may be null if no form/package)
+  
+  // Reviews links
+  reviews_link?: string;           // UUID for reviews form access
+  short_reviews_link?: string | null;  // Shortened URL (may be null if no form/package)
 }
 
 export interface ClientsResponse {
