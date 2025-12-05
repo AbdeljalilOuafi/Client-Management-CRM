@@ -584,6 +584,7 @@ class CheckInFormSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create form and optionally create schedule"""
         schedule_data = validated_data.pop('schedule_data', None)
+        form_type = validated_data.get('form_type')
         
         # Account is set by the ViewSet via perform_create() using account_id kwarg
         # This supports both regular employees and master token users
@@ -595,6 +596,12 @@ class CheckInFormSerializer(serializers.ModelSerializer):
         if schedule_data:
             schedule_data['form'] = form
             schedule_data['account'] = form.account
+            
+            # Default schedule_type to 'RECURRING' for reviews forms
+            # Reviews forms are always recurring (weekly/monthly intervals)
+            if form_type == 'reviews' and not schedule_data.get('schedule_type'):
+                schedule_data['schedule_type'] = 'RECURRING'
+            
             CheckInSchedule.objects.create(**schedule_data)
             
             # Webhook creation will be handled in the ViewSet after schedule is saved

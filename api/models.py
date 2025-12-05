@@ -675,6 +675,7 @@ class CheckInSchedule(models.Model):
     SCHEDULE_TYPE_CHOICES = [
         ('SAME_DAY', 'Send to everybody at the same time each week'),
         ('INDIVIDUAL_DAYS', 'Each client has a designated checkin day'),
+        ('RECURRING', 'Recurring schedule for reviews (weekly/monthly intervals)'),
     ]
     
     DAY_CHOICES = [
