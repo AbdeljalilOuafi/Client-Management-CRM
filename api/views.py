@@ -994,11 +994,21 @@ class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """
-        When creating a new client package with 'active' status, automatically set all previous
-        active packages for the same client to inactive (only 1 active package per client).
-        Pending packages are left untouched and multiple pending packages are allowed.
+        When creating a new client package with 'active' status:
+        1. Automatically set all previous active packages for the same client to inactive
+        2. Generate onboarding/reviews links if forms exist for the package
         """
+        from api.models import CheckInForm
+        from api.utils.client_link_service import (
+            get_or_generate_onboarding_short_link,
+            get_or_generate_reviews_short_link
+        )
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
         client = serializer.validated_data.get('client')
+        package = serializer.validated_data.get('package')
         new_status = serializer.validated_data.get('status', 'active')
         
         # Only deactivate existing active packages if the new package is being set to 'active'
@@ -1009,7 +1019,97 @@ class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
             ).update(status='inactive')
         
         # Create the new package
-        serializer.save()
+        client_package = serializer.save()
+        
+        # If the new package is active, generate form links for the client
+        if new_status == 'active' and package:
+            try:
+                # Check for active onboarding form for this package
+                onboarding_form = CheckInForm.objects.filter(
+                    package=package,
+                    form_type='onboarding',
+                    is_active=True
+                ).first()
+                
+                if onboarding_form:
+                    get_or_generate_onboarding_short_link(client)
+                    logger.info(f"Generated onboarding link for client {client.id} after package assignment")
+                
+                # Check for active reviews form for this package
+                reviews_form = CheckInForm.objects.filter(
+                    package=package,
+                    form_type='reviews',
+                    is_active=True
+                ).first()
+                
+                if reviews_form:
+                    get_or_generate_reviews_short_link(client)
+                    logger.info(f"Generated reviews link for client {client.id} after package assignment")
+                    
+            except Exception as e:
+                logger.error(f"Failed to generate form links for client {client.id}: {str(e)}")
+                # Don't fail the client_package creation
+
+    def perform_update(self, serializer):
+        """
+        When updating a client package to 'active' status:
+        1. Automatically set all other active packages for the same client to inactive
+        2. Generate onboarding/reviews links if forms exist for the package
+        """
+        from api.models import CheckInForm
+        from api.utils.client_link_service import (
+            get_or_generate_onboarding_short_link,
+            get_or_generate_reviews_short_link
+        )
+        import logging
+        
+        logger = logging.getLogger(__name__)
+        
+        instance = self.get_object()
+        old_status = instance.status
+        new_status = serializer.validated_data.get('status', old_status)
+        
+        client = instance.client
+        package = serializer.validated_data.get('package', instance.package)
+        
+        # If changing to active status, deactivate other active packages
+        if new_status == 'active' and old_status != 'active':
+            ClientPackage.objects.filter(
+                client=client,
+                status='active'
+            ).exclude(pk=instance.pk).update(status='inactive')
+        
+        # Save the update
+        client_package = serializer.save()
+        
+        # If status changed to active, generate form links
+        if new_status == 'active' and old_status != 'active' and package:
+            try:
+                # Check for active onboarding form for this package
+                onboarding_form = CheckInForm.objects.filter(
+                    package=package,
+                    form_type='onboarding',
+                    is_active=True
+                ).first()
+                
+                if onboarding_form:
+                    get_or_generate_onboarding_short_link(client)
+                    logger.info(f"Generated onboarding link for client {client.id} after package activation")
+                
+                # Check for active reviews form for this package
+                reviews_form = CheckInForm.objects.filter(
+                    package=package,
+                    form_type='reviews',
+                    is_active=True
+                ).first()
+                
+                if reviews_form:
+                    get_or_generate_reviews_short_link(client)
+                    logger.info(f"Generated reviews link for client {client.id} after package activation")
+                    
+            except Exception as e:
+                logger.error(f"Failed to generate form links for client {client.id}: {str(e)}")
+                # Don't fail the client_package update
 
     # Removed get_permissions - all authenticated account members can CRUD client packages
 

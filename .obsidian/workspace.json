@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/EMPLOYEE_ROLES_API.md",
+                "file": "docs/FRONTEND_ONBOARDING_FORMS.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "EMPLOYEE_ROLES_API"
+              "title": "FRONTEND_ONBOARDING_FORMS"
             }
           }
         ]
@@ -171,6 +171,7 @@
   },
   "active": "6e55cd92a5d0054b",
   "lastOpenFiles": [
+    "docs/EMPLOYEE_ROLES_API.md",
     "api/__pycache__/serializers.cpython-312.pyc.126485651567280",
     "api/__pycache__/models.cpython-312.pyc.126485668345776",
     "supabase/migrations/20251106_add_django_auth_fields.sql",
