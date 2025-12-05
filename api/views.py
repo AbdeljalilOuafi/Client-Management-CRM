@@ -970,6 +970,21 @@ class PackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         # Automatically set the account to the resolved account
         serializer.save(account_id=self.get_resolved_account_id())
 
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override destroy to handle RestrictedError gracefully.
+        Returns 400 instead of 500 when package is referenced by client_packages.
+        """
+        from django.db.models.deletion import RestrictedError
+        
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except RestrictedError as e:
+            return Response(
+                {'error': 'Cannot delete this package because it is assigned to one or more clients. Please remove or reassign the client packages first.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
 
 class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     """
