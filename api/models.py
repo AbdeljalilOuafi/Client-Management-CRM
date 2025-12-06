@@ -624,6 +624,30 @@ class Installment(models.Model):
         return f"Installment #{self.instalment_number} - {self.client}"
 
 
+class CheckInFormPackage(models.Model):
+    """Through model for CheckInForm-Package M2M relationship"""
+    id = models.AutoField(primary_key=True)
+    form = models.ForeignKey(
+        'CheckInForm',
+        on_delete=models.CASCADE,
+        db_column='form_id'
+    )
+    package = models.ForeignKey(
+        Package,
+        on_delete=models.CASCADE,
+        db_column='package_id'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'check_in_form_packages'
+        unique_together = [['form', 'package']]
+
+    def __str__(self):
+        return f"{self.form.title} - {self.package.package_name}"
+
+
 class CheckInForm(models.Model):
     """Form template that can be assigned to multiple packages. Supports multiple form types."""
     
@@ -637,9 +661,9 @@ class CheckInForm(models.Model):
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
     packages = models.ManyToManyField(
         Package,
+        through='CheckInFormPackage',
         related_name='forms',
         blank=True,
-        db_table='check_in_form_packages',
         help_text='Packages this form is assigned to'
     )
     form_type = models.CharField(
