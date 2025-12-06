@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Scale, Zap, Dumbbell, MessageSquare, Target, User, Mail, Package, Send, Monitor, Smartphone } from "lucide-react";
@@ -91,35 +92,103 @@ export function FormPreviewDialog({ open, onOpenChange, formId }: FormPreviewDia
               <Input
                 id={field.id}
                 type="number"
+                inputMode="decimal"
                 value={value}
                 onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                onKeyDown={(e) => {
+                  // Only allow: digits, backspace, delete, tab, escape, enter, decimal point, minus, arrow keys for cursor
+                  const allowedKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', '.', '-'];
+                  if (allowedKeys.includes(e.key)) return;
+                  // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                  if ((e.ctrlKey || e.metaKey) && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) return;
+                  // Block if not a digit
+                  if (!/^\d$/.test(e.key)) {
+                    e.preventDefault();
+                  }
+                }}
                 onWheel={(e) => e.currentTarget.blur()}
                 placeholder={field.placeholder || `Enter ${field.label.toLowerCase()}`}
                 min={field.min}
                 max={field.max}
-                className={`rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent`}
+                className={`rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 py-6 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`}
               />
             </div>
           </div>
         );
 
       case "select":
-        return (
-          <div key={field.id} className="space-y-2.5">
-            <Label htmlFor={field.id} className="text-sm font-semibold text-card-foreground">
-              {field.label}
-              {field.required && <span className="text-red-500 ml-1">*</span>}
-            </Label>
-            <div className="relative">
-              {FieldIcon && (
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground z-10 pointer-events-none">
-                  <FieldIcon className="h-5 w-5" />
-                </div>
-              )}
+        // Check if this is a multiple selection (checkboxes) or single selection (dropdown)
+        const allowMultiple = (field as any).allow_multiple || false;
+        const allowOther = (field as any).allow_other || false;
+        const otherValue = formValues[`${field.id}_other`] || "";
+        
+        if (allowMultiple) {
+          // Render as checkboxes for multiple selection
+          const selectedValues = Array.isArray(value) ? value : [];
+          return (
+            <div key={field.id} className="space-y-3">
+              <Label className="text-sm font-semibold text-card-foreground">
+                {field.label}
+                {field.required && <span className="text-red-500 ml-1">*</span>}
+              </Label>
+              <div className="space-y-2">
+                {field.options?.map((option) => (
+                  <div key={option} className="flex items-center space-x-3 p-3 rounded-lg border border-input hover:bg-muted/50 transition-colors">
+                    <Checkbox
+                      id={`${field.id}-${option}`}
+                      checked={selectedValues.includes(option)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          handleFieldChange(field.id, [...selectedValues, option]);
+                        } else {
+                          handleFieldChange(field.id, selectedValues.filter((v: string) => v !== option));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`${field.id}-${option}`} className="text-base cursor-pointer flex-1">
+                      {option}
+                    </Label>
+                  </div>
+                ))}
+                {allowOther && (
+                  <div className="flex items-center space-x-3 p-3 rounded-lg border border-input hover:bg-muted/50 transition-colors">
+                    <Checkbox
+                      id={`${field.id}-other`}
+                      checked={selectedValues.includes("_other")}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          handleFieldChange(field.id, [...selectedValues, "_other"]);
+                        } else {
+                          handleFieldChange(field.id, selectedValues.filter((v: string) => v !== "_other"));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`${field.id}-other`} className="text-base cursor-pointer">
+                      Other:
+                    </Label>
+                    <Input
+                      value={otherValue}
+                      onChange={(e) => handleFieldChange(`${field.id}_other`, e.target.value)}
+                      placeholder="Please specify..."
+                      className="flex-1 h-8"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        } else {
+          // Render as dropdown for single selection
+          return (
+            <div key={field.id} className="space-y-2.5">
+              <Label htmlFor={field.id} className="text-sm font-semibold text-card-foreground">
+                {field.label}
+                {field.required && <span className="text-red-500 ml-1">*</span>}
+              </Label>
               <Select value={value} onValueChange={(val) => handleFieldChange(field.id, val)}>
                 <SelectTrigger 
                   id={field.id} 
-                  className={`rounded-xl border-input ${FieldIcon ? 'pl-12' : 'pl-4'} pr-4 h-14 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent`}
+                  className="rounded-xl border-input pl-4 pr-4 h-14 text-base transition-all duration-200 focus:ring-2 focus:ring-primary focus:border-transparent"
                 >
                   <SelectValue placeholder={`Select ${field.label.toLowerCase()}`} />
                 </SelectTrigger>
@@ -129,11 +198,24 @@ export function FormPreviewDialog({ open, onOpenChange, formId }: FormPreviewDia
                       {option}
                     </SelectItem>
                   ))}
+                  {allowOther && (
+                    <SelectItem value="_other" className="text-base py-3">
+                      Other...
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
+              {allowOther && value === "_other" && (
+                <Input
+                  value={otherValue}
+                  onChange={(e) => handleFieldChange(`${field.id}_other`, e.target.value)}
+                  placeholder="Please specify..."
+                  className="rounded-xl border-input pl-4 pr-4 py-6 text-base mt-2"
+                />
+              )}
             </div>
-          </div>
-        );
+          );
+        }
 
       case "textarea":
         return (

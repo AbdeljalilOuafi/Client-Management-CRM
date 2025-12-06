@@ -37,7 +37,14 @@ export const handleApiResponse = async (response: Response) => {
     throw new Error(errorText || `Request failed with status ${response.status}`);
   }
 
-  return response.json();
+  // Handle empty responses (204 No Content, or empty body)
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return null;
+  }
+
+  // Try to parse JSON, return null if empty
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 };
 
 // Fetch wrapper with automatic auth handling

@@ -96,6 +96,7 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
   const [draftQuestion, setDraftQuestion] = useState<Question | null>(null); // Draft state for editing
   const [isLoading, setIsLoading] = useState(mode === "edit");
   const [isSaving, setIsSaving] = useState(false);
+  const [justSavedQuestionId, setJustSavedQuestionId] = useState<string | null>(null);
   const sidebarRef = React.useRef<HTMLDivElement>(null);
   
   // Initialize sidebar state from localStorage
@@ -137,6 +138,19 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        // Check if the click is inside a Radix UI portal (dropdown, select, popover, etc.)
+        const target = event.target as HTMLElement;
+        const isRadixPortal = target.closest('[data-radix-popper-content-wrapper]') ||
+                              target.closest('[data-radix-select-viewport]') ||
+                              target.closest('[data-radix-menu-content]') ||
+                              target.closest('[role="listbox"]') ||
+                              target.closest('[role="option"]');
+        
+        if (isRadixPortal) {
+          // Don't close sidebar if clicking inside a dropdown/portal
+          return;
+        }
+        
         // Close sidebar and discard changes
         setSidebarOpen(false);
         setSelectedQuestion(null);
@@ -166,7 +180,13 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
         question_type: convertFieldTypeToQuestionType(field.type),
         is_required: field.required,
         order_index: index,
-        config: field.options ? { options: field.options, allow_multiple: false, allow_other: false } : {},
+        config: field.options 
+          ? { 
+              options: field.options, 
+              allow_multiple: (field as any).allow_multiple || false, 
+              allow_other: (field as any).allow_other || false 
+            } 
+          : {},
       }));
       
       setQuestions(convertedQuestions);
@@ -246,10 +266,22 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
         required: q.is_required,
         ...(q.question_type === "multiple_choice" && q.config?.options && {
           options: q.config.options,
+          allow_multiple: q.config.allow_multiple || false,
+          allow_other: q.config.allow_other || false,
         }),
       }));
 
       if (mode === "create" && initialMetadata) {
+        // Build schedule_data only for checkins forms (backend doesn't support interval-based reviews schedules yet)
+        // Onboarding forms don't need schedules
+        let scheduleData = undefined;
+        if (initialMetadata.form_type === "checkins" && initialMetadata.schedule_data) {
+          // Only include schedule_data for checkins - it has the correct format
+          scheduleData = initialMetadata.schedule_data;
+        }
+        // Note: Reviews forms use interval_type/interval_count which the backend doesn't support yet
+        // So we skip schedule_data for reviews until backend is updated
+        
         // Create new form
         const formData = {
           title: formTitle.trim(),
@@ -258,10 +290,14 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
           ...(initialMetadata.packages && initialMetadata.packages.length > 0 && { package: initialMetadata.packages[0] }),
           form_schema: { fields },
           is_active: true,
-          schedule_data: initialMetadata.schedule_data,
+          ...(scheduleData && { schedule_data: scheduleData }),
         };
 
+        console.log("[FormBuilder] Creating form with data:", JSON.stringify(formData, null, 2));
+
         const createdForm = await createCheckInForm(formData);
+
+        console.log("[FormBuilder] Create response:", createdForm);
 
         toast({
           title: "Success",
@@ -276,16 +312,24 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
         onBack();
       } else if (mode === "edit" && formId) {
         // Update existing form
-        await updateCheckInForm(formId, {
+        const updateData = {
           title: formTitle.trim(),
           description: formDescription.trim() || undefined,
           form_schema: { fields },
-        });
+        };
+        
+        console.log("[FormBuilder] Updating form:", formId, updateData);
+        
+        const updatedForm = await updateCheckInForm(formId, updateData);
+        
+        console.log("[FormBuilder] Update response:", updatedForm);
 
-    toast({
-      title: "Success",
-      description: "Form updated successfully",
-    });
+        toast({
+          title: "Success",
+          description: "Form updated successfully",
+        });
+        
+        onBack();
       }
     } catch (error: any) {
       console.error("Failed to save form:", error);
@@ -300,23 +344,81 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
   };
 
   const handleAddQuestion = (type: Question["question_type"]) => {
+    // Set default question text and config based on question type
+    const getDefaultsForType = (questionType: Question["question_type"]) => {
+      switch (questionType) {
+        case "file_upload":
+          return {
+            question_text: "Upload your progress photos",
+            config: {
+              accepted_types: ["image/*"],
+              max_size_mb: 20,
+              max_files: 5,
+            },
+          };
+        case "short_text":
+          return {
+            question_text: "How are you feeling today?",
+            config: {
+              placeholder: "Enter your answer...",
+              max_length: 200,
+            },
+          };
+        case "long_text":
+          return {
+            question_text: "Describe your progress this week",
+            config: {
+              placeholder: "Share your thoughts in detail...",
+              max_length: 2000,
+            },
+          };
+        case "multiple_choice":
+          return {
+            question_text: "How would you rate your energy level?",
+            config: {
+              options: ["Low", "Medium", "High", "Very High"],
+              allow_multiple: false,
+              allow_other: false,
+            },
+          };
+        case "number":
+          return {
+            question_text: "What is your current weight (kg)?",
+            config: {
+              placeholder: "Enter a number",
+              min: 0,
+              max: 500,
+              decimal_places: 1,
+            },
+          };
+        default:
+          return {
+            question_text: "New Question",
+            config: {},
+          };
+      }
+    };
+
+    const defaults = getDefaultsForType(type);
+    
     const newQuestion: Question = {
       id: Date.now().toString(),
-      question_text: "New Question",
+      question_text: defaults.question_text,
       question_type: type,
       is_required: false,
       order_index: questions.length,
-      config: type === "multiple_choice" 
-        ? { options: ["Option 1"], allow_multiple: false, allow_other: false } 
-        : {},
+      config: defaults.config,
     };
 
     setQuestions([...questions, newQuestion]);
     setSelectedQuestion(newQuestion.id);
     
+    // Open sidebar to let user customize the question
+    setSidebarOpen(true);
+    
     toast({
-      title: "Success",
-      description: "Question added successfully",
+      title: "Question Added",
+      description: `${QUESTION_TYPE_LABELS[type]} question added. Customize it in the sidebar.`,
     });
   };
 
@@ -360,7 +462,17 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
   // Save the draft to main state
   const handleSaveEdit = () => {
     if (draftQuestion) {
-      setQuestions(questions.map(q => q.id === draftQuestion.id ? draftQuestion : q));
+      const savedId = draftQuestion.id;
+      setQuestions(questions.map(q => q.id === savedId ? draftQuestion : q));
+      
+      // Set the just-saved ID to trigger highlight animation
+      setJustSavedQuestionId(savedId);
+      
+      // Clear the highlight after 1.5 seconds
+      setTimeout(() => {
+        setJustSavedQuestionId(null);
+      }, 1500);
+      
       toast({
         title: "Success",
         description: "Question updated successfully",
@@ -516,7 +628,9 @@ export default function FormBuilder({ mode, formId, initialMetadata, onBack, onF
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 className={`group p-4 border rounded-xl flex items-center gap-3 transition-all duration-200 ${
-                                  selectedQuestion === question.id 
+                                  justSavedQuestionId === question.id
+                                    ? "border-green-500 bg-gradient-to-br from-green-500/20 to-green-500/5 shadow-lg ring-2 ring-green-500/30 animate-pulse"
+                                    : selectedQuestion === question.id 
                                     ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 shadow-md ring-2 ring-primary/20" 
                                     : "hover:border-primary/50 hover:shadow-md hover:bg-primary/5"
                                 } ${
