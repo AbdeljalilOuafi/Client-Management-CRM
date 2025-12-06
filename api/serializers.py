@@ -323,10 +323,144 @@ class ClientSerializer(serializers.ModelSerializer):
 class PackageSerializer(serializers.ModelSerializer):
     account_name = serializers.CharField(source='account.name', read_only=True)
     
+    # Write-only fields for linking existing forms when creating/updating a package
+    checkin_form_id = serializers.PrimaryKeyRelatedField(
+        queryset=CheckInForm.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text='ID of existing checkin form to link to this package'
+    )
+    onboarding_form_id = serializers.PrimaryKeyRelatedField(
+        queryset=CheckInForm.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text='ID of existing onboarding form to link to this package'
+    )
+    reviews_form_id = serializers.PrimaryKeyRelatedField(
+        queryset=CheckInForm.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+        help_text='ID of existing reviews form to link to this package'
+    )
+    
+    # Read-only fields to show linked forms
+    checkin_form = serializers.SerializerMethodField()
+    onboarding_form = serializers.SerializerMethodField()
+    reviews_form = serializers.SerializerMethodField()
+    
     class Meta:
         model = Package
-        fields = ['id', 'account', 'account_name', 'package_name', 'description']
-        read_only_fields = ['id', 'account', 'account_name']
+        fields = [
+            'id', 'account', 'account_name', 'package_name', 'description',
+            'checkin_form_id', 'onboarding_form_id', 'reviews_form_id',
+            'checkin_form', 'onboarding_form', 'reviews_form'
+        ]
+        read_only_fields = ['id', 'account', 'account_name', 'checkin_form', 'onboarding_form', 'reviews_form']
+    
+    def get_checkin_form(self, obj):
+        """Get the checkin form linked to this package"""
+        form = obj.forms.filter(form_type='checkins').first()
+        if form:
+            return {'id': str(form.id), 'title': form.title}
+        return None
+    
+    def get_onboarding_form(self, obj):
+        """Get the onboarding form linked to this package"""
+        form = obj.forms.filter(form_type='onboarding').first()
+        if form:
+            return {'id': str(form.id), 'title': form.title}
+        return None
+    
+    def get_reviews_form(self, obj):
+        """Get the reviews form linked to this package"""
+        form = obj.forms.filter(form_type='reviews').first()
+        if form:
+            return {'id': str(form.id), 'title': form.title}
+        return None
+    
+    def validate_checkin_form_id(self, value):
+        """Validate checkin form belongs to account and is correct type"""
+        return self._validate_form_link(value, 'checkins')
+    
+    def validate_onboarding_form_id(self, value):
+        """Validate onboarding form belongs to account and is correct type"""
+        return self._validate_form_link(value, 'onboarding')
+    
+    def validate_reviews_form_id(self, value):
+        """Validate reviews form belongs to account and is correct type"""
+        return self._validate_form_link(value, 'reviews')
+    
+    def _validate_form_link(self, form, expected_type):
+        """Validate a form link field"""
+        if form is None:
+            return None
+        
+        request = self.context.get('request')
+        account_id = get_request_account_id(request) if request else None
+        
+        # Verify form belongs to same account
+        if account_id and form.account_id != account_id:
+            raise serializers.ValidationError("Form must belong to your account.")
+        
+        # Verify form type matches
+        if form.form_type != expected_type:
+            raise serializers.ValidationError(
+                f"Form '{form.title}' is a {form.get_form_type_display()} form, "
+                f"not a {expected_type} form."
+            )
+        
+        return form
+    
+    def create(self, validated_data):
+        """Create package and link forms"""
+        checkin_form = validated_data.pop('checkin_form_id', None)
+        onboarding_form = validated_data.pop('onboarding_form_id', None)
+        reviews_form = validated_data.pop('reviews_form_id', None)
+        
+        package = super().create(validated_data)
+        
+        # Link forms to this package
+        self._link_forms(package, checkin_form, onboarding_form, reviews_form)
+        
+        return package
+    
+    def update(self, instance, validated_data):
+        """Update package and form links"""
+        checkin_form = validated_data.pop('checkin_form_id', None)
+        onboarding_form = validated_data.pop('onboarding_form_id', None)
+        reviews_form = validated_data.pop('reviews_form_id', None)
+        
+        package = super().update(instance, validated_data)
+        
+        # Update form links
+        self._link_forms(package, checkin_form, onboarding_form, reviews_form, is_update=True)
+        
+        return package
+    
+    def _link_forms(self, package, checkin_form, onboarding_form, reviews_form, is_update=False):
+        """Link forms to package, handling unlink for updates"""
+        form_mappings = [
+            ('checkins', checkin_form),
+            ('onboarding', onboarding_form),
+            ('reviews', reviews_form),
+        ]
+        
+        for form_type, new_form in form_mappings:
+            if is_update and new_form is None:
+                # For updates, None means "don't change" - to unlink, pass explicit null in API
+                continue
+            
+            # Unlink existing form of this type from this package
+            existing_form = package.forms.filter(form_type=form_type).first()
+            if existing_form:
+                existing_form.packages.remove(package)
+            
+            # Link new form if provided
+            if new_form:
+                new_form.packages.add(package)
 
 
 class ClientPackageSerializer(serializers.ModelSerializer):
@@ -473,7 +607,7 @@ class CheckInScheduleSerializer(serializers.ModelSerializer):
 
 class CheckInFormSerializer(serializers.ModelSerializer):
     """Serializer for forms (checkin, onboarding, reviews)"""
-    package_name = serializers.SerializerMethodField()
+    package_names = serializers.SerializerMethodField()
     account_name = serializers.CharField(source='account.name', read_only=True)
     schedule = CheckInScheduleSerializer(read_only=True)
     submission_count = serializers.SerializerMethodField()
@@ -482,46 +616,55 @@ class CheckInFormSerializer(serializers.ModelSerializer):
     # Explicitly declare form_type to override model's default and make it required
     form_type = serializers.ChoiceField(choices=CheckInForm.FORM_TYPE_CHOICES, required=True)
     
+    # M2M packages field - accepts list of package IDs
+    packages = serializers.PrimaryKeyRelatedField(
+        queryset=Package.objects.all(),
+        many=True,
+        required=False
+    )
+    
     # Nested write for schedule creation
     schedule_data = CheckInScheduleSerializer(write_only=True, required=False)
     
     class Meta:
         model = CheckInForm
         fields = [
-            'id', 'account', 'account_name', 'package', 'package_name',
+            'id', 'account', 'account_name', 'packages', 'package_names',
             'form_type', 'form_type_display',
             'title', 'description', 'form_schema', 'is_active',
             'schedule', 'schedule_data', 'submission_count',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'account', 'account_name', 'package_name', 
+        read_only_fields = ['id', 'account', 'account_name', 'package_names', 
                            'form_type_display', 'schedule', 'submission_count', 
                            'created_at', 'updated_at']
-        extra_kwargs = {
-            'package': {'required': False, 'allow_null': True},
-        }
     
-    def get_package_name(self, obj):
-        """Return package name or None if unassigned"""
-        return obj.package.package_name if obj.package else None
+    def get_package_names(self, obj):
+        """Return list of package names or empty list if unassigned"""
+        return [pkg.package_name for pkg in obj.packages.all()]
     
     def get_submission_count(self, obj):
         """Return total number of submissions for this form"""
         return obj.submissions.count()
     
-    def validate_package(self, value):
-        """Ensure package belongs to user's account"""
-        if value is None:
+    def validate_packages(self, value):
+        """Ensure all packages belong to user's account"""
+        if not value:
             return value
             
         request = self.context.get('request')
         if not request:
             return value
         
-        # Check package belongs to same account
+        # Check all packages belong to same account
         account_id = get_request_account_id(request)
-        if account_id and value.account_id != account_id:
-            raise serializers.ValidationError("Package must belong to your account.")
+        if account_id:
+            invalid_packages = [pkg for pkg in value if pkg.account_id != account_id]
+            if invalid_packages:
+                invalid_names = ', '.join([pkg.package_name for pkg in invalid_packages])
+                raise serializers.ValidationError(
+                    f"The following packages do not belong to your account: {invalid_names}"
+                )
         
         return value
     
@@ -537,35 +680,40 @@ class CheckInFormSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """
         Cross-field validation to ensure:
-        - Package doesn't already have a form of this type (for create/update)
+        - Each package doesn't already have a form of this type (for create/update)
         """
-        package = data.get('package')
+        packages = data.get('packages', [])
         form_type = data.get('form_type')
         
-        # Skip validation if no package is assigned
-        if package is None:
+        # Skip validation if no packages are assigned
+        if not packages:
             return data
         
-        # Get account_id for the query
-        request = self.context.get('request')
-        account_id = get_request_account_id(request) if request else None
+        # For each package, check if it already has a form of this type
+        form_type_display = dict(CheckInForm.FORM_TYPE_CHOICES).get(form_type, form_type)
+        conflicts = []
         
-        # Build query to check for existing form of same type on this package
-        existing_query = CheckInForm.objects.filter(
-            package=package,
-            form_type=form_type
-        )
+        for package in packages:
+            # Build query to check for existing form of same type on this package
+            existing_query = CheckInForm.objects.filter(
+                packages=package,
+                form_type=form_type
+            )
+            
+            # If updating, exclude current instance from check
+            if self.instance:
+                existing_query = existing_query.exclude(id=self.instance.id)
+            
+            if existing_query.exists():
+                existing_form = existing_query.first()
+                conflicts.append(
+                    f"'{package.package_name}' already has {form_type_display} form '{existing_form.title}'"
+                )
         
-        # If updating, exclude current instance from check
-        if self.instance:
-            existing_query = existing_query.exclude(id=self.instance.id)
-        
-        if existing_query.exists():
-            existing_form = existing_query.first()
-            form_type_display = dict(CheckInForm.FORM_TYPE_CHOICES).get(form_type, form_type)
+        if conflicts:
             raise serializers.ValidationError({
-                'package': f"Package '{package.package_name}' already has a {form_type_display} form "
-                          f"('{existing_form.title}'). Each package can only have one form of each type."
+                'packages': f"The following packages cannot be assigned: {'; '.join(conflicts)}. "
+                           f"Each package can only have one form of each type."
             })
         
         return data
@@ -584,13 +732,18 @@ class CheckInFormSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create form and optionally create schedule"""
         schedule_data = validated_data.pop('schedule_data', None)
+        packages_data = validated_data.pop('packages', [])
         form_type = validated_data.get('form_type')
         
         # Account is set by the ViewSet via perform_create() using account_id kwarg
         # This supports both regular employees and master token users
         
-        # Create form
+        # Create form (without M2M - must save first)
         form = super().create(validated_data)
+        
+        # Set M2M packages relationship
+        if packages_data:
+            form.packages.set(packages_data)
         
         # Create schedule if provided
         if schedule_data:
@@ -609,9 +762,18 @@ class CheckInFormSerializer(serializers.ModelSerializer):
         return form
     
     def update(self, instance, validated_data):
-        """Update form (schedule updates handled separately)"""
+        """Update form and packages (schedule updates handled separately)"""
         validated_data.pop('schedule_data', None)  # Ignore schedule updates here
-        return super().update(instance, validated_data)
+        packages_data = validated_data.pop('packages', None)
+        
+        # Update form fields
+        instance = super().update(instance, validated_data)
+        
+        # Update M2M packages if provided
+        if packages_data is not None:
+            instance.packages.set(packages_data)
+        
+        return instance
 
 
 class CheckInSubmissionSerializer(serializers.ModelSerializer):
