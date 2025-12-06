@@ -462,9 +462,9 @@ class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
             ).select_related('package').first()
             
             if client_package:
-                # Check for active onboarding form
+                # Check for active onboarding form (M2M lookup)
                 onboarding_form = CheckInForm.objects.filter(
-                    package=client_package.package,
+                    packages=client_package.package,
                     form_type='onboarding',
                     is_active=True
                 ).first()
@@ -473,9 +473,9 @@ class ClientViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                     get_or_generate_onboarding_short_link(client)
                     logger.info(f"Generated onboarding link for new client {client.id}")
                 
-                # Check for active reviews form
+                # Check for active reviews form (M2M lookup)
                 reviews_form = CheckInForm.objects.filter(
-                    package=client_package.package,
+                    packages=client_package.package,
                     form_type='reviews',
                     is_active=True
                 ).first()
@@ -1039,9 +1039,9 @@ class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         # If the new package is active, generate form links for the client
         if new_status == 'active' and package:
             try:
-                # Check for active onboarding form for this package
+                # Check for active onboarding form for this package (M2M lookup)
                 onboarding_form = CheckInForm.objects.filter(
-                    package=package,
+                    packages=package,
                     form_type='onboarding',
                     is_active=True
                 ).first()
@@ -1050,9 +1050,9 @@ class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                     get_or_generate_onboarding_short_link(client)
                     logger.info(f"Generated onboarding link for client {client.id} after package assignment")
                 
-                # Check for active reviews form for this package
+                # Check for active reviews form for this package (M2M lookup)
                 reviews_form = CheckInForm.objects.filter(
-                    package=package,
+                    packages=package,
                     form_type='reviews',
                     is_active=True
                 ).first()
@@ -1100,9 +1100,9 @@ class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         # If status changed to active, generate form links
         if new_status == 'active' and old_status != 'active' and package:
             try:
-                # Check for active onboarding form for this package
+                # Check for active onboarding form for this package (M2M lookup)
                 onboarding_form = CheckInForm.objects.filter(
-                    package=package,
+                    packages=package,
                     form_type='onboarding',
                     is_active=True
                 ).first()
@@ -1111,9 +1111,9 @@ class ClientPackageViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                     get_or_generate_onboarding_short_link(client)
                     logger.info(f"Generated onboarding link for client {client.id} after package activation")
                 
-                # Check for active reviews form for this package
+                # Check for active reviews form for this package (M2M lookup)
                 reviews_form = CheckInForm.objects.filter(
-                    package=package,
+                    packages=package,
                     form_type='reviews',
                     is_active=True
                 ).first()
@@ -1506,8 +1506,8 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
     serializer_class = CheckInFormSerializer
     permission_classes = [IsAuthenticated, IsAccountMember]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['package', 'form_type', 'is_active']
-    search_fields = ['title', 'description', 'package__package_name']
+    filterset_fields = ['packages', 'form_type', 'is_active']
+    search_fields = ['title', 'description', 'packages__package_name']
     ordering_fields = ['created_at', 'title', 'form_type']
     ordering = ['-created_at']
 
@@ -1515,12 +1515,12 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         """Filter forms to user's account (or specified account for master token)"""
         return CheckInForm.objects.filter(
             account_id=self.get_resolved_account_id()
-        ).select_related('account', 'package', 'schedule')
+        ).select_related('account', 'schedule').prefetch_related('packages')
 
     def perform_create(self, serializer):
         """
         Auto-set account and create webhook schedules.
-        If no package is assigned, webhooks are created but immediately canceled (inactive).
+        If no packages are assigned, webhooks are created but immediately canceled (inactive).
         """
         from .utils.webhook_scheduler import create_schedule_webhooks, cancel_schedule_webhooks
         import logging
@@ -1530,15 +1530,18 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         # Save the form with account
         form = serializer.save(account_id=self.get_resolved_account_id())
         
+        # Check if form has any packages assigned
+        has_packages = form.packages.exists()
+        
         # Create webhook schedules if schedule was provided
         if hasattr(form, 'schedule') and form.schedule:
             try:
                 create_schedule_webhooks(form.schedule)
                 logger.info(f"Created webhooks for Form {form.id} (type: {form.form_type})")
                 
-                # If no package is assigned, immediately cancel the webhooks and deactivate schedule
+                # If no packages are assigned, immediately cancel the webhooks and deactivate schedule
                 # They will be activated when a package is assigned later
-                if form.package is None:
+                if not has_packages:
                     try:
                         cancel_schedule_webhooks(form.schedule)
                         # Also set schedule to inactive to keep in sync with webhook state
@@ -1553,37 +1556,41 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                 # Don't fail the form creation, just log the error
                 # Admin can manually recreate webhooks later
         
-        # If this is an onboarding form with a package, populate onboarding links for existing clients
-        if form.form_type == 'onboarding' and form.package is not None:
+        # If this is an onboarding form with packages, populate onboarding links for existing clients
+        if form.form_type == 'onboarding' and has_packages:
             from .utils.client_link_service import populate_onboarding_links_for_package
-            try:
-                stats = populate_onboarding_links_for_package(form.package)
-                logger.info(f"Populated onboarding links for package {form.package.id}: "
-                           f"{stats['success_count']}/{stats['total_count']} clients")
-            except Exception as e:
-                logger.error(f"Failed to populate onboarding links for package {form.package.id}: {str(e)}")
-                # Don't fail form creation
+            for package in form.packages.all():
+                try:
+                    stats = populate_onboarding_links_for_package(package)
+                    logger.info(f"Populated onboarding links for package {package.id}: "
+                               f"{stats['success_count']}/{stats['total_count']} clients")
+                except Exception as e:
+                    logger.error(f"Failed to populate onboarding links for package {package.id}: {str(e)}")
+                    # Don't fail form creation
         
-        # If this is a reviews form with a package, populate reviews links for existing clients
-        if form.form_type == 'reviews' and form.package is not None:
+        # If this is a reviews form with packages, populate reviews links for existing clients
+        if form.form_type == 'reviews' and has_packages:
             from .utils.client_link_service import populate_reviews_links_for_package
-            try:
-                stats = populate_reviews_links_for_package(form.package)
-                logger.info(f"Populated reviews links for package {form.package.id}: "
-                           f"{stats['success_count']}/{stats['total_count']} clients")
-            except Exception as e:
-                logger.error(f"Failed to populate reviews links for package {form.package.id}: {str(e)}")
-                # Don't fail form creation
+            for package in form.packages.all():
+                try:
+                    stats = populate_reviews_links_for_package(package)
+                    logger.info(f"Populated reviews links for package {package.id}: "
+                               f"{stats['success_count']}/{stats['total_count']} clients")
+                except Exception as e:
+                    logger.error(f"Failed to populate reviews links for package {package.id}: {str(e)}")
+                    # Don't fail form creation
 
     def perform_update(self, serializer):
         """
-        Handle is_active and package changes - manage webhook states accordingly.
-        - Package null -> assigned: activate webhooks
-        - Package assigned -> null: cancel webhooks  
+        Handle is_active and packages changes - manage webhook states accordingly.
+        - No packages -> has packages: activate webhooks
+        - Has packages -> no packages: cancel webhooks  
         - is_active true -> false: cancel webhooks
-        - is_active false -> true: activate webhooks (only if package assigned)
+        - is_active false -> true: activate webhooks (only if has packages)
+        Also populates client links for newly added packages.
         """
         from .utils.webhook_scheduler import cancel_schedule_webhooks, activate_schedule_webhooks
+        from .utils.client_link_service import populate_onboarding_links_for_package, populate_reviews_links_for_package
         import logging
         
         logger = logging.getLogger(__name__)
@@ -1591,24 +1598,28 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
         # Get the current state before update
         instance = self.get_object()
         old_is_active = instance.is_active
-        old_package = instance.package
+        old_package_ids = set(instance.packages.values_list('id', flat=True))
+        had_packages = len(old_package_ids) > 0
         
         # Save the updated form
         form = serializer.save()
         new_is_active = form.is_active
-        new_package = form.package
+        new_package_ids = set(form.packages.values_list('id', flat=True))
+        has_packages = len(new_package_ids) > 0
+        
+        # Determine added and removed packages
+        added_package_ids = new_package_ids - old_package_ids
+        removed_package_ids = old_package_ids - new_package_ids
         
         # Handle changes if form has a schedule
         if hasattr(form, 'schedule') and form.schedule:
             # Track if package assignment changed
-            package_was_null = old_package is None
-            package_is_null = new_package is None
-            package_assigned = package_was_null and not package_is_null
-            package_removed = not package_was_null and package_is_null
+            packages_added = not had_packages and has_packages
+            packages_removed = had_packages and not has_packages
             
             # Priority 1: Package assignment changes
-            if package_assigned and new_is_active:
-                # Package was assigned to a form that didn't have one - activate webhooks
+            if packages_added and new_is_active:
+                # Packages were assigned to a form that didn't have any - activate webhooks
                 try:
                     activate_schedule_webhooks(form.schedule)
                     # Also update schedule is_active to keep in sync
@@ -1618,19 +1629,19 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                 except Exception as e:
                     logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
             
-            elif package_removed:
-                # Package was removed - cancel webhooks and deactivate schedule
+            elif packages_removed:
+                # All packages were removed - cancel webhooks and deactivate schedule
                 try:
                     cancel_schedule_webhooks(form.schedule)
                     # Also update schedule is_active to keep in sync
                     form.schedule.is_active = False
                     form.schedule.save(update_fields=['is_active'])
-                    logger.info(f"Canceled webhooks and deactivated schedule for Form {form.id} after package removal")
+                    logger.info(f"Canceled webhooks and deactivated schedule for Form {form.id} after all packages removed")
                 except Exception as e:
                     logger.error(f"Failed to cancel webhooks for Form {form.id}: {str(e)}")
             
-            # Priority 2: is_active changes (only if package is assigned)
-            elif not package_is_null:
+            # Priority 2: is_active changes (only if has packages)
+            elif has_packages:
                 if old_is_active and not new_is_active:
                     # Form was deactivated - cancel webhooks and update schedule status
                     try:
@@ -1652,6 +1663,25 @@ class CheckInFormViewSet(AccountResolutionMixin, viewsets.ModelViewSet):
                         logger.info(f"Activated webhooks and reactivated schedule for Form {form.id}")
                     except Exception as e:
                         logger.error(f"Failed to activate webhooks for Form {form.id}: {str(e)}")
+        
+        # Populate client links for newly added packages
+        if added_package_ids:
+            for package_id in added_package_ids:
+                package = Package.objects.get(id=package_id)
+                if form.form_type == 'onboarding':
+                    try:
+                        stats = populate_onboarding_links_for_package(package)
+                        logger.info(f"Populated onboarding links for new package {package.id}: "
+                                   f"{stats['success_count']}/{stats['total_count']} clients")
+                    except Exception as e:
+                        logger.error(f"Failed to populate onboarding links for package {package.id}: {str(e)}")
+                elif form.form_type == 'reviews':
+                    try:
+                        stats = populate_reviews_links_for_package(package)
+                        logger.info(f"Populated reviews links for new package {package.id}: "
+                                   f"{stats['success_count']}/{stats['total_count']} clients")
+                    except Exception as e:
+                        logger.error(f"Failed to populate reviews links for package {package.id}: {str(e)}")
 
     def perform_destroy(self, instance):
         """Delete webhook schedules before deleting form"""
@@ -1902,16 +1932,17 @@ def checkin_trigger_webhook(request):
     
     try:
         # Get the schedule
-        schedule = CheckInSchedule.objects.select_related('form', 'form__package', 'account').get(id=schedule_id)
+        schedule = CheckInSchedule.objects.select_related('form', 'account').prefetch_related('form__packages').get(id=schedule_id)
         
         # Verify schedule is active
         if not schedule.is_active or not schedule.form.is_active:
             logger.info(f"Skipping inactive schedule {schedule_id}")
             return Response({'status': 'Schedule is inactive, no emails sent'})
         
-        # Query clients with active packages matching the form's package
+        # Query clients with active packages matching any of the form's packages (M2M)
+        form_packages = schedule.form.packages.all()
         client_packages = ClientPackage.objects.filter(
-            package=schedule.form.package,
+            package__in=form_packages,
             status='active',
             client__account_id=schedule.account_id
         ).select_related('client')
@@ -1931,6 +1962,7 @@ def checkin_trigger_webhook(request):
             checkin_url = get_or_generate_short_link(client)
             
             clients_data.append({
+                'client_id': str(client.id),
                 'email': client.email,
                 'first_name': client.first_name,
                 'last_name': client.last_name,
@@ -1965,6 +1997,8 @@ def checkin_trigger_webhook(request):
         n8n_payload = {
             'clients': clients_data,
             'schedule_id': str(schedule_id),
+            'account_id': str(schedule.account_id),
+            'form_type': schedule.form.form_type,
             'day_filter': day_filter,
             'triggered_at': datetime.utcnow().isoformat()
         }
@@ -2046,7 +2080,7 @@ def reviews_trigger_webhook(request):
     
     try:
         # Get the schedule
-        schedule = CheckInSchedule.objects.select_related('form', 'form__package', 'account').get(id=schedule_id)
+        schedule = CheckInSchedule.objects.select_related('form', 'account').prefetch_related('form__packages').get(id=schedule_id)
         
         # Verify schedule is active
         if not schedule.is_active or not schedule.form.is_active:
@@ -2068,9 +2102,10 @@ def reviews_trigger_webhook(request):
                     'interval_required': schedule.interval_count
                 })
         
-        # Query clients with active packages matching the form's package
+        # Query clients with active packages matching any of the form's packages (M2M)
+        form_packages = schedule.form.packages.all()
         client_packages = ClientPackage.objects.filter(
-            package=schedule.form.package,
+            package__in=form_packages,
             status='active',
             client__account_id=schedule.account_id
         ).select_related('client')
@@ -2086,6 +2121,7 @@ def reviews_trigger_webhook(request):
             reviews_url = get_or_generate_reviews_short_link(client)
             
             clients_data.append({
+                'client_id': str(client.id),
                 'email': client.email,
                 'first_name': client.first_name,
                 'last_name': client.last_name,
@@ -2119,6 +2155,7 @@ def reviews_trigger_webhook(request):
         n8n_payload = {
             'clients': clients_data,
             'schedule_id': str(schedule_id),
+            'account_id': str(schedule.account_id),
             'form_type': 'reviews',
             'triggered_at': datetime.utcnow().isoformat()
         }
@@ -2209,10 +2246,11 @@ def get_checkin_form(request, checkin_uuid):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get form for this package
+        # Get checkin form for this package (M2M lookup)
         try:
             form = CheckInForm.objects.get(
-                package=client_package.package,
+                packages=client_package.package,
+                form_type='checkins',
                 is_active=True
             )
         except CheckInForm.DoesNotExist:
@@ -2284,10 +2322,11 @@ def submit_checkin_form(request, checkin_uuid):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get form for this package
+        # Get checkin form for this package (M2M lookup)
         try:
             form = CheckInForm.objects.get(
-                package=client_package.package,
+                packages=client_package.package,
+                form_type='checkins',
                 is_active=True
             )
         except CheckInForm.DoesNotExist:
@@ -2382,10 +2421,10 @@ def get_onboarding_form(request, onboarding_uuid):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get onboarding form for this package
+        # Get onboarding form for this package (M2M lookup)
         try:
             form = CheckInForm.objects.get(
-                package=client_package.package,
+                packages=client_package.package,
                 form_type='onboarding',
                 is_active=True
             )
@@ -2458,10 +2497,10 @@ def submit_onboarding_form(request, onboarding_uuid):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get onboarding form for this package
+        # Get onboarding form for this package (M2M lookup)
         try:
             form = CheckInForm.objects.get(
-                package=client_package.package,
+                packages=client_package.package,
                 form_type='onboarding',
                 is_active=True
             )
@@ -2557,10 +2596,10 @@ def get_reviews_form(request, reviews_uuid):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get reviews form for this package
+        # Get reviews form for this package (M2M lookup)
         try:
             form = CheckInForm.objects.get(
-                package=client_package.package,
+                packages=client_package.package,
                 form_type='reviews',
                 is_active=True
             )
@@ -2633,10 +2672,10 @@ def submit_reviews_form(request, reviews_uuid):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Get reviews form for this package
+        # Get reviews form for this package (M2M lookup)
         try:
             form = CheckInForm.objects.get(
-                package=client_package.package,
+                packages=client_package.package,
                 form_type='reviews',
                 is_active=True
             )

@@ -625,7 +625,7 @@ class Installment(models.Model):
 
 
 class CheckInForm(models.Model):
-    """Form template that can be assigned to packages. Supports multiple form types."""
+    """Form template that can be assigned to multiple packages. Supports multiple form types."""
     
     FORM_TYPE_CHOICES = [
         ('checkins', 'Check-in'),
@@ -635,14 +635,12 @@ class CheckInForm(models.Model):
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     account = models.ForeignKey(Account, on_delete=models.CASCADE, db_column='account_id')
-    package = models.ForeignKey(
-        Package, 
-        on_delete=models.CASCADE, 
-        db_column='package_id',
+    packages = models.ManyToManyField(
+        Package,
         related_name='forms',
-        null=True,
         blank=True,
-        help_text='Package this form is assigned to (can be null for unassigned forms)'
+        db_table='check_in_form_packages',
+        help_text='Packages this form is assigned to'
     )
     form_type = models.CharField(
         max_length=20, 
@@ -660,13 +658,12 @@ class CheckInForm(models.Model):
     class Meta:
         managed = False
         db_table = 'check_in_forms'
-        # Each package can have at most one form of each type
-        # Note: PostgreSQL allows multiple NULL values in unique constraints
-        unique_together = [['account', 'package', 'form_type']]
+        # Constraint for one form per type per package is enforced by DB trigger
 
     def __str__(self):
-        package_name = self.package.package_name if self.package else 'Unassigned'
-        return f"{self.title} ({self.get_form_type_display()}) - {package_name}"
+        package_count = self.packages.count()
+        package_info = f"{package_count} package(s)" if package_count else 'Unassigned'
+        return f"{self.title} ({self.get_form_type_display()}) - {package_info}"
 
 
 class CheckInSchedule(models.Model):
