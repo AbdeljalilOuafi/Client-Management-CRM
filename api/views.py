@@ -1962,6 +1962,7 @@ def checkin_trigger_webhook(request):
             checkin_url = get_or_generate_short_link(client)
             
             clients_data.append({
+                'client_id': str(client.id),
                 'email': client.email,
                 'first_name': client.first_name,
                 'last_name': client.last_name,
@@ -1996,6 +1997,8 @@ def checkin_trigger_webhook(request):
         n8n_payload = {
             'clients': clients_data,
             'schedule_id': str(schedule_id),
+            'account_id': str(schedule.account_id),
+            'form_type': schedule.form.form_type,
             'day_filter': day_filter,
             'triggered_at': datetime.utcnow().isoformat()
         }
@@ -2118,6 +2121,7 @@ def reviews_trigger_webhook(request):
             reviews_url = get_or_generate_reviews_short_link(client)
             
             clients_data.append({
+                'client_id': str(client.id),
                 'email': client.email,
                 'first_name': client.first_name,
                 'last_name': client.last_name,
@@ -2151,6 +2155,7 @@ def reviews_trigger_webhook(request):
         n8n_payload = {
             'clients': clients_data,
             'schedule_id': str(schedule_id),
+            'account_id': str(schedule.account_id),
             'form_type': 'reviews',
             'triggered_at': datetime.utcnow().isoformat()
         }
