@@ -12,7 +12,8 @@ import {
   Pencil, 
   Trash2, 
   Loader2, 
-  AlertCircle 
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react";
 import { 
   listCheckInForms, 
@@ -65,6 +66,8 @@ export const PackageManagement = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [packageToDelete, setPackageToDelete] = useState<PackageAPI | null>(null);
+  const [deleteText, setDeleteText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("add");
   const [showCreateFormDialog, setShowCreateFormDialog] = useState(false);
   const [formTypeToCreate, setFormTypeToCreate] = useState<'checkin' | 'onboarding'>('onboarding');
@@ -131,8 +134,10 @@ export const PackageManagement = () => {
 
   const createPackageType = async (packageData: { package_name: string; description?: string; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null }) => {
     try {
-      const newPackage = await createPackage(packageData);
-      setPackages(prev => [newPackage, ...prev]);
+      await createPackage(packageData);
+      
+      // Refetch all packages from backend to get the latest data
+      await fetchPackageTypes();
       
       toast({
         title: "Success",
@@ -153,12 +158,13 @@ export const PackageManagement = () => {
   };
 
   const updatePackageType = async (id: number, packageData: Partial<{ package_name: string; description?: string; is_active?: boolean; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null }>) => {
+    console.log("[PackageManagement] updatePackageType called with id:", id, "data:", packageData);
     try {
-      const updatedPackage = await updatePackage(id, packageData);
+      const result = await updatePackage(id, packageData);
+      console.log("[PackageManagement] updatePackage API response:", result);
       
-      setPackages(prev => prev.map(pkg => 
-        pkg.id === id ? updatedPackage : pkg
-      ));
+      // Refetch all packages from backend to get the latest data
+      await fetchPackageTypes();
       
       toast({
         title: "Success",
@@ -182,7 +188,9 @@ export const PackageManagement = () => {
   const deletePackageType = async (id: number) => {
     try {
       await deletePackage(id);
-      setPackages(prev => prev.filter(pkg => pkg.id !== id));
+      
+      // Refetch all packages from backend to get the latest data
+      await fetchPackageTypes();
       
       toast({
         title: "Success",
@@ -219,10 +227,14 @@ export const PackageManagement = () => {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault();
+    
+    console.log("[PackageManagement] handleSubmit called, editingPackage:", editingPackage?.id, editingPackage?.package_name);
+    console.log("[PackageManagement] formData:", formData);
     
     if (!validateForm()) {
+      console.log("[PackageManagement] Form validation failed");
       return;
     }
     
@@ -239,6 +251,7 @@ export const PackageManagement = () => {
           onboarding_form: formData.onboarding_form || null,
           review_form: formData.review_form || null,
         };
+        console.log("[PackageManagement] Updating package with data:", updateData);
         await updatePackageType(editingPackage.id, updateData);
       } else {
         // Create new package
@@ -266,6 +279,7 @@ export const PackageManagement = () => {
   };
 
   const handleEdit = (pkg: PackageAPI) => {
+    console.log("[PackageManagement] handleEdit called for package:", pkg.id, pkg.package_name);
     setEditingPackage(pkg);
     setFormData({
       name: pkg.package_name,
@@ -279,16 +293,70 @@ export const PackageManagement = () => {
     setEditDialogOpen(true);
   };
 
+  // Dedicated handler for edit form submission to avoid closure issues
+  const handleEditSubmit = async () => {
+    console.log("[PackageManagement] handleEditSubmit called");
+    console.log("[PackageManagement] editingPackage:", editingPackage);
+    console.log("[PackageManagement] formData:", formData);
+    
+    if (!editingPackage) {
+      console.error("[PackageManagement] No editingPackage set!");
+      return;
+    }
+    
+    if (!validateForm()) {
+      console.log("[PackageManagement] Form validation failed");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      const updateData: Partial<{ package_name: string; description?: string; is_active?: boolean; checkin_form?: string | null; onboarding_form?: string | null; review_form?: string | null }> = {
+        package_name: formData.name.trim(),
+        description: formData.description.trim() || undefined,
+        is_active: formData.is_active,
+        checkin_form: formData.checkin_form || null,
+        onboarding_form: formData.onboarding_form || null,
+        review_form: formData.review_form || null,
+      };
+      console.log("[PackageManagement] Sending update data:", updateData);
+      await updatePackageType(editingPackage.id, updateData);
+    } catch (error) {
+      console.error("[PackageManagement] Update error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDelete = (pkg: PackageAPI) => {
     setPackageToDelete(pkg);
     setDeleteConfirmOpen(true);
   };
 
   const confirmDelete = async () => {
-    if (packageToDelete) {
-      await deletePackageType(packageToDelete.id);
-      setDeleteConfirmOpen(false);
-      setPackageToDelete(null);
+    if (packageToDelete && deleteText === "DELETE") {
+      setIsDeleting(true);
+      try {
+        await deletePackageType(packageToDelete.id);
+        setDeleteConfirmOpen(false);
+        setPackageToDelete(null);
+        setDeleteText("");
+      } catch (error) {
+        // Error already handled in deletePackageType
+      } finally {
+        setIsDeleting(false);
+      }
+    }
+  };
+
+  const handleDeleteDialogClose = (open: boolean) => {
+    if (!isDeleting) {
+      setDeleteConfirmOpen(open);
+      if (!open) {
+        setDeleteText("");
+        setPackageToDelete(null);
+      }
     }
   };
 
@@ -543,8 +611,14 @@ export const PackageManagement = () => {
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{pkg.package_name}</h4>
-                          <Badge variant={pkg.is_active ? "default" : "secondary"}>
-                            {pkg.is_active ? "Active" : "Inactive"}
+                          <Badge 
+                            variant="secondary"
+                            className={pkg.is_active !== false 
+                              ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 border-green-200 dark:border-green-800" 
+                              : ""
+                            }
+                          >
+                            {pkg.is_active !== false ? "Active" : "Inactive"}
                           </Badge>
                         </div>
                         {pkg.description && (
@@ -628,7 +702,7 @@ export const PackageManagement = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="edit-name">
                 Package Name <span className="text-red-500">*</span>
@@ -823,7 +897,11 @@ export const PackageManagement = () => {
             </div>
 
             <div className="flex gap-2 pt-2">
-              <Button type="submit" disabled={isSubmitting}>
+              <Button 
+                type="button" 
+                disabled={isSubmitting}
+                onClick={handleEditSubmit}
+              >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -845,31 +923,117 @@ export const PackageManagement = () => {
                 Cancel
               </Button>
             </div>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete <strong>{packageToDelete?.package_name}</strong>? 
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-red-500 hover:bg-red-600"
+      <Dialog open={deleteConfirmOpen} onOpenChange={handleDeleteDialogClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 ring-4 ring-destructive/10">
+                <AlertTriangle className="h-6 w-6 text-destructive animate-pulse" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold">Delete Package</DialogTitle>
+                <DialogDescription className="text-base">
+                  This action cannot be undone
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Package Information */}
+            <div className="rounded-xl bg-gradient-to-br from-muted/50 to-muted/30 border border-border/50 p-4 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Package Name</p>
+                <p className="text-base font-bold text-foreground mt-1">{packageToDelete?.package_name}</p>
+              </div>
+              {packageToDelete?.description && (
+                <div className="pt-2 border-t border-border/50">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Description</p>
+                  <p className="text-sm text-muted-foreground mt-1">{packageToDelete.description}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Warning Message */}
+            <div className="rounded-xl border-2 border-destructive/30 bg-gradient-to-br from-destructive/10 to-destructive/5 p-4 shadow-sm">
+              <p className="text-sm text-destructive font-semibold flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>Deleting this package will permanently remove:</span>
+              </p>
+              <ul className="mt-3 text-sm text-destructive/90 space-y-2 ml-6">
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive">•</span>
+                  <span>Package configuration and settings</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive">•</span>
+                  <span>Associated form assignments</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-destructive">•</span>
+                  <span>Client package associations may be affected</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Confirmation Input */}
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirm" className="text-sm font-semibold">
+                Type <span className="font-mono font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded">DELETE</span> to confirm
+              </Label>
+              <Input
+                id="delete-confirm"
+                value={deleteText}
+                onChange={(e) => setDeleteText(e.target.value)}
+                placeholder="Type DELETE here"
+                className="font-mono text-base h-11 border-2 border-border/60 focus:border-destructive/50 transition-colors"
+                disabled={isDeleting}
+                autoComplete="off"
+              />
+              {deleteText && deleteText !== "DELETE" && (
+                <p className="text-xs text-destructive/70 flex items-center gap-1">
+                  <span>•</span>
+                  <span>Must type exactly: DELETE</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-border/50">
+            <Button
+              variant="outline"
+              onClick={() => handleDeleteDialogClose(false)}
+              disabled={isDeleting}
+              className="px-6 hover:bg-muted transition-colors"
             >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteText !== "DELETE" || isDeleting}
+              className="px-8 bg-gradient-to-r from-destructive to-destructive/90 hover:from-destructive/90 hover:to-destructive/80 shadow-lg shadow-destructive/20 hover:shadow-xl hover:shadow-destructive/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Package
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Form Dialog */}
       <CreateFormDialog

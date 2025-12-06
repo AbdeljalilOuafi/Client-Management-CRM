@@ -28,14 +28,25 @@ export interface Package {
 export async function listPackages(): Promise<Package[]> {
   const data = await apiFetch(`${API_BASE_URL}/api/packages/`, { method: "GET" });
   
+  console.log('[listPackages] Raw API response:', data);
+  
   // Handle both paginated response (with results array) and direct array
+  let packages: Package[];
   if (Array.isArray(data)) {
-    return data;
+    packages = data;
   } else if (data.results && Array.isArray(data.results)) {
-    return data.results;
+    packages = data.results;
   } else {
-    return [];
+    packages = [];
   }
+  
+  // Log the first package to see its structure
+  if (packages.length > 0) {
+    console.log('[listPackages] First package structure:', JSON.stringify(packages[0], null, 2));
+    console.log('[listPackages] Available fields:', Object.keys(packages[0]));
+  }
+  
+  return packages;
 }
 
 /**
@@ -92,10 +103,18 @@ export async function updatePackage(
     review_form?: string | null;
   }>
 ): Promise<Package> {
-  return apiFetch(`${API_BASE_URL}/api/packages/${packageId}/`, {
+  const url = `${API_BASE_URL}/api/packages/${packageId}/`;
+  console.log('[updatePackage] URL:', url);
+  console.log('[updatePackage] Package ID:', packageId);
+  console.log('[updatePackage] Data being sent:', JSON.stringify(packageData, null, 2));
+  
+  const result = await apiFetch(url, {
     method: "PATCH",
     body: JSON.stringify(packageData),
   });
+  
+  console.log('[updatePackage] Response:', result);
+  return result;
 }
 
 /**

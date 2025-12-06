@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2 } from "lucide-react";
 
 interface Question {
@@ -26,7 +24,6 @@ interface QuestionEditorProps {
 }
 
 const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, onUpdate }) => {
-  const { toast } = useToast();
   const [localQuestion, setLocalQuestion] = useState<Question>(question);
 
   // Update local state when question prop changes
@@ -38,11 +35,7 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, on
     const updated = { ...localQuestion, ...updates };
     setLocalQuestion(updated);
     onUpdate(updated);
-    
-    toast({
-      title: "Success",
-      description: "Question updated",
-    });
+    // Note: Don't show toast here - the actual save happens when user clicks "Save Changes" in the sidebar
   };
 
   const handleAddOption = () => {
@@ -77,38 +70,6 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, on
     });
   };
 
-  const handleAddLogic = (optionIndex: number) => {
-    const logic = localQuestion.config?.logic || {};
-    handleUpdate({
-      config: {
-        ...localQuestion.config,
-        logic: {
-          ...logic,
-          [optionIndex]: { action: "show", targetQuestions: [] },
-        },
-      },
-    });
-  };
-
-  const handleUpdateLogic = (optionIndex: number, targetQuestionId: string) => {
-    const logic = localQuestion.config?.logic || {};
-    handleUpdate({
-      config: {
-        ...localQuestion.config,
-        logic: {
-          ...logic,
-          [optionIndex]: { 
-            action: "show", 
-            targetQuestions: targetQuestionId ? [targetQuestionId] : [] 
-          },
-        },
-      },
-    });
-  };
-
-  const availableQuestions = questions.filter(
-    (q) => q.order_index > localQuestion.order_index
-  );
 
   return (
     <div className="space-y-4">
@@ -117,8 +78,12 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, on
           <Input
             id="question_text"
             value={localQuestion.question_text}
-            onChange={(e) => setLocalQuestion({ ...localQuestion, question_text: e.target.value })}
-            onBlur={() => handleUpdate({ question_text: localQuestion.question_text })}
+            onChange={(e) => {
+              const newText = e.target.value;
+              setLocalQuestion({ ...localQuestion, question_text: newText });
+              // Update parent immediately so Save button always has latest value
+              onUpdate({ ...localQuestion, question_text: newText });
+            }}
             className="mt-1.5"
           />
         </div>
@@ -137,55 +102,20 @@ const QuestionEditor: React.FC<QuestionEditorProps> = ({ question, questions, on
             <div className="space-y-3 pt-2">
               <Label>Options</Label>
               {localQuestion.config?.options?.map((option: string, index: number) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      value={option}
-                      onChange={(e) => handleUpdateOption(index, e.target.value)}
-                      placeholder={`Option ${index + 1}`}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => handleDeleteOption(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Conditional Logic */}
-                  {localQuestion.config?.logic?.[index] ? (
-                    <div className="ml-4 p-3 border rounded-lg space-y-2 bg-muted/50">
-                      <Label className="text-xs text-muted-foreground">
-                        When selected, show these questions:
-                      </Label>
-                      <Select
-                        value={localQuestion.config.logic[index].targetQuestions?.[0] || ""}
-                        onValueChange={(value) => handleUpdateLogic(index, value)}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="Select question..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableQuestions.map((q) => (
-                            <SelectItem key={q.id} value={q.id}>
-                              {q.question_text}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAddLogic(index)}
-                      className="ml-4 h-8 text-xs"
-                    >
-                      Add Conditional Logic
-                    </Button>
-                  )}
+                <div key={index} className="flex gap-2">
+                  <Input
+                    value={option}
+                    onChange={(e) => handleUpdateOption(index, e.target.value)}
+                    placeholder={`Option ${index + 1}`}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() => handleDeleteOption(index)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               ))}
               <Button 
